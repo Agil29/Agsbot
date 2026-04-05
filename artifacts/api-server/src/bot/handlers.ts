@@ -21,7 +21,6 @@ import {
 } from "./keyboards";
 
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
-const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
 const DOPU_CEK_STOK_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
 
 function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPackages> = []): PackageKeyboardOpts {
@@ -212,21 +211,6 @@ export function setupHandlers(bot: TelegramBot) {
       text += `<i>... dan ${userOrders.length - maxShow} transaksi lainnya</i>`;
     }
     await bot.sendMessage(msg.chat.id, text, { parse_mode: "HTML" });
-  });
-
-  bot.onText(/📱 CEK PAKET & AREA/, async (msg) => {
-    const chatId = msg.chat.id;
-    if (CEK_PAKET_URL) {
-      await bot.sendMessage(chatId, "📱 <b>CEK PAKET & AREA</b>\n\nKlik tombol di bawah untuk cek paket aktif & area:", {
-        parse_mode: "HTML",
-        reply_markup: { inline_keyboard: [[{ text: "📱 Buka Cek Paket & Area", url: CEK_PAKET_URL }]] },
-      });
-    } else {
-      await bot.sendMessage(chatId,
-        `📱 <b>CEK PAKET & AREA</b>\n\nFitur cek paket belum tersedia. Hubungi @${SUPPORT_USERNAME}`,
-        { parse_mode: "HTML" }
-      );
-    }
   });
 
   bot.on("message", async (msg) => {
