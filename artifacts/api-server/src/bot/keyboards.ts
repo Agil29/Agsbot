@@ -1,12 +1,16 @@
 import TelegramBot from "node-telegram-bot-api";
 import { type PackageItem } from "./store";
 
-export function mainMenuKeyboard(): TelegramBot.ReplyKeyboardMarkup {
+export function mainMenuKeyboard(cekPaketUrl?: string): TelegramBot.ReplyKeyboardMarkup {
+  const cekPaketBtn: TelegramBot.KeyboardButton = cekPaketUrl
+    ? { text: "📱 CEK PAKET", web_app: { url: cekPaketUrl } }
+    : { text: "📱 CEK PAKET" };
+
   return {
     keyboard: [
       [{ text: "📦 ORDER" }],
       [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT TRANSAKSI" }],
-      [{ text: "📊 CEK STOK" }, { text: "📱 CEK PAKET" }],
+      [{ text: "📊 CEK STOK" }, cekPaketBtn],
       [{ text: "📍 CEK LOKASI" }],
       [{ text: "🏠 Menu" }],
     ],

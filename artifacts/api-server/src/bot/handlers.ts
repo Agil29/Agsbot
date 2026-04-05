@@ -113,7 +113,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard(),
+      reply_markup: mainMenuKeyboard(CEK_PAKET_URL || undefined),
     });
   });
 
@@ -123,7 +123,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard(),
+      reply_markup: mainMenuKeyboard(CEK_PAKET_URL || undefined),
     });
   });
 
@@ -206,17 +206,6 @@ export function setupHandlers(bot: TelegramBot) {
     }
   });
 
-  bot.onText(/📱 CEK PAKET/, async (msg) => {
-    const chatId = msg.chat.id;
-    if (CEK_PAKET_URL) {
-      await bot.sendMessage(chatId, "📱 <b>CEK PAKET</b>\n\nKlik tombol di bawah:", {
-        parse_mode: "HTML",
-        reply_markup: { inline_keyboard: [[{ text: "📱 Buka Cek Paket", web_app: { url: CEK_PAKET_URL } }]] },
-      });
-    } else {
-      handleOrder(bot)(msg);
-    }
-  });
 
   bot.onText(/📍 CEK LOKASI/, async (msg) => {
     const chatId = msg.chat.id;
