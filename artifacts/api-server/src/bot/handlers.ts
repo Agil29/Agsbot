@@ -23,12 +23,10 @@ const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
 const CEK_STOK_URL = process.env.CEK_STOK_URL ?? "";
 const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
 const CEK_LOKASI_URL = process.env.CEK_LOKASI_URL ?? "";
-const CEK_STOK_AKRAB1_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
-const CEK_STOK_CIRCLE_URL = process.env.CEK_STOK_CIRCLE_URL ?? "https://juraganxl.my.id/";
+const CEK_STOK_JURAGANKUOTA_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
 
 function pkgKeyboardOpts(category: Category): PackageKeyboardOpts {
-  if (category === "akrab1") return { columns: 3, cekStokUrl: CEK_STOK_AKRAB1_URL };
-  if (category === "circle") return { columns: 3, cekStokUrl: CEK_STOK_CIRCLE_URL };
+  if (category === "akrab1" || category === "circle") return { columns: 3 };
   return {};
 }
 
@@ -123,7 +121,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard(CEK_PAKET_URL || undefined),
+      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: CEK_STOK_JURAGANKUOTA_URL }),
     });
   });
 
@@ -133,7 +131,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard(CEK_PAKET_URL || undefined),
+      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: CEK_STOK_JURAGANKUOTA_URL }),
     });
   });
 
@@ -430,10 +428,6 @@ export function setupHandlers(bot: TelegramBot) {
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
       } else if (pkg.source === "dopu" && pkg.sku) {
         detailLines.push(`Produk: <b>${pkg.name}</b>`);
-        detailLines.push(`SKU: <code>${pkg.sku}</code>`);
-        const stokStatus = pkg.stock && pkg.stock > 0 ? `✅ Ada` : "❌ Kosong";
-        detailLines.push(`Stok: <b>${stokStatus}</b>`);
-        if (pkg.description) detailLines.push(`Kuota: <b>${pkg.description}</b>`);
         detailLines.push(`Masa Aktif: <b>${pkg.validity}</b>`);
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
       } else {

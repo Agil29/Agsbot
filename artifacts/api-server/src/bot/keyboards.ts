@@ -1,16 +1,25 @@
 import TelegramBot from "node-telegram-bot-api";
 import { type PackageItem } from "./store";
 
-export function mainMenuKeyboard(cekPaketUrl?: string): TelegramBot.ReplyKeyboardMarkup {
-  const cekPaketBtn: TelegramBot.KeyboardButton = cekPaketUrl
-    ? { text: "📱 CEK PAKET", web_app: { url: cekPaketUrl } }
+export type MainMenuOpts = {
+  cekPaketUrl?: string;
+  cekStokUrl?: string;
+};
+
+export function mainMenuKeyboard(opts: MainMenuOpts = {}): TelegramBot.ReplyKeyboardMarkup {
+  const cekPaketBtn: TelegramBot.KeyboardButton = opts.cekPaketUrl
+    ? { text: "📱 CEK PAKET", web_app: { url: opts.cekPaketUrl } }
     : { text: "📱 CEK PAKET" };
+
+  const cekStokBtn: TelegramBot.KeyboardButton = opts.cekStokUrl
+    ? { text: "📊 CEK STOK", web_app: { url: opts.cekStokUrl } }
+    : { text: "📊 CEK STOK" };
 
   return {
     keyboard: [
       [{ text: "📦 ORDER" }],
       [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT TRANSAKSI" }],
-      [{ text: "📊 CEK STOK" }, cekPaketBtn],
+      [cekStokBtn, cekPaketBtn],
       [{ text: "📍 CEK LOKASI" }],
       [{ text: "🏠 Menu" }],
     ],
@@ -35,7 +44,6 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
 
 export type PackageKeyboardOpts = {
   columns?: number;
-  cekStokUrl?: string;
   pageSize?: number;
 };
 
@@ -53,11 +61,12 @@ export function packageInlineKeyboard(
 
   const buttons: TelegramBot.InlineKeyboardButton[] = pageItems.map((pkg) => {
     let label: string;
-    if (pkg.source === "api2" || pkg.source === "dopu") {
-      const stockText = pkg.stock && pkg.stock > 0
-        ? (pkg.source === "api2" ? `✅ ${pkg.stock}` : `✅`)
-        : "❌";
+    if (pkg.source === "api2") {
+      const stockText = pkg.stock && pkg.stock > 0 ? `✅ ${pkg.stock}` : "❌";
       label = `${pkg.name} ${stockText}`;
+      if (pkg.price > 0) label += ` — Rp ${pkg.price.toLocaleString("id-ID")}`;
+    } else if (pkg.source === "dopu") {
+      label = pkg.name;
       if (pkg.price > 0) label += ` — Rp ${pkg.price.toLocaleString("id-ID")}`;
     } else {
       label = `${pkg.name} — Rp ${pkg.price.toLocaleString("id-ID")}`;
@@ -67,23 +76,16 @@ export function packageInlineKeyboard(
 
   const rows: TelegramBot.InlineKeyboardButton[][] = [];
 
-  // Optional Cek Stok URL button at top
-  if (opts.cekStokUrl) {
-    rows.push([{ text: "🔍 Cek Stok & Kuota", url: opts.cekStokUrl }]);
-  }
-
-  // Package buttons grid
   for (let i = 0; i < buttons.length; i += columns) {
     rows.push(buttons.slice(i, i + columns));
   }
 
-  // Nav row
   const navRow: TelegramBot.InlineKeyboardButton[] = [];
   if (page > 0) navRow.push({ text: "⬅ Sebelumnya", callback_data: `page_${page - 1}` });
   if (page < totalPages - 1) navRow.push({ text: "Selanjutnya ➡", callback_data: `page_${page + 1}` });
   if (navRow.length > 0) rows.push(navRow);
 
-  rows.push([{ text: "🔄 Refresh Stok", callback_data: "refresh_stock" }]);
+  rows.push([{ text: "🔄 Refresh", callback_data: "refresh_stock" }]);
   rows.push([{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }]);
 
   return { inline_keyboard: rows };
