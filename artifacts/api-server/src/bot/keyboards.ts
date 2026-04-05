@@ -13,7 +13,6 @@ export function mainMenuKeyboard(
       [{ text: "📦 ORDER" }],
       [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT TRANSAKSI" }],
       [{ text: "📱 CEK PAKET & AREA", web_app: { url: "https://bendith.my.id/" } }],
-      [{ text: "🌐 Juragan XL", web_app: { url: "https://juraganxl.my.id/" } }],
       [{ text: "🏠 Menu" }],
     ],
     resize_keyboard: true,
@@ -72,7 +71,7 @@ export function packageInlineKeyboard(
 
   // Cek Stok URL button at top for DOPU categories
   if (opts.cekStokUrl) {
-    rows.push([{ text: "📊 Cek Stok & Kuota", url: opts.cekStokUrl }]);
+    rows.push([{ text: "📊 Cek Stok & Kuota", web_app: { url: opts.cekStokUrl } }]);
   }
 
   // Package grid
