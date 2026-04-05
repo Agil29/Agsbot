@@ -32,7 +32,7 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
 export function packageInlineKeyboard(
   packages: PackageItem[],
   page = 0,
-  pageSize = 5,
+  pageSize = 6,
 ): TelegramBot.InlineKeyboardMarkup {
   const start = page * pageSize;
   const end = start + pageSize;
