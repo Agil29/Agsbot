@@ -611,17 +611,18 @@ export function setupHandlers(bot: TelegramBot) {
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );
 
-          // Auto-poll DOPU status: check every 5 minutes for up to 30 minutes (6 attempts)
+          // Auto-poll DOPU status: check every 1 minute for up to 30 minutes (30 attempts)
           if (dopuRef) {
             const pkgName = session.selectedPackageName ?? sku;
-            const MAX_ATTEMPTS = 6;
-            const INTERVAL_MS = 5 * 60 * 1000;
+            const dopuTrxId = sn || undefined; // DOPU's own #trx number (e.g. "403619")
+            const MAX_ATTEMPTS = 30;
+            const INTERVAL_MS = 60 * 1000;
             let attempt = 0;
 
             const poll = async () => {
               attempt++;
               try {
-                const statusRes = await checkDopuOrderStatus(dopuRef);
+                const statusRes = await checkDopuOrderStatus(dopuRef, dopuTrxId);
                 logger.info({ dopuRef, attempt, status: statusRes.status }, "DOPU pending poll result");
 
                 if (statusRes.status === "success") {

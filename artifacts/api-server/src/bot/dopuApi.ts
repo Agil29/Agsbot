@@ -112,68 +112,47 @@ export type DopuStatusResult =
   | { status: "failed"; error: string };
 
 /**
- * Check the status of a pending DOPU order via /cek endpoint.
+ * Check the status of a pending DOPU order.
+ * Tries /cek with refID, then trxID (DOPU's own #trx number) if available.
  * Returns: success (delivered), pending (still processing), or failed.
  */
-export async function checkDopuOrderStatus(reffId: string): Promise<DopuStatusResult> {
+export async function checkDopuOrderStatus(reffId: string, trxId?: string): Promise<DopuStatusResult> {
   const baseUrl = process.env.DOPU_BASE_URL ?? "http://141.11.190.108:8182";
   const memberId = process.env.DOPU_MEMBER_ID ?? "";
   const pin = process.env.DOPU_PIN ?? "";
 
   if (!memberId || !pin) return { status: "pending" };
 
-  try {
-    const res = await axios.get(`${baseUrl}/cek`, {
-      params: { memberID: memberId, pin, refID: reffId },
-      timeout: 15000,
-    });
-    const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-    logger.info({ reffId, raw }, "DOPU cek response");
-
+  function parseRaw(raw: string, identifier: string): DopuStatusResult | null {
     const upper = raw.toUpperCase();
 
-    // Parse query-string format: status=1/0/2
     if (/status=\d/i.test(raw)) {
-      const params = new URLSearchParams(raw);
-      const st = params.get("status") ?? "";
-      const message = params.get("message") ?? raw;
+      const qp = new URLSearchParams(raw);
+      const st = qp.get("status") ?? "";
+      const message = qp.get("message") ?? raw;
       const msgUpper = message.toUpperCase();
 
       if (st === "1") {
-        // Still processing
-        if (msgUpper.includes("PROSES") || msgUpper.includes("PENDING") || msgUpper.includes("ANTRI")) {
-          return { status: "pending" };
-        }
-        // status=1 can also mean success in some contexts
-        const snMatch = message.match(/#trx[:\s]*(\d+)/i) ?? message.match(/\bSN[:\s]+(\S+)/i);
         if (msgUpper.includes("SUKSES") || msgUpper.includes("BERHASIL") || msgUpper.includes("SUCCESS")) {
-          return { status: "success", sn: snMatch?.[1] ?? reffId };
+          const snMatch = message.match(/#trx[:\s]*(\d+)/i) ?? message.match(/\bSN[:\s]+(\S+)/i);
+          return { status: "success", sn: snMatch?.[1] ?? identifier };
         }
+        // PROSES / ANTRI / atau status=1 tanpa keyword sukses = masih pending
         return { status: "pending" };
       }
 
       if (st === "0") {
         let error = "Transaksi gagal";
-        if (msgUpper.includes("GAGAL") || msgUpper.includes("FAILED") || msgUpper.includes("BATAL")) {
-          const match = message.match(/(?:GAGAL|FAILED|BATAL)[,.\s!]+([^\n*]+)/i);
-          if (match) error = match[1].trim().slice(0, 120);
-          else error = message.trim().slice(0, 120);
-        } else if (msgUpper.includes("STOK") || msgUpper.includes("KOSONG")) {
-          error = "Stok habis/ditutup";
-        } else if (message.trim().length > 0) {
-          error = message.trim().slice(0, 120);
-        }
+        if (message.trim().length > 0) error = message.trim().slice(0, 120);
         return { status: "failed", error };
       }
 
-      // status=2 or other = still pending
       return { status: "pending" };
     }
 
-    // Plain-text format
     if (upper.includes("SUKSES") || upper.includes("SUCCESS") || upper.includes("BERHASIL")) {
       const snMatch = raw.match(/#trx[:\s]*(\d+)/i) ?? raw.match(/\bSN[:\s]+(\S+)/i);
-      return { status: "success", sn: snMatch?.[1] ?? reffId };
+      return { status: "success", sn: snMatch?.[1] ?? identifier };
     }
     if (upper.includes("GAGAL") || upper.includes("FAILED") || upper.includes("BATAL")) {
       return { status: "failed", error: raw.trim().slice(0, 120) };
@@ -182,12 +161,34 @@ export async function checkDopuOrderStatus(reffId: string): Promise<DopuStatusRe
       return { status: "pending" };
     }
 
-    // Unknown response — treat as still pending
-    return { status: "pending" };
-  } catch (err: any) {
-    logger.warn({ err, reffId }, "DOPU cek request failed — treating as pending");
-    return { status: "pending" };
+    return null;
   }
+
+  // Try with refID first, then with DOPU's own trxID
+  const paramSets = [
+    { memberID: memberId, pin, refID: reffId },
+    ...(trxId ? [{ memberID: memberId, pin, trxID: trxId }] : []),
+    ...(trxId ? [{ memberID: memberId, pin, id: trxId }] : []),
+  ];
+
+  for (const params of paramSets) {
+    try {
+      const res = await axios.get(`${baseUrl}/cek`, { params, timeout: 15000 });
+      const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+      logger.info({ reffId, trxId, params, raw }, "DOPU cek response");
+
+      const parsed = parseRaw(raw, trxId ?? reffId);
+      if (parsed) return parsed;
+    } catch (err: any) {
+      const errMsg = err?.response?.status
+        ? `HTTP ${err.response.status}: ${String(err.response.data ?? "").slice(0, 80)}`
+        : String(err?.message ?? err).slice(0, 80);
+      logger.warn({ reffId, trxId, params, errMsg }, "DOPU cek attempt failed");
+    }
+  }
+
+  // All attempts failed or returned unknown — still pending
+  return { status: "pending" };
 }
 
 export async function placeDopuOrder(params: {
