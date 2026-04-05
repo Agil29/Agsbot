@@ -6,6 +6,74 @@ export type DopuOrderResult =
   | { success: true; sn: string; note: string; reffId: string }
   | { success: false; error: string; note: string; reffId: string };
 
+/**
+ * Parse DOPU response — supports two formats:
+ *   1. Query-string format: "status=1&message=* CIRCLE ... #trx:403299 ..."
+ *   2. Plain-text format:   "SUKSES ... SN/Ref: XXXXX" or "Alamat IP tidak sesuai"
+ */
+function parseDopuResponse(raw: string): { success: boolean; sn: string; errorMsg: string } {
+  const upper = raw.toUpperCase();
+
+  // --- Format 1: query-string (status=0 / status=1) ---
+  if (/status=\d/i.test(raw)) {
+    try {
+      const params = new URLSearchParams(raw);
+      const status = params.get("status") ?? params.get("STATUS") ?? "";
+      const message = params.get("message") ?? params.get("MESSAGE") ?? raw;
+      const msgUpper = message.toUpperCase();
+
+      if (status === "1") {
+        // Success — extract #trx:XXXXX as SN
+        const trxMatch = message.match(/#trx[:\s]*(\d+)/i) ?? message.match(/\btrx[:\s]*(\d+)/i);
+        const sn = trxMatch?.[1] ?? "";
+        return { success: true, sn, errorMsg: "" };
+      }
+
+      // status != 1 → failure, read message for error reason
+      let errorMsg = "Transaksi gagal";
+      if (msgUpper.includes("IP") || msgUpper.includes("ALAMAT")) {
+        errorMsg = "IP server belum terdaftar di DOPU. Hubungi admin.";
+      } else if (msgUpper.includes("SALDO")) {
+        errorMsg = "Saldo DOPU tidak cukup. Hubungi admin.";
+      } else if (msgUpper.includes("KOSONG") || msgUpper.includes("STOK")) {
+        errorMsg = "Stok sedang kosong/ditutup";
+      } else if (msgUpper.includes("NOMOR")) {
+        errorMsg = "Nomor tujuan tidak valid";
+      } else if (message.length > 0) {
+        errorMsg = message.trim().slice(0, 120);
+      }
+      return { success: false, sn: "", errorMsg };
+    } catch {
+      // fall through to plain-text parser
+    }
+  }
+
+  // --- Format 2: plain-text ---
+  if (upper.includes("SUKSES") || upper.includes("SUCCESS") || upper.includes("BERHASIL") || upper.includes("DIPROSES")) {
+    const snMatch =
+      raw.match(/#trx[:\s]*(\d+)/i) ??
+      raw.match(/SN\/Ref[:\s]+(\S+)/i) ??
+      raw.match(/"sn"\s*:\s*"([^"]+)"/i) ??
+      raw.match(/\bSN[:\s]+(\S+)/i);
+    return { success: true, sn: snMatch?.[1] ?? "", errorMsg: "" };
+  }
+
+  let errorMsg = "Transaksi gagal";
+  if (upper.includes("IP") || upper.includes("ALAMAT")) {
+    errorMsg = "IP server belum terdaftar di DOPU. Hubungi admin.";
+  } else if (upper.includes("SALDO")) {
+    errorMsg = "Saldo DOPU tidak cukup. Hubungi admin.";
+  } else if (upper.includes("KOSONG") || upper.includes("STOK")) {
+    errorMsg = "Stok sedang kosong/ditutup";
+  } else if (upper.includes("NOMOR")) {
+    errorMsg = "Nomor tujuan tidak valid";
+  } else if (upper.includes("GAGAL") || upper.includes("FAILED")) {
+    const match = raw.match(/GAGAL[,.\s!]+([^\n*]+)/i);
+    if (match) errorMsg = match[1].trim().slice(0, 120);
+  }
+  return { success: false, sn: "", errorMsg };
+}
+
 export async function placeDopuOrder(params: {
   sku: string;
   tujuan: string;
@@ -38,33 +106,14 @@ export async function placeDopuOrder(params: {
     const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
     logger.info({ sku: params.sku, tujuan: params.tujuan, reffId, raw }, "DOPU trx response");
 
-    // Trim raw to a reasonable display length
     const note = raw.length > 300 ? raw.slice(0, 300) + "..." : raw;
+    const parsed = parseDopuResponse(raw);
 
-    const upper = raw.toUpperCase();
-    if (upper.includes("SUKSES") || upper.includes("SUCCESS") || upper.includes("BERHASIL")) {
-      const snMatch =
-        raw.match(/SN\/Ref[:\s]+(\S+)/i) ??
-        raw.match(/"sn"\s*:\s*"([^"]+)"/i) ??
-        raw.match(/\bSN[:\s]+(\S+)/i);
-      return { success: true, sn: snMatch?.[1] ?? reffId, note, reffId };
+    if (parsed.success) {
+      return { success: true, sn: parsed.sn || reffId, note, reffId };
     }
+    return { success: false, error: parsed.errorMsg, note, reffId };
 
-    let errorMsg = "Transaksi gagal";
-    if (upper.includes("KOSONG") || upper.includes("STOK")) {
-      errorMsg = "Stok sedang kosong/ditutup";
-    } else if (upper.includes("NOMOR")) {
-      errorMsg = "Nomor tujuan tidak valid";
-    } else if (upper.includes("IP") || upper.includes("ALAMAT")) {
-      errorMsg = "IP server belum terdaftar di DOPU. Hubungi admin.";
-    } else if (upper.includes("SALDO")) {
-      errorMsg = "Saldo DOPU tidak cukup. Hubungi admin.";
-    } else if (upper.includes("GAGAL") || upper.includes("FAILED")) {
-      const match = raw.match(/GAGAL[,.\s!]+([^\n*]+)/i);
-      if (match) errorMsg = match[1].trim().slice(0, 100);
-    }
-
-    return { success: false, error: errorMsg, note, reffId };
   } catch (err: any) {
     logger.error({ err, sku: params.sku }, "DOPU API request failed");
     const errNote = err?.response?.data
