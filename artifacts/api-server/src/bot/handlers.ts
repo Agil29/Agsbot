@@ -19,9 +19,9 @@ export function setupHandlers(bot: TelegramBot) {
 
     await bot.sendMessage(
       chatId,
-      `Selamat datang di *Ags Store | Paket Akrab* 👋\n\nHalo *${name}*!\n\nSilakan pilih menu di bawah:`,
+      `Selamat datang di <b>Ags Store | Paket Akrab</b> 👋\n\nHalo <b>${name}</b>!\n\nSilakan pilih menu di bawah:`,
       {
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         reply_markup: mainMenuKeyboard(),
       }
     );
@@ -33,16 +33,16 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/💰 TOPUP/, async (msg) => {
     await bot.sendMessage(
       msg.chat.id,
-      "💰 *TOPUP SALDO*\n\nUntuk topup saldo, silakan hubungi admin:\n@Agsstore_29",
-      { parse_mode: "Markdown" }
+      "💰 <b>TOPUP SALDO</b>\n\nUntuk topup saldo, silakan hubungi admin:\n@Agsstore_29",
+      { parse_mode: "HTML" }
     );
   });
 
   bot.onText(/📋 RIWAYAT TRANSAKSI/, async (msg) => {
     await bot.sendMessage(
       msg.chat.id,
-      "📋 *RIWAYAT TRANSAKSI*\n\nFitur ini akan segera tersedia.",
-      { parse_mode: "Markdown" }
+      "📋 <b>RIWAYAT TRANSAKSI</b>\n\nFitur ini akan segera tersedia.",
+      { parse_mode: "HTML" }
     );
   });
 
@@ -52,12 +52,12 @@ export function setupHandlers(bot: TelegramBot) {
     const circle = getPackages("circle");
 
     const text =
-      `📊 *CEK STOK PAKET*\n\n` +
-      `🟢 AKRAB 1: ${akrab1.length} paket tersedia\n` +
-      `🟡 AKRAB 2: ${akrab2.length} paket tersedia\n` +
-      `🔵 CIRCLE: ${circle.length} paket tersedia`;
+      `📊 <b>CEK STOK PAKET</b>\n\n` +
+      `🟢 AKRAB 1: <b>${akrab1.length}</b> paket tersedia\n` +
+      `🟡 AKRAB 2: <b>${akrab2.length}</b> paket tersedia\n` +
+      `🔵 CIRCLE: <b>${circle.length}</b> paket tersedia`;
 
-    await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
+    await bot.sendMessage(msg.chat.id, text, { parse_mode: "HTML" });
   });
 
   bot.onText(/📱 CEK PAKET/, handleOrder(bot));
@@ -65,8 +65,8 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/📍 CEK LOKASI/, async (msg) => {
     await bot.sendMessage(
       msg.chat.id,
-      "📍 *CEK LOKASI*\n\nFitur cek lokasi akan segera tersedia.",
-      { parse_mode: "Markdown" }
+      "📍 <b>CEK LOKASI</b>\n\nFitur cek lokasi akan segera tersedia.",
+      { parse_mode: "HTML" }
     );
   });
 
@@ -86,10 +86,10 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (data === "back_category") {
       setSession(userId, { step: "select_category", category: undefined, packageId: undefined });
-      await bot.editMessageText("📦 *PILIH KATEGORI*\n\nSilakan pilih kategori paket yang tersedia:", {
+      await bot.editMessageText("📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
         chat_id: chatId,
         message_id: messageId,
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         reply_markup: categoryInlineKeyboard(),
       });
       return;
@@ -117,11 +117,11 @@ export function setupHandlers(bot: TelegramBot) {
 
       if (packages.length === 0) {
         await bot.editMessageText(
-          `📦 *${categoryLabels[category]}*\n\n⚠️ Belum ada paket tersedia di kategori ini.\nHubungi admin: @Agsstore_29`,
+          `📦 <b>${categoryLabels[category]}</b>\n\n⚠️ Belum ada paket tersedia di kategori ini.\nHubungi admin: @Agsstore_29`,
           {
             chat_id: chatId,
             message_id: messageId,
-            parse_mode: "Markdown",
+            parse_mode: "HTML",
             reply_markup: backToCategoryKeyboard(),
           }
         );
@@ -129,11 +129,11 @@ export function setupHandlers(bot: TelegramBot) {
       }
 
       await bot.editMessageText(
-        `📦 *PAKET ${categoryLabels[category]}*\n\nPilih paket yang Anda inginkan:`,
+        `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
         {
           chat_id: chatId,
           message_id: messageId,
-          parse_mode: "Markdown",
+          parse_mode: "HTML",
           reply_markup: packageInlineKeyboard(packages, 0),
         }
       );
@@ -146,12 +146,6 @@ export function setupHandlers(bot: TelegramBot) {
       const category = session.category as Category | undefined;
       if (!category) return;
       const packages = getPackages(category);
-
-      const categoryLabels: Record<Category, string> = {
-        akrab1: "AKRAB 1",
-        akrab2: "AKRAB 2",
-        circle: "CIRCLE",
-      };
 
       await bot.editMessageReplyMarkup(packageInlineKeyboard(packages, page), {
         chat_id: chatId,
@@ -181,18 +175,18 @@ export function setupHandlers(bot: TelegramBot) {
       });
 
       const detail =
-        `📦 *DETAIL PAKET*\n\n` +
-        `Nama: *${pkg.name}*\n` +
-        `Kuota: *${pkg.quota}*\n` +
-        `Masa Aktif: *${pkg.validity}*\n` +
-        `Harga: *Rp ${pkg.price.toLocaleString("id-ID")}*\n\n` +
+        `📦 <b>DETAIL PAKET</b>\n\n` +
+        `Nama: <b>${pkg.name}</b>\n` +
+        `Kuota: <b>${pkg.quota}</b>\n` +
+        `Masa Aktif: <b>${pkg.validity}</b>\n` +
+        `Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>\n\n` +
         (pkg.description ? `${pkg.description}\n\n` : "") +
         `Konfirmasi order paket ini?`;
 
       await bot.editMessageText(detail, {
         chat_id: chatId,
         message_id: messageId,
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         reply_markup: confirmOrderKeyboard(pkg.id),
       });
       return;
@@ -203,15 +197,15 @@ export function setupHandlers(bot: TelegramBot) {
       const name = query.from.first_name ?? "Pelanggan";
 
       await bot.editMessageText(
-        `✅ *ORDER DITERIMA*\n\n` +
-          `Halo *${name}*, order Anda telah diterima!\n\n` +
-          `Paket: *${session.selectedPackageName}*\n` +
-          `Harga: *Rp ${session.selectedPackagePrice?.toLocaleString("id-ID")}*\n\n` +
+        `✅ <b>ORDER DITERIMA</b>\n\n` +
+          `Halo <b>${name}</b>, order Anda telah diterima!\n\n` +
+          `Paket: <b>${session.selectedPackageName}</b>\n` +
+          `Harga: <b>Rp ${session.selectedPackagePrice?.toLocaleString("id-ID")}</b>\n\n` +
           `Silakan lakukan pembayaran dan kirim bukti ke admin:\n@Agsstore_29`,
         {
           chat_id: chatId,
           message_id: messageId,
-          parse_mode: "Markdown",
+          parse_mode: "HTML",
         }
       );
 
@@ -231,8 +225,8 @@ function handleOrder(bot: TelegramBot) {
     const userId = msg.from?.id ?? chatId;
     setSession(userId, { step: "select_category" });
 
-    await bot.sendMessage(chatId, "📦 *PILIH KATEGORI*\n\nSilakan pilih kategori paket yang tersedia:", {
-      parse_mode: "Markdown",
+    await bot.sendMessage(chatId, "📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
+      parse_mode: "HTML",
       reply_markup: categoryInlineKeyboard(),
     });
   };
