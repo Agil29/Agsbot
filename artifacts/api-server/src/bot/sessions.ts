@@ -6,9 +6,12 @@ export type UserSession = {
     | "enter_phone"
     | "confirm_order";
   category?: string;
+  selectedCategory?: string;
   packageId?: string;
   selectedPackageName?: string;
   selectedPackagePrice?: number;
+  selectedPackageQuota?: string;
+  selectedPackageValidity?: string;
 };
 
 const sessions = new Map<number, UserSession>();

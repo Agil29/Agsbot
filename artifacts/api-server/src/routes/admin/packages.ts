@@ -9,6 +9,7 @@ import {
 } from "../../bot/store";
 import { refreshAllPackages } from "../../bot/apiService";
 import { getAllUsers, updateSaldo } from "../../bot/users";
+import { getAllOrders, updateOrderStatus, type OrderStatus } from "../../bot/orders";
 
 const router = Router();
 
@@ -134,6 +135,22 @@ router.post("/users/:telegramId/saldo", requireAdmin, (req, res) => {
     return res.status(404).json({ error: "User not found" });
   }
   res.json({ success: true, data: { telegramId, saldo: updated.saldo } });
+});
+
+router.get("/orders", requireAdmin, (_req, res) => {
+  res.json({ success: true, data: getAllOrders() });
+});
+
+router.put("/orders/:orderId/status", requireAdmin, (req, res) => {
+  const { orderId } = req.params;
+  const { status } = req.body;
+  const validStatuses: OrderStatus[] = ["pending", "paid", "processing", "done", "cancelled"];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: `status harus salah satu dari: ${validStatuses.join(", ")}` });
+  }
+  const updated = updateOrderStatus(orderId, status);
+  if (!updated) return res.status(404).json({ error: "Order tidak ditemukan" });
+  res.json({ success: true, data: updated });
 });
 
 export default router;

@@ -4,6 +4,12 @@ import { getPackages, type Category } from "./store";
 import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, formatRegDate } from "./users";
 import {
+  createOrder,
+  getOrdersByUser,
+  formatOrderDate,
+  statusLabel,
+} from "./orders";
+import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
   packageInlineKeyboard,
@@ -12,6 +18,28 @@ import {
 } from "./keyboards";
 
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
+const PAKASIR_URL = process.env.PAKASIR_PAYMENT_URL ?? "";
+const CEK_STOK_URL = process.env.CEK_STOK_URL ?? "";
+const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
+const CEK_LOKASI_URL = process.env.CEK_LOKASI_URL ?? "";
+
+function buildProfileText(user: ReturnType<typeof getUser>): string {
+  if (!user) return "Profil tidak ditemukan.";
+  return (
+    `👤 <b>PROFIL ANDA</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `• Nama: <b>${user.firstName}${user.lastName ? " " + user.lastName : ""}</b>\n` +
+    `• ID: <code>${user.telegramId}</code>\n` +
+    (user.username ? `• User: @${user.username}\n` : "") +
+    `• UID: <b>${user.uid}</b>\n` +
+    `• Reg: <b>${formatRegDate(user.regDate)}</b>\n\n` +
+    `<b>Saldo: Rp ${user.saldo.toLocaleString("id-ID")}</b>\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `Ada kendala? Hubungi @${SUPPORT_USERNAME}\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `📦 Sila Pilih Menu di bawah:`
+  );
+}
 
 export function setupHandlers(bot: TelegramBot) {
   bot.onText(/\/start/, async (msg) => {
@@ -19,22 +47,7 @@ export function setupHandlers(bot: TelegramBot) {
     const from = msg.from!;
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
-
-    const profileText =
-      `👤 <b>PROFIL ANDA</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `• Nama: <b>${user.firstName}${user.lastName ? " " + user.lastName : ""}</b>\n` +
-      `• ID: <code>${user.telegramId}</code>\n` +
-      (user.username ? `• User: @${user.username}\n` : "") +
-      `• UID: <b>${user.uid}</b>\n` +
-      `• Reg: <b>${formatRegDate(user.regDate)}</b>\n\n` +
-      `<b>Saldo: Rp ${user.saldo.toLocaleString("id-ID")}</b>\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `Ada kendala? Hubungi @${SUPPORT_USERNAME}\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `📦 Sila Pilih Menu di bawah:`;
-
-    await bot.sendMessage(chatId, profileText, {
+    await bot.sendMessage(chatId, buildProfileText(user), {
       parse_mode: "HTML",
       reply_markup: mainMenuKeyboard(),
     });
@@ -45,22 +58,7 @@ export function setupHandlers(bot: TelegramBot) {
     const from = msg.from!;
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
-
-    const profileText =
-      `👤 <b>PROFIL ANDA</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `• Nama: <b>${user.firstName}${user.lastName ? " " + user.lastName : ""}</b>\n` +
-      `• ID: <code>${user.telegramId}</code>\n` +
-      (user.username ? `• User: @${user.username}\n` : "") +
-      `• UID: <b>${user.uid}</b>\n` +
-      `• Reg: <b>${formatRegDate(user.regDate)}</b>\n\n` +
-      `<b>Saldo: Rp ${user.saldo.toLocaleString("id-ID")}</b>\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `Ada kendala? Hubungi @${SUPPORT_USERNAME}\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `📦 Sila Pilih Menu di bawah:`;
-
-    await bot.sendMessage(chatId, profileText, {
+    await bot.sendMessage(chatId, buildProfileText(user), {
       parse_mode: "HTML",
       reply_markup: mainMenuKeyboard(),
     });
@@ -70,43 +68,122 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/📦 ORDER/, handleOrder(bot));
 
   bot.onText(/💰 TOPUP/, async (msg) => {
-    await bot.sendMessage(
-      msg.chat.id,
-      `💰 <b>TOPUP SALDO</b>\n\nUntuk topup saldo, silakan hubungi admin:\n@${SUPPORT_USERNAME}`,
-      { parse_mode: "HTML" }
-    );
+    const chatId = msg.chat.id;
+    const from = msg.from!;
+    const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+
+    const topupText =
+      `💰 <b>TOPUP SALDO</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Saldo Anda saat ini: <b>Rp ${user.saldo.toLocaleString("id-ID")}</b>\n\n` +
+      `Silakan lakukan pembayaran melalui QRIS di bawah ini:`;
+
+    const keyboard: TelegramBot.InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [{ text: "💳 Bayar via QRIS (Pakasir)", url: PAKASIR_URL || `https://t.me/${SUPPORT_USERNAME}` }],
+        [{ text: "📩 Konfirmasi ke Admin", url: `https://t.me/${SUPPORT_USERNAME}` }],
+      ],
+    };
+
+    await bot.sendMessage(chatId, topupText, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
   });
 
   bot.onText(/📋 RIWAYAT TRANSAKSI/, async (msg) => {
-    await bot.sendMessage(
-      msg.chat.id,
-      "📋 <b>RIWAYAT TRANSAKSI</b>\n\nFitur ini akan segera tersedia.",
-      { parse_mode: "HTML" }
-    );
+    const chatId = msg.chat.id;
+    const from = msg.from!;
+    const userOrders = getOrdersByUser(from.id);
+
+    if (userOrders.length === 0) {
+      await bot.sendMessage(
+        chatId,
+        "📋 <b>RIWAYAT TRANSAKSI</b>\n\n━━━━━━━━━━━━━━━━━━━━\n\nAnda belum memiliki riwayat order.",
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    const maxShow = 5;
+    const shown = userOrders.slice(0, maxShow);
+
+    let text = `📋 <b>RIWAYAT TRANSAKSI</b>\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+    shown.forEach((order, idx) => {
+      text +=
+        `<b>${idx + 1}. ${order.packageName}</b>\n` +
+        `   🗂 ID: <code>${order.id}</code>\n` +
+        `   📦 ${order.quota} | ${order.validity}\n` +
+        `   💰 Rp ${order.price.toLocaleString("id-ID")}\n` +
+        `   ${statusLabel[order.status]}\n` +
+        `   🕐 ${formatOrderDate(order.createdAt)}\n\n`;
+    });
+
+    if (userOrders.length > maxShow) {
+      text += `<i>... dan ${userOrders.length - maxShow} transaksi lainnya</i>`;
+    }
+
+    await bot.sendMessage(chatId, text, { parse_mode: "HTML" });
   });
 
   bot.onText(/📊 CEK STOK/, async (msg) => {
-    const akrab1 = getPackages("akrab1");
-    const akrab2 = getPackages("akrab2");
-    const circle = getPackages("circle");
+    const chatId = msg.chat.id;
 
-    const text =
-      `📊 <b>CEK STOK PAKET</b>\n\n` +
-      `🟢 AKRAB 1: <b>${akrab1.length}</b> paket tersedia\n` +
-      `🟡 AKRAB 2: <b>${akrab2.length}</b> paket tersedia\n` +
-      `🔵 CIRCLE: <b>${circle.length}</b> paket tersedia`;
-
-    await bot.sendMessage(msg.chat.id, text, { parse_mode: "HTML" });
+    if (CEK_STOK_URL) {
+      const keyboard: TelegramBot.InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: "📊 Buka Cek Stok", web_app: { url: CEK_STOK_URL } }]],
+      };
+      await bot.sendMessage(chatId, "📊 <b>CEK STOK</b>\n\nKlik tombol di bawah untuk melihat stok:", {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+    } else {
+      const akrab1 = getPackages("akrab1");
+      const akrab2 = getPackages("akrab2");
+      const circle = getPackages("circle");
+      const text =
+        `📊 <b>CEK STOK PAKET</b>\n\n` +
+        `🟢 AKRAB 1: <b>${akrab1.length}</b> paket tersedia\n` +
+        `🟡 AKRAB 2: <b>${akrab2.length}</b> paket tersedia\n` +
+        `🔵 CIRCLE: <b>${circle.length}</b> paket tersedia`;
+      await bot.sendMessage(chatId, text, { parse_mode: "HTML" });
+    }
   });
 
-  bot.onText(/📱 CEK PAKET/, handleOrder(bot));
+  bot.onText(/📱 CEK PAKET/, async (msg) => {
+    const chatId = msg.chat.id;
+
+    if (CEK_PAKET_URL) {
+      const keyboard: TelegramBot.InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: "📱 Buka Cek Paket", web_app: { url: CEK_PAKET_URL } }]],
+      };
+      await bot.sendMessage(chatId, "📱 <b>CEK PAKET</b>\n\nKlik tombol di bawah untuk melihat paket:", {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+    } else {
+      handleOrder(bot)(msg);
+    }
+  });
 
   bot.onText(/📍 CEK LOKASI/, async (msg) => {
-    await bot.sendMessage(
-      msg.chat.id,
-      "📍 <b>CEK LOKASI</b>\n\nFitur cek lokasi akan segera tersedia.",
-      { parse_mode: "HTML" }
-    );
+    const chatId = msg.chat.id;
+
+    if (CEK_LOKASI_URL) {
+      const keyboard: TelegramBot.InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: "📍 Buka Cek Lokasi", web_app: { url: CEK_LOKASI_URL } }]],
+      };
+      await bot.sendMessage(chatId, "📍 <b>CEK LOKASI</b>\n\nKlik tombol di bawah untuk melihat lokasi:", {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+    } else {
+      await bot.sendMessage(
+        chatId,
+        "📍 <b>CEK LOKASI</b>\n\nMiniapp lokasi belum tersedia. Hubungi @" + SUPPORT_USERNAME,
+        { parse_mode: "HTML" }
+      );
+    }
   });
 
   bot.on("callback_query", async (query) => {
@@ -211,6 +288,9 @@ export function setupHandlers(bot: TelegramBot) {
         packageId: pkg.id,
         selectedPackageName: pkg.name,
         selectedPackagePrice: pkg.price,
+        selectedPackageQuota: pkg.quota,
+        selectedPackageValidity: pkg.validity,
+        selectedCategory: category,
       });
 
       const detail =
@@ -233,19 +313,41 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (data.startsWith("confirm_")) {
       const session = getSession(userId);
-      const user = getUser(userId);
-      const name = user?.firstName ?? query.from.first_name ?? "Pelanggan";
+      const from = query.from;
+      const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+
+      const order = createOrder({
+        userId: from.id,
+        userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
+        category: session.selectedCategory ?? "",
+        packageId: session.packageId ?? "",
+        packageName: session.selectedPackageName ?? "",
+        price: session.selectedPackagePrice ?? 0,
+        quota: session.selectedPackageQuota ?? "",
+        validity: session.selectedPackageValidity ?? "",
+      });
 
       await bot.editMessageText(
-        `✅ <b>ORDER DITERIMA</b>\n\n` +
-          `Halo <b>${name}</b>, order Anda telah diterima!\n\n` +
-          `Paket: <b>${session.selectedPackageName}</b>\n` +
-          `Harga: <b>Rp ${session.selectedPackagePrice?.toLocaleString("id-ID")}</b>\n\n` +
+        `✅ <b>ORDER DITERIMA</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `Halo <b>${user.firstName}</b>, order Anda telah diterima!\n\n` +
+          `🗂 ID Order: <code>${order.id}</code>\n` +
+          `📦 Paket: <b>${order.packageName}</b>\n` +
+          `📊 Kuota: <b>${order.quota}</b>\n` +
+          `⏱ Masa Aktif: <b>${order.validity}</b>\n` +
+          `💰 Harga: <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
           `Silakan lakukan pembayaran dan kirim bukti ke admin:\n@${SUPPORT_USERNAME}`,
         {
           chat_id: chatId,
           message_id: messageId,
           parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "💳 Bayar via QRIS (Pakasir)", url: PAKASIR_URL || `https://t.me/${SUPPORT_USERNAME}` }],
+              [{ text: "📩 Konfirmasi ke Admin", url: `https://t.me/${SUPPORT_USERNAME}` }],
+            ],
+          },
         }
       );
 
