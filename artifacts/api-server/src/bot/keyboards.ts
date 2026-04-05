@@ -63,6 +63,9 @@ export function packageInlineKeyboard(
   if (navRow.length > 0) rows.push(navRow);
 
   rows.push([
+    { text: "🔄 Refresh Stok", callback_data: "refresh_stock" },
+  ]);
+  rows.push([
     { text: "🔙 Kembali ke Kategori", callback_data: "back_category" },
   ]);
 

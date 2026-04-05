@@ -2,6 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import QRCode from "qrcode";
 import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
+import { refreshAllPackages } from "./apiService";
 import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, updateSaldo, formatRegDate } from "./users";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
@@ -325,6 +326,33 @@ export function setupHandlers(bot: TelegramBot) {
         `Hubungi @${SUPPORT_USERNAME} jika ada kendala.`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
+      return;
+    }
+
+    if (data === "refresh_stock") {
+      const session = getSession(userId);
+      const category = session.category as Category | undefined;
+      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+
+      await bot.answerCallbackQuery(query.id, { text: "🔄 Memperbarui stok..." });
+
+      try {
+        await refreshAllPackages();
+        const packages = category ? getPackages(category) : [];
+        const label = category ? categoryLabels[category] : "Paket";
+        await bot.editMessageText(
+          `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: "HTML",
+            reply_markup: packageInlineKeyboard(packages, session.page ?? 0),
+          }
+        );
+      } catch (err) {
+        logger.error({ err }, "Failed to refresh stock");
+        await bot.answerCallbackQuery(query.id, { text: "❌ Gagal refresh. Coba lagi." });
+      }
       return;
     }
 
