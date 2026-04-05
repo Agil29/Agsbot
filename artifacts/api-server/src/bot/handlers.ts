@@ -187,7 +187,7 @@ export function setupHandlers(bot: TelegramBot) {
     if (CEK_STOK_URL) {
       await bot.sendMessage(chatId, "📊 <b>CEK STOK</b>\n\nKlik tombol di bawah untuk melihat stok:", {
         parse_mode: "HTML",
-        reply_markup: { inline_keyboard: [[{ text: "📊 Buka Cek Stok", web_app: { url: CEK_STOK_URL } }]] },
+        reply_markup: { inline_keyboard: [[{ text: "📊 Buka Cek Stok", url: CEK_STOK_URL }]] },
       });
     } else {
       const akrab1 = getPackages("akrab1");
@@ -215,12 +215,27 @@ export function setupHandlers(bot: TelegramBot) {
   });
 
 
+  bot.onText(/📱 CEK PAKET/, async (msg) => {
+    const chatId = msg.chat.id;
+    if (CEK_PAKET_URL) {
+      await bot.sendMessage(chatId, "📱 <b>CEK PAKET</b>\n\nKlik tombol di bawah untuk cek paket aktif:", {
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: [[{ text: "📱 Buka Cek Paket", url: CEK_PAKET_URL }]] },
+      });
+    } else {
+      await bot.sendMessage(chatId,
+        `📱 <b>CEK PAKET</b>\n\nFitur cek paket belum tersedia. Hubungi @${SUPPORT_USERNAME}`,
+        { parse_mode: "HTML" }
+      );
+    }
+  });
+
   bot.onText(/📍 CEK LOKASI/, async (msg) => {
     const chatId = msg.chat.id;
     if (CEK_LOKASI_URL) {
       await bot.sendMessage(chatId, "📍 <b>CEK LOKASI</b>\n\nKlik tombol di bawah:", {
         parse_mode: "HTML",
-        reply_markup: { inline_keyboard: [[{ text: "📍 Buka Cek Lokasi", web_app: { url: CEK_LOKASI_URL } }]] },
+        reply_markup: { inline_keyboard: [[{ text: "📍 Buka Cek Lokasi", url: CEK_LOKASI_URL }]] },
       });
     } else {
       await bot.sendMessage(chatId,

@@ -7,13 +7,9 @@ export type MainMenuOpts = {
 };
 
 export function mainMenuKeyboard(opts: MainMenuOpts = {}): TelegramBot.ReplyKeyboardMarkup {
-  const cekPaketBtn: TelegramBot.KeyboardButton = opts.cekPaketUrl
-    ? { text: "📱 CEK PAKET", web_app: { url: opts.cekPaketUrl } }
-    : { text: "📱 CEK PAKET" };
+  const cekPaketBtn: TelegramBot.KeyboardButton = { text: "📱 CEK PAKET" };
 
-  const cekStokBtn: TelegramBot.KeyboardButton = opts.cekStokUrl
-    ? { text: "📊 CEK STOK", web_app: { url: opts.cekStokUrl } }
-    : { text: "📊 CEK STOK" };
+  const cekStokBtn: TelegramBot.KeyboardButton = { text: "📊 CEK STOK" };
 
   return {
     keyboard: [
@@ -77,9 +73,9 @@ export function packageInlineKeyboard(
 
   const rows: TelegramBot.InlineKeyboardButton[][] = [];
 
-  // Cek Stok web_app button at top for DOPU categories
+  // Cek Stok URL button at top for DOPU categories
   if (opts.cekStokUrl) {
-    rows.push([{ text: "📊 Cek Stok & Kuota", web_app: { url: opts.cekStokUrl } }]);
+    rows.push([{ text: "📊 Cek Stok & Kuota", url: opts.cekStokUrl }]);
   }
 
   // Package grid
