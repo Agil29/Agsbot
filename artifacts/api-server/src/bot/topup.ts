@@ -139,10 +139,17 @@ export async function checkPakasirStatus(orderId: string): Promise<string | null
 
   try {
     const res = await axios.get(`${PAKASIR_BASE}/transactiondetail`, {
-      params: { project, order_id: orderId, amount: order.nominal, api_key: apiKey },
+      params: { project, order_id: orderId, api_key: apiKey },
       timeout: 10000,
     });
-    return res.data?.transaction?.status ?? null;
+    logger.info({ orderId, data: res.data }, "Pakasir transactiondetail response");
+    // Try multiple field paths Pakasir might return
+    const status =
+      res.data?.transaction?.status ??
+      res.data?.data?.status ??
+      res.data?.status ??
+      null;
+    return status ? String(status) : null;
   } catch (err) {
     logger.error({ err }, "Failed to check Pakasir status");
     return null;

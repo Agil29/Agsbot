@@ -23,8 +23,10 @@ router.post("/pakasir", async (req, res) => {
     return res.status(400).json({ ok: false, message: "Missing fields" });
   }
 
-  if (status !== "completed") {
-    return res.json({ ok: true, message: "Ignored non-completed status" });
+  const isPaid = /paid|completed|settlement|success/i.test(status);
+  if (!isPaid) {
+    logger.info({ order_id, status }, "Pakasir webhook — ignoring non-paid status");
+    return res.json({ ok: true, message: "Ignored non-paid status" });
   }
 
   const topup = getTopupById(order_id);

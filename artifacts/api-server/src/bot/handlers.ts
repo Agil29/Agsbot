@@ -7,7 +7,7 @@ import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
-import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee } from "./topup";
+import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus } from "./topup";
 import { placeKhfyOrder } from "./khfyApi";
 import { placeDopuOrder, type DopuOrderResult } from "./dopuApi";
 import {
@@ -317,36 +317,92 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (!chatId || !messageId) return;
 
-    try { await bot.answerCallbackQuery(query.id); } catch { }
-
     if (data.startsWith("topup_paid_")) {
       const topupId = data.replace("topup_paid_", "");
       const topup = getTopupById(topupId);
 
       if (!topup) {
-        await bot.sendMessage(chatId, "❌ Order topup tidak ditemukan.", { parse_mode: "HTML" });
+        await bot.answerCallbackQuery(query.id, { text: "Order tidak ditemukan." });
         return;
       }
       if (topup.status === "expired") {
-        await bot.sendMessage(chatId, "⏰ Order ini sudah kadaluarsa.", { parse_mode: "HTML" });
+        await bot.answerCallbackQuery(query.id, { text: "⏰ Order sudah kadaluarsa." });
         return;
       }
-      if (topup.status !== "pending") {
-        await bot.sendMessage(chatId, "✅ Order ini sudah diproses sebelumnya.", { parse_mode: "HTML" });
+      if (topup.status === "completed" || topup.status === "done") {
+        await bot.answerCallbackQuery(query.id, { text: "✅ Topup sudah diproses." });
         return;
       }
 
+      await bot.answerCallbackQuery(query.id, { text: "🔄 Memeriksa pembayaran..." });
       updateTopupStatus(topupId, "confirming");
 
+      // Immediately check Pakasir — poll up to 4× every 10 seconds
       await bot.editMessageCaption(
-        `✅ <b>Konfirmasi diterima!</b>\n\n` +
+        `🔄 <b>Memeriksa pembayaran...</b>\n\n` +
         `Order ID: <code>${topup.id}</code>\n` +
         `Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
         `Total: <b>Rp ${topup.total.toLocaleString("id-ID")}</b>\n\n` +
-        `Admin akan memverifikasi pembayaran Anda.\n` +
-        `Hubungi @${SUPPORT_USERNAME} jika ada kendala.`,
+        `<i>Mohon tunggu, kami sedang memverifikasi pembayaran Anda...</i>`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-      );
+      ).catch(() => {});
+
+      const tryCredit = async () => {
+        const fresh = getTopupById(topupId);
+        if (!fresh || fresh.status === "completed") return true;
+
+        const pakasirStatus = await checkPakasirStatus(topupId).catch(() => null);
+        logger.info({ topupId, pakasirStatus }, "Pakasir status check after SUDAH BAYAR");
+
+        const paid = pakasirStatus && /paid|completed|settlement|success/i.test(pakasirStatus);
+        if (!paid) return false;
+
+        updateTopupStatus(topupId, "completed");
+        const updatedUser = updateSaldo(topup.userId, topup.nominal);
+
+        try {
+          await bot.editMessageCaption(
+            `✅ <b>TOPUP BERHASIL!</b>\n\n` +
+            `• Order ID: <code>${topup.id}</code>\n` +
+            `• Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+            `• Saldo sekarang: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          );
+        } catch {
+          await bot.sendMessage(
+            chatId,
+            `✅ <b>TOPUP BERHASIL!</b>\n\n` +
+            `• Order ID: <code>${topup.id}</code>\n` +
+            `• Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+            `• Saldo sekarang: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+            { parse_mode: "HTML" }
+          );
+        }
+        return true;
+      };
+
+      // Poll 4 times with 10-second gaps
+      let credited = await tryCredit();
+      if (!credited) {
+        for (let attempt = 1; attempt <= 3 && !credited; attempt++) {
+          await new Promise((r) => setTimeout(r, 10000));
+          credited = await tryCredit();
+        }
+      }
+
+      if (!credited) {
+        // Not confirmed after 40 seconds — fall back to manual admin verification
+        try {
+          await bot.editMessageCaption(
+            `⏳ <b>Menunggu Konfirmasi</b>\n\n` +
+            `Order ID: <code>${topup.id}</code>\n` +
+            `Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n\n` +
+            `Pembayaran belum terdeteksi.\n` +
+            `Jika sudah bayar, hubungi <b>@${SUPPORT_USERNAME}</b> dengan screenshot bukti transfer.`,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          );
+        } catch {}
+      }
       return;
     }
 
@@ -394,26 +450,8 @@ export function setupHandlers(bot: TelegramBot) {
       return;
     }
 
-    if (data === "refresh_stock") {
-      const session = getSession(userId);
-      const category = (session.category as Category | undefined) ?? "akrab2";
-      await bot.answerCallbackQuery(callbackQuery.id, { text: "🔄 Memperbarui stok..." });
-      await refreshAllPackages();
-      const packages = getPackagesWithMarkup(category);
-      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
-      if (packages.length === 0) {
-        await bot.editMessageText(
-          `📦 <b>${categoryLabels[category]}</b>\n\n⚠️ Belum ada paket tersedia.\nHubungi admin: @${SUPPORT_USERNAME}`,
-          { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: backToCategoryKeyboard() }
-        );
-        return;
-      }
-      await bot.editMessageText(
-        `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
-        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0, pkgKeyboardOpts(category, packages)) }
-      );
-      return;
-    }
+    // Answer all other callbacks generically (topup_paid_ and refresh_stock answer themselves above)
+    try { await bot.answerCallbackQuery(query.id); } catch { }
 
     if (data.startsWith("cat_")) {
       const category = data.replace("cat_", "") as Category;
