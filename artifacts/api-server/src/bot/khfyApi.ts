@@ -35,16 +35,35 @@ export async function placeKhfyOrder(params: {
       return {
         success: true,
         sn: String(data.sn ?? data.serial ?? data.no_seri ?? ""),
-        message: String(data.message ?? data.pesan ?? "Order berhasil."),
+        message: String(data.message ?? data.msg ?? data.pesan ?? "Order berhasil."),
         reffId,
       };
     }
 
-    return {
-      success: false,
-      error: String(data.message ?? data.pesan ?? data.error ?? "Order gagal dari provider."),
-      reffId,
-    };
+    // Extract error reason — KHFY uses msg, message, pesan, or error field
+    const rawError = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "");
+    let errorMsg = "Order gagal. Hubungi admin.";
+    if (rawError) {
+      const upper = rawError.toUpperCase();
+      if (upper.includes("KOSONG") || upper.includes("STOK")) {
+        errorMsg = "Stok sedang kosong. Coba lagi nanti.";
+      } else if (upper.includes("NOMOR") || upper.includes("TUJUAN")) {
+        errorMsg = "Nomor tujuan tidak valid.";
+      } else if (upper.includes("SALDO")) {
+        errorMsg = "Stok tidak tersedia. Hubungi admin.";
+      } else {
+        // Use sanitized raw error (strip internal IDs like RC=... TrxID=...)
+        errorMsg = rawError
+          .replace(/RC=[^\s]+\s*/gi, "")
+          .replace(/TrxID=[^\s]*\s*/gi, "")
+          .replace(/@\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2}:\d{2}/g, "")
+          .replace(/#/g, "")
+          .trim()
+          .slice(0, 120) || "Order gagal. Hubungi admin.";
+      }
+    }
+
+    return { success: false, error: errorMsg, reffId };
   } catch (err: any) {
     logger.error({ err: err?.response?.data ?? err?.message }, "KHFY /trx error");
     const msg = err?.response?.data?.message ?? err?.message ?? "Gagal terhubung ke server. Coba lagi.";
