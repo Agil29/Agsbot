@@ -44,6 +44,7 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
 
 export type PackageKeyboardOpts = {
   columns?: number;
+  cekStokUrl?: string;
   pageSize?: number;
 };
 
@@ -76,16 +77,22 @@ export function packageInlineKeyboard(
 
   const rows: TelegramBot.InlineKeyboardButton[][] = [];
 
+  // Cek Stok web_app button at top for DOPU categories
+  if (opts.cekStokUrl) {
+    rows.push([{ text: "📊 Cek Stok & Kuota", web_app: { url: opts.cekStokUrl } }]);
+  }
+
+  // Package grid
   for (let i = 0; i < buttons.length; i += columns) {
     rows.push(buttons.slice(i, i + columns));
   }
 
+  // Pagination
   const navRow: TelegramBot.InlineKeyboardButton[] = [];
   if (page > 0) navRow.push({ text: "⬅ Sebelumnya", callback_data: `page_${page - 1}` });
   if (page < totalPages - 1) navRow.push({ text: "Selanjutnya ➡", callback_data: `page_${page + 1}` });
   if (navRow.length > 0) rows.push(navRow);
 
-  rows.push([{ text: "🔄 Refresh", callback_data: "refresh_stock" }]);
   rows.push([{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }]);
 
   return { inline_keyboard: rows };
@@ -93,15 +100,18 @@ export function packageInlineKeyboard(
 
 export function confirmOrderKeyboard(
   packageId: string,
+  showBackToList = false,
 ): TelegramBot.InlineKeyboardMarkup {
-  return {
-    inline_keyboard: [
-      [
-        { text: "✅ Konfirmasi Order", callback_data: `confirm_${packageId}` },
-        { text: "❌ Batal", callback_data: "cancel_order" },
-      ],
+  const rows: TelegramBot.InlineKeyboardButton[][] = [
+    [
+      { text: "✅ Konfirmasi Order", callback_data: `confirm_${packageId}` },
+      { text: "❌ Batal", callback_data: "cancel_order" },
     ],
-  };
+  ];
+  if (showBackToList) {
+    rows.push([{ text: "🔙 Kembali ke List", callback_data: "back_to_list" }]);
+  }
+  return { inline_keyboard: rows };
 }
 
 export function paymentMethodKeyboard(): TelegramBot.InlineKeyboardMarkup {

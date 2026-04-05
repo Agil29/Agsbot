@@ -32,13 +32,13 @@ const XDA_AREAS: Record<string, [number, number, number, number]> = {
 };
 
 const AKRAB1_NOTES =
-  `\nnoted :\n` +
+  `\n\nnoted :\n` +
   `~ Pastikan tidak ada paket akrab di no tujuan\n` +
   `~ rewards tidak masuk, tunggu 1 x 24 jam, baru komplen\n` +
   `~ official, resmi, bergaransi`;
 
 const CIRCLE_NOTES =
-  `\nnote:\n` +
+  `\n\nnote:\n` +
   `- Tidak menambah masa aktif\n` +
   `- Cuma bisa order 1x dalam 1 bln\n` +
   `- Tidak sedang tergabung dalam paket circle\n` +

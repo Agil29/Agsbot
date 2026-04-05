@@ -23,10 +23,10 @@ const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
 const CEK_STOK_URL = process.env.CEK_STOK_URL ?? "";
 const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
 const CEK_LOKASI_URL = process.env.CEK_LOKASI_URL ?? "";
-const CEK_STOK_JURAGANKUOTA_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
+const DOPU_CEK_STOK_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
 
 function pkgKeyboardOpts(category: Category): PackageKeyboardOpts {
-  if (category === "akrab1" || category === "circle") return { columns: 3 };
+  if (category === "akrab1" || category === "circle") return { columns: 3, cekStokUrl: DOPU_CEK_STOK_URL };
   return {};
 }
 
@@ -409,6 +409,9 @@ export function setupHandlers(bot: TelegramBot) {
       const pkg = packages.find((p) => p.id === packageId);
       if (!pkg) { await bot.sendMessage(chatId, "❌ Paket tidak ditemukan."); return; }
 
+      const currentPage = session.page ?? 0;
+      const isDopu = pkg.source === "dopu";
+
       setSession(userId, {
         step: "confirm_order",
         packageId: pkg.id,
@@ -418,6 +421,7 @@ export function setupHandlers(bot: TelegramBot) {
         selectedPackageValidity: pkg.validity,
         selectedCategory: category,
         selectedSku: pkg.sku,
+        page: currentPage,
       });
 
       const detailLines: string[] = [];
@@ -426,7 +430,7 @@ export function setupHandlers(bot: TelegramBot) {
         const stokStatus = pkg.stock && pkg.stock > 0 ? "✅ Tersedia" : "❌ Kosong";
         detailLines.push(`Stok: <b>${stokStatus}</b>`);
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
-      } else if (pkg.source === "dopu" && pkg.sku) {
+      } else if (isDopu && pkg.sku) {
         detailLines.push(`Produk: <b>${pkg.name}</b>`);
         detailLines.push(`Masa Aktif: <b>${pkg.validity}</b>`);
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
@@ -442,7 +446,21 @@ export function setupHandlers(bot: TelegramBot) {
         detailLines.join("\n") + "\n\n" +
         (pkg.description ? `${pkg.description}\n\n` : "") +
         `Konfirmasi order paket ini?`,
-        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: confirmOrderKeyboard(pkg.id) }
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: confirmOrderKeyboard(pkg.id, isDopu) }
+      );
+      return;
+    }
+
+    if (data === "back_to_list") {
+      const session = getSession(userId);
+      const category = session.category as Category | undefined;
+      if (!category) return;
+      const packages = getPackages(category);
+      const page = session.page ?? 0;
+      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      await bot.editMessageText(
+        `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, page, pkgKeyboardOpts(category)) }
       );
       return;
     }
