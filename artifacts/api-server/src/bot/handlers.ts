@@ -508,6 +508,17 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
+      if (price <= 0) {
+        await bot.editMessageText(
+          `❌ <b>Harga belum diset</b>\n\n` +
+          `Paket <b>${session.selectedPackageName ?? sku}</b> belum memiliki harga.\n\n` +
+          `Silakan hubungi @${SUPPORT_USERNAME} untuk info harga.`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+        clearSession(userId);
+        return;
+      }
+
       if (user.saldo < price) {
         await bot.editMessageText(
           `❌ <b>Saldo tidak cukup</b>\n\n` +
@@ -600,6 +611,17 @@ export function setupHandlers(bot: TelegramBot) {
 
       if (!nomor || !sku) {
         await bot.sendMessage(chatId, "❌ Sesi tidak valid. Silakan order ulang.", { parse_mode: "HTML" });
+        clearSession(userId);
+        return;
+      }
+
+      if (price <= 0) {
+        await bot.editMessageText(
+          `❌ <b>Harga belum diset</b>\n\n` +
+          `Paket <b>${session.selectedPackageName ?? sku}</b> belum memiliki harga.\n\n` +
+          `Silakan hubungi @${SUPPORT_USERNAME} untuk info harga.`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
         clearSession(userId);
         return;
       }
