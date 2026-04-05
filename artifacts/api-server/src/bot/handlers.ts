@@ -8,6 +8,7 @@ import { getOrRegisterUser, getUser, updateSaldo, formatRegDate } from "./users"
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee } from "./topup";
 import { placeKhfyOrder } from "./khfyApi";
+import { placeDopuOrder } from "./dopuApi";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
@@ -15,12 +16,21 @@ import {
   confirmOrderKeyboard,
   paymentMethodKeyboard,
   backToCategoryKeyboard,
+  type PackageKeyboardOpts,
 } from "./keyboards";
 
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
 const CEK_STOK_URL = process.env.CEK_STOK_URL ?? "";
 const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
 const CEK_LOKASI_URL = process.env.CEK_LOKASI_URL ?? "";
+const CEK_STOK_AKRAB1_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
+const CEK_STOK_CIRCLE_URL = process.env.CEK_STOK_CIRCLE_URL ?? "https://juraganxl.my.id/";
+
+function pkgKeyboardOpts(category: Category): PackageKeyboardOpts {
+  if (category === "akrab1") return { columns: 3, cekStokUrl: CEK_STOK_AKRAB1_URL };
+  if (category === "circle") return { columns: 3, cekStokUrl: CEK_STOK_CIRCLE_URL };
+  return {};
+}
 
 function buildProfileText(user: ReturnType<typeof getUser>): string {
   if (!user) return "Profil tidak ditemukan.";
@@ -335,7 +345,7 @@ export function setupHandlers(bot: TelegramBot) {
             chat_id: chatId,
             message_id: messageId,
             parse_mode: "HTML",
-            reply_markup: packageInlineKeyboard(packages, session.page ?? 0),
+            reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category) : {}),
           }
         );
       } catch (err) {
@@ -377,7 +387,7 @@ export function setupHandlers(bot: TelegramBot) {
       }
       await bot.editMessageText(
         `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
-        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0) }
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0, pkgKeyboardOpts(category)) }
       );
       return;
     }
@@ -388,7 +398,7 @@ export function setupHandlers(bot: TelegramBot) {
       const category = session.category as Category | undefined;
       if (!category) return;
       const packages = getPackages(category);
-      await bot.editMessageReplyMarkup(packageInlineKeyboard(packages, page), { chat_id: chatId, message_id: messageId });
+      await bot.editMessageReplyMarkup(packageInlineKeyboard(packages, page, pkgKeyboardOpts(category)), { chat_id: chatId, message_id: messageId });
       return;
     }
 
@@ -417,6 +427,14 @@ export function setupHandlers(bot: TelegramBot) {
         detailLines.push(`Produk: <b>${pkg.name}</b>`);
         const stokStatus = pkg.stock && pkg.stock > 0 ? "✅ Tersedia" : "❌ Kosong";
         detailLines.push(`Stok: <b>${stokStatus}</b>`);
+        detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
+      } else if (pkg.source === "dopu" && pkg.sku) {
+        detailLines.push(`Produk: <b>${pkg.name}</b>`);
+        detailLines.push(`SKU: <code>${pkg.sku}</code>`);
+        const stokStatus = pkg.stock && pkg.stock > 0 ? `✅ Ada` : "❌ Kosong";
+        detailLines.push(`Stok: <b>${stokStatus}</b>`);
+        if (pkg.description) detailLines.push(`Kuota: <b>${pkg.description}</b>`);
+        detailLines.push(`Masa Aktif: <b>${pkg.validity}</b>`);
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
       } else {
         detailLines.push(`Nama: <b>${pkg.name}</b>`);
@@ -481,14 +499,18 @@ export function setupHandlers(bot: TelegramBot) {
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
 
-      const result = await placeKhfyOrder({ sku, tujuan: nomor });
+      const selectedCat = session.selectedCategory ?? "akrab2";
+      const useDopu = selectedCat === "akrab1" || selectedCat === "circle";
+      const result = useDopu
+        ? await placeDopuOrder({ sku, tujuan: nomor })
+        : await placeKhfyOrder({ sku, tujuan: nomor });
       const updatedUser = getUser(userId);
 
       if (result.success) {
         createOrder({
           userId,
           userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
-          category: session.selectedCategory ?? "akrab2",
+          category: selectedCat,
           packageId: session.packageId ?? "",
           packageName: session.selectedPackageName ?? sku,
           price,
@@ -499,6 +521,9 @@ export function setupHandlers(bot: TelegramBot) {
           paymentMethod: "saldo",
         });
 
+        const circleNote = selectedCat === "circle"
+          ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
+          : "";
         await bot.editMessageText(
           `✅ <b>ORDER BERHASIL!</b>\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -506,7 +531,8 @@ export function setupHandlers(bot: TelegramBot) {
           `📱 Nomor: <code>${nomor}</code>\n` +
           `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
           (result.sn ? `🔑 SN: <code>${result.sn}</code>\n` : "") +
-          `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+          `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
+          circleNote,
           { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
         );
       } else {

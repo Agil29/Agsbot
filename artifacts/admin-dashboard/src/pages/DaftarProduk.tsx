@@ -235,9 +235,13 @@ export function DaftarProduk({ category }: { category: string }) {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        p.source === "manual" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                        p.source === "manual"
+                          ? "bg-purple-100 text-purple-700"
+                          : p.source === "dopu"
+                          ? "bg-orange-100 text-orange-700"
+                          : "bg-blue-100 text-blue-700"
                       }`}>
-                        {p.source === "manual" ? "Manual" : "API"}
+                        {p.source === "manual" ? "Manual" : p.source === "dopu" ? "DOPU" : "KHFY"}
                       </span>
                     </td>
                     <td className="px-4 py-3">

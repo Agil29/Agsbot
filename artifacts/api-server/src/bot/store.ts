@@ -6,7 +6,7 @@ export type PackageItem = {
   quota: string;
   validity: string;
   active: boolean;
-  source: "api1" | "api2" | "manual";
+  source: "api1" | "api2" | "dopu" | "manual";
   sku?: string;
   stock?: number;
 };

@@ -4,6 +4,7 @@ import { getTopupById, updateTopupStatus } from "../bot/topup";
 import { updateSaldo } from "../bot/users";
 import { createOrder } from "../bot/orders";
 import { placeKhfyOrder } from "../bot/khfyApi";
+import { placeDopuOrder } from "../bot/dopuApi";
 import { getBot } from "../bot";
 
 const router = Router();
@@ -48,9 +49,12 @@ router.post("/pakasir", async (req, res) => {
   if (topup.orderPayload) {
     const { sku, nomorTujuan, packageName, category, packageId, quota, validity } = topup.orderPayload;
 
-    logger.info({ order_id, sku, nomorTujuan }, "Processing order payment via QRIS webhook");
+    logger.info({ order_id, sku, nomorTujuan, category }, "Processing order payment via QRIS webhook");
 
-    const result = await placeKhfyOrder({ sku, tujuan: nomorTujuan });
+    const useDopu = category === "akrab1" || category === "circle";
+    const result = useDopu
+      ? await placeDopuOrder({ sku, tujuan: nomorTujuan })
+      : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
 
     if (result.success) {
       createOrder({
@@ -69,6 +73,9 @@ router.post("/pakasir", async (req, res) => {
 
       if (bot && topup.chatId) {
         try {
+          const circleNote = category === "circle"
+            ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
+            : "";
           await bot.sendMessage(
             topup.chatId,
             `✅ <b>ORDER BERHASIL!</b>\n` +
@@ -77,7 +84,8 @@ router.post("/pakasir", async (req, res) => {
             `📱 Nomor: <code>${nomorTujuan}</code>\n` +
             `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
             (result.sn ? `🔑 SN: <code>${result.sn}</code>\n` : "") +
-            `\n<i>Pembayaran via QRIS telah dikonfirmasi.</i>`,
+            `\n<i>Pembayaran via QRIS telah dikonfirmasi.</i>` +
+            circleNote,
             { parse_mode: "HTML" }
           );
         } catch (err) {
