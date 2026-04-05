@@ -25,8 +25,18 @@ const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
 const CEK_LOKASI_URL = process.env.CEK_LOKASI_URL ?? "";
 const DOPU_CEK_STOK_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
 
-function pkgKeyboardOpts(category: Category): PackageKeyboardOpts {
-  if (category === "akrab1" || category === "circle") return { columns: 3, cekStokUrl: DOPU_CEK_STOK_URL };
+function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPackages> = []): PackageKeyboardOpts {
+  if (category === "akrab1" || category === "circle") {
+    // Auto-detect columns: if any label (name + price) is too long for 3 cols, use 2
+    const maxLen = packages.reduce((max, p) => {
+      let label = p.name;
+      if (p.price > 0) label += ` — Rp ${p.price.toLocaleString("id-ID")}`;
+      return Math.max(max, label.length);
+    }, 0);
+    const columns = maxLen > 18 ? 2 : 3;
+    // Always show all on one page (no pagination for DOPU)
+    return { columns, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
+  }
   return {};
 }
 
@@ -358,7 +368,7 @@ export function setupHandlers(bot: TelegramBot) {
             chat_id: chatId,
             message_id: messageId,
             parse_mode: "HTML",
-            reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category) : {}),
+            reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category, packages) : {}),
           }
         );
       } catch (err) {
@@ -400,7 +410,7 @@ export function setupHandlers(bot: TelegramBot) {
       }
       await bot.editMessageText(
         `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
-        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0, pkgKeyboardOpts(category)) }
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0, pkgKeyboardOpts(category, packages)) }
       );
       return;
     }
@@ -411,7 +421,7 @@ export function setupHandlers(bot: TelegramBot) {
       const category = session.category as Category | undefined;
       if (!category) return;
       const packages = getPackages(category);
-      await bot.editMessageReplyMarkup(packageInlineKeyboard(packages, page, pkgKeyboardOpts(category)), { chat_id: chatId, message_id: messageId });
+      await bot.editMessageReplyMarkup(packageInlineKeyboard(packages, page, pkgKeyboardOpts(category, packages)), { chat_id: chatId, message_id: messageId });
       return;
     }
 
@@ -475,7 +485,7 @@ export function setupHandlers(bot: TelegramBot) {
       const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
       await bot.editMessageText(
         `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
-        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, page, pkgKeyboardOpts(category)) }
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, page, pkgKeyboardOpts(category, packages)) }
       );
       return;
     }

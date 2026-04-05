@@ -80,7 +80,7 @@ export async function fetchCirclePackages(): Promise<PackageItem[]> {
     const description = `Kuota : ${range}` + CIRCLE_NOTES;
     return {
       id: `dopu_${sku}`,
-      name: `CIRCLE ${n}GB`,
+      name: sku,
       description,
       price: 0,
       quota: range,
