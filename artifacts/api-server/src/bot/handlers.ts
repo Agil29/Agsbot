@@ -220,7 +220,7 @@ export function setupHandlers(bot: TelegramBot) {
   bot.on("message", async (msg) => {
     if (!msg.text) return;
     // Skip messages handled by dedicated onText/command handlers to avoid double-processing
-    if (/^\/|🏠|💰|📦|📋|💳/.test(msg.text)) return;
+    if (/^\/|🏠|💰|📦|📋|💳|📱/.test(msg.text)) return;
     const from = msg.from!;
     const session = getSession(from.id);
 
