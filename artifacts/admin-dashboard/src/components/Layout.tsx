@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Users, Package, CreditCard, Settings, ChevronDown, ChevronRight,
-  BarChart3, Menu, X, Bot, LogOut,
+  BarChart3, Menu, X, Bot, LogOut, TrendingUp,
 } from "lucide-react";
 import { clearStoredKey } from "@/lib/api";
 
@@ -11,9 +11,11 @@ type NavItem = {
   icon: React.ReactNode;
   href?: string;
   children?: { label: string; href: string }[];
+  section?: string;
 };
 
 const NAV: NavItem[] = [
+  { label: "Page Analistik", icon: <TrendingUp size={18} />, href: "/analytics", section: "BOT MENU" },
   { label: "Pengguna Bot", icon: <Users size={18} />, href: "/users" },
   {
     label: "Daftar Produk", icon: <Package size={18} />,
@@ -102,9 +104,16 @@ export function Layout({ children, onLogout }: { children: React.ReactNode; onLo
           <div className="text-slate-400 text-xs">Admin Panel</div>
         </div>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {NAV.map((item) => (
-          <NavSection key={item.label} item={item} onNav={() => setMobileOpen(false)} />
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {NAV.map((item, i) => (
+          <div key={item.label}>
+            {item.section && (
+              <p className={`px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${i === 0 ? "mb-1" : "mt-4 mb-1"}`}>
+                {item.section}
+              </p>
+            )}
+            <NavSection item={item} onNav={() => setMobileOpen(false)} />
+          </div>
         ))}
       </nav>
       <div className="px-3 py-4 border-t border-white/10">

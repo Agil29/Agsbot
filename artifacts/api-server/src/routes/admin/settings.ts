@@ -56,7 +56,7 @@ router.get("/stats", requireAdmin, (_req, res) => {
   const topups = getAllTopups();
 
   const totalSaldo = users.reduce((sum: number, u: any) => sum + u.saldo, 0);
-  const completedTopups = topups.filter((t: any) => t.status === "completed");
+  const completedTopups = topups.filter((t: any) => t.status === "completed" || t.status === "done");
   const totalDeposit = completedTopups.reduce((sum: number, t: any) => sum + t.nominal, 0);
   const pendingOrders = orders.filter((o: any) => o.status === "pending").length;
   const doneOrders = orders.filter((o: any) => o.status === "done").length;
@@ -71,6 +71,63 @@ router.get("/stats", requireAdmin, (_req, res) => {
       doneOrders,
       totalTopups: topups.length,
       totalDeposit,
+    },
+  });
+});
+
+router.get("/analytics", requireAdmin, (_req, res) => {
+  const orders = getAllOrders();
+  const topups = getAllTopups();
+  const users = getAllUsers();
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const successOrders = orders.filter((o: any) => o.status === "done");
+  const monthOrders = successOrders.filter((o: any) => new Date(o.createdAt) >= startOfMonth);
+  const penghasilan = monthOrders.reduce((s: number, o: any) => s + o.price, 0);
+  const produkTerjual = monthOrders.length;
+
+  const successTopups = topups.filter((t: any) => t.status === "completed" || t.status === "done");
+  const depositMember = successTopups.reduce((s: number, t: any) => s + t.nominal, 0);
+  const monthDeposit = successTopups
+    .filter((t: any) => new Date(t.createdAt) >= startOfMonth)
+    .reduce((s: number, t: any) => s + t.nominal, 0);
+
+  // Build daily user registration for last 30 days
+  const days: { date: string; users: number; orders: number; topups: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayStart = new Date(dateStr);
+    const dayEnd = new Date(dateStr);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    days.push({
+      date: dateStr,
+      users: users.filter((u: any) => new Date(u.regDate) >= dayStart && new Date(u.regDate) < dayEnd).length,
+      orders: orders.filter((o: any) => new Date(o.createdAt) >= dayStart && new Date(o.createdAt) < dayEnd).length,
+      topups: topups.filter((t: any) => new Date(t.createdAt) >= dayStart && new Date(t.createdAt) < dayEnd).length,
+    });
+  }
+
+  const api1Url = runtimeConfig.API1_BASE_URL;
+  const api2Url = runtimeConfig.API2_BASE_URL;
+
+  res.json({
+    success: true,
+    data: {
+      depositMember,
+      monthDeposit,
+      penghasilan,
+      produkTerjual,
+      totalOrders: successOrders.length,
+      api1Configured: !!api1Url,
+      api2Configured: !!api2Url,
+      api1Label: api1Url ? new URL(api1Url).hostname : "Belum dikonfigurasi",
+      api2Label: api2Url ? new URL(api2Url).hostname : "Belum dikonfigurasi",
+      dailyChart: days,
     },
   });
 });

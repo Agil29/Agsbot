@@ -3,17 +3,18 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { getStoredKey, clearStoredKey, api } from "@/lib/api";
 import { Layout } from "@/components/Layout";
 import { Login } from "@/pages/Login";
-import { Dashboard } from "@/pages/Dashboard";
 import { PenggunaBot } from "@/pages/PenggunaBot";
 import { DaftarProduk } from "@/pages/DaftarProduk";
 import { HistoryPenjualan, DepositMember } from "@/pages/TopupMutasi";
 import { BotSettings } from "@/pages/BotSettings";
+import { PageAnalistik } from "@/pages/PageAnalistik";
 
 function AppRoutes({ onLogout }: { onLogout: () => void }) {
   return (
     <Layout onLogout={onLogout}>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/" component={PageAnalistik} />
+        <Route path="/analytics" component={PageAnalistik} />
         <Route path="/users" component={PenggunaBot} />
         <Route path="/products/akrab1">
           {() => <DaftarProduk category="akrab1" />}

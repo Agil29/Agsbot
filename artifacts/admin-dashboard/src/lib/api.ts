@@ -62,4 +62,5 @@ export const api = {
     get: () => request<any>("GET", "/settings"),
     update: (data: any) => request<any>("PUT", "/settings", data),
   },
+  analytics: () => request<any>("GET", "/analytics"),
 };
