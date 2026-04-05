@@ -6,7 +6,9 @@ export type MainMenuOpts = {
   cekStokUrl?: string;
 };
 
-export function mainMenuKeyboard(opts: MainMenuOpts = {}): TelegramBot.ReplyKeyboardMarkup {
+export function mainMenuKeyboard(
+  opts: MainMenuOpts = {},
+): TelegramBot.ReplyKeyboardMarkup {
   const cekPaketBtn: TelegramBot.KeyboardButton = { text: "📱 CEK PAKET" };
 
   const cekStokBtn: TelegramBot.KeyboardButton = { text: "📊 CEK STOK" };
@@ -28,12 +30,10 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
-        { text: "AKRAB 1", callback_data: "cat_akrab1" },
-        { text: "AKRAB 2", callback_data: "cat_akrab2" },
+        { text: "AKRAB V1", callback_data: "cat_akrab1" },
+        { text: "AKRAB V2", callback_data: "cat_akrab2" },
       ],
-      [
-        { text: "CIRCLE", callback_data: "cat_circle" },
-      ],
+      [{ text: "CIRCLE (XL ONLY)", callback_data: "cat_circle" }],
     ],
   };
 }
@@ -51,7 +51,8 @@ export function packageInlineKeyboard(
   opts: PackageKeyboardOpts = {},
 ): TelegramBot.InlineKeyboardMarkup {
   const columns = opts.columns ?? 2;
-  const effectivePageSize = opts.pageSize ?? (columns === 3 ? packages.length : 6);
+  const effectivePageSize =
+    opts.pageSize ?? (columns === 3 ? packages.length : 6);
   const start = page * effectivePageSize;
   const end = start + effectivePageSize;
   const pageItems = packages.slice(start, end);
@@ -86,15 +87,19 @@ export function packageInlineKeyboard(
 
   // Pagination
   const navRow: TelegramBot.InlineKeyboardButton[] = [];
-  if (page > 0) navRow.push({ text: "⬅ Sebelumnya", callback_data: `page_${page - 1}` });
-  if (page < totalPages - 1) navRow.push({ text: "Selanjutnya ➡", callback_data: `page_${page + 1}` });
+  if (page > 0)
+    navRow.push({ text: "⬅ Sebelumnya", callback_data: `page_${page - 1}` });
+  if (page < totalPages - 1)
+    navRow.push({ text: "Selanjutnya ➡", callback_data: `page_${page + 1}` });
   if (navRow.length > 0) rows.push(navRow);
 
   if (opts.showRefreshStock) {
     rows.push([{ text: "🔄 Refresh Stock", callback_data: "refresh_stock" }]);
   }
 
-  rows.push([{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }]);
+  rows.push([
+    { text: "🔙 Kembali ke Kategori", callback_data: "back_category" },
+  ]);
 
   return { inline_keyboard: rows };
 }
