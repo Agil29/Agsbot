@@ -124,12 +124,18 @@ export async function checkDopuOrderStatus(reffId: string, trxId?: string): Prom
   if (!memberId || !pin) return { status: "pending" };
 
   function parseRaw(raw: string, identifier: string): DopuStatusResult | null {
-    const upper = raw.toUpperCase();
+    const trimmed = raw.trim();
+    const upper = trimmed.toUpperCase();
 
-    if (/status=\d/i.test(raw)) {
-      const qp = new URLSearchParams(raw);
+    // "OK" = DOPU confirms the transaction is complete/delivered
+    if (upper === "OK" || upper === "OK\n" || upper === "SUCCESS") {
+      return { status: "success", sn: identifier };
+    }
+
+    if (/status=\d/i.test(trimmed)) {
+      const qp = new URLSearchParams(trimmed);
       const st = qp.get("status") ?? "";
-      const message = qp.get("message") ?? raw;
+      const message = qp.get("message") ?? trimmed;
       const msgUpper = message.toUpperCase();
 
       if (st === "1") {
@@ -137,13 +143,11 @@ export async function checkDopuOrderStatus(reffId: string, trxId?: string): Prom
           const snMatch = message.match(/#trx[:\s]*(\d+)/i) ?? message.match(/\bSN[:\s]+(\S+)/i);
           return { status: "success", sn: snMatch?.[1] ?? identifier };
         }
-        // PROSES / ANTRI / atau status=1 tanpa keyword sukses = masih pending
         return { status: "pending" };
       }
 
       if (st === "0") {
-        let error = "Transaksi gagal";
-        if (message.trim().length > 0) error = message.trim().slice(0, 120);
+        const error = message.trim().length > 0 ? message.trim().slice(0, 120) : "Transaksi gagal";
         return { status: "failed", error };
       }
 
@@ -151,11 +155,11 @@ export async function checkDopuOrderStatus(reffId: string, trxId?: string): Prom
     }
 
     if (upper.includes("SUKSES") || upper.includes("SUCCESS") || upper.includes("BERHASIL")) {
-      const snMatch = raw.match(/#trx[:\s]*(\d+)/i) ?? raw.match(/\bSN[:\s]+(\S+)/i);
+      const snMatch = trimmed.match(/#trx[:\s]*(\d+)/i) ?? trimmed.match(/\bSN[:\s]+(\S+)/i);
       return { status: "success", sn: snMatch?.[1] ?? identifier };
     }
     if (upper.includes("GAGAL") || upper.includes("FAILED") || upper.includes("BATAL")) {
-      return { status: "failed", error: raw.trim().slice(0, 120) };
+      return { status: "failed", error: trimmed.slice(0, 120) };
     }
     if (upper.includes("PROSES") || upper.includes("PENDING") || upper.includes("ANTRI") || upper.includes("MENUNGGU")) {
       return { status: "pending" };
@@ -206,6 +210,11 @@ export async function placeDopuOrder(params: {
     return { success: false, error: "Layanan belum dikonfigurasi. Hubungi admin.", reffId };
   }
 
+  // Build callback URL for real-time DOPU notification
+  const serverHost = process.env.SERVER_URL
+    ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+  const callbackUrl = serverHost ? `${serverHost}/api/dopu/callback` : undefined;
+
   try {
     const res = await axios.get(`${baseUrl}/trx`, {
       params: {
@@ -216,6 +225,7 @@ export async function placeDopuOrder(params: {
         memberID: memberId,
         pin,
         password,
+        ...(callbackUrl ? { callback: callbackUrl } : {}),
       },
       timeout: 30000,
     });

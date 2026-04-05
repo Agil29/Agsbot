@@ -6,93 +6,122 @@ import { getBot } from "../bot/index";
 
 const router = Router();
 
-// DOPU callback endpoint — accepts GET and POST
-// DOPU sends transaction result to this URL when processing completes
-router.all("/dopu/callback", async (req, res) => {
-  const data = { ...req.query, ...req.body };
+async function handleDopuCallback(data: Record<string, any>) {
   logger.info({ data }, "DOPU callback received");
 
-  try {
-    // Parse reffId and status from DOPU callback params
-    const reffId = String(
-      data.refID ?? data.reffid ?? data.ref_id ?? data.refid ?? data.reffId ?? ""
-    );
-    const status = String(data.status ?? data.keterangan ?? data.ket ?? "").toUpperCase();
-    const message = String(data.message ?? data.pesan ?? "").toUpperCase();
-    const sn = String(data.sn ?? data.serialnumber ?? data.serial ?? "");
+  const reffId = String(
+    data.refID ?? data.reffid ?? data.ref_id ?? data.refid ?? data.reffId ?? ""
+  ).trim();
+  const rawStatus = String(data.status ?? "").trim();
+  const message = String(data.message ?? data.pesan ?? "").trim();
+  const sn = String(data.sn ?? data.serialnumber ?? data.serial ?? data.trxID ?? "").trim();
+  const msgUpper = message.toUpperCase();
 
-    if (reffId) {
-      const order = getOrderByReffId(reffId);
-      if (order) {
-        // Determine final outcome
-        const isSuccess =
-          status === "1" ||
-          status.includes("SUKSES") ||
-          status.includes("SUCCESS") ||
-          status.includes("BERHASIL");
-        const isFailed =
-          status === "0" ||
-          status.includes("GAGAL") ||
-          status.includes("FAILED") ||
-          message.includes("GAGAL") ||
-          message.includes("FAILED");
-
-        const bot = getBot();
-
-        if (isFailed && order.status !== "cancelled" && order.status !== "done") {
-          // Refund user saldo
-          const refunded = updateSaldo(order.userId, order.price);
-          updateOrderStatus(order.id, "cancelled");
-          logger.info({ reffId, orderId: order.id }, "Order cancelled via DOPU callback — saldo refunded");
-
-          // Notify user via Telegram
-          if (bot) {
-            const chatId = order.userId;
-            try {
-              await bot.sendMessage(
-                chatId,
-                `❌ <b>ORDER GAGAL</b>\n\n` +
-                `📦 Produk: <b>${order.packageName}</b>\n` +
-                `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n\n` +
-                `💰 Saldo <b>Rp ${order.price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
-                `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
-                { parse_mode: "HTML" }
-              );
-            } catch (err) {
-              logger.error({ err, chatId }, "Failed to notify user about DOPU callback failure");
-            }
-          }
-        } else if (isSuccess && order.status !== "done") {
-          updateOrderStatus(order.id, "done", sn || undefined);
-          logger.info({ reffId, orderId: order.id, sn }, "Order confirmed done via DOPU callback");
-
-          // Optional: notify user of success confirmation
-          if (bot) {
-            const chatId = order.userId;
-            try {
-              await bot.sendMessage(
-                chatId,
-                `✅ <b>ORDER BERHASIL!</b>\n\n` +
-                `📦 Produk: <b>${order.packageName}</b>\n` +
-                `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n` +
-                (sn ? `🔑 SN: <code>${sn}</code>\n` : ""),
-                { parse_mode: "HTML" }
-              );
-            } catch (err) {
-              logger.error({ err, chatId }, "Failed to notify user about DOPU callback success");
-            }
-          }
-        }
-      } else {
-        logger.warn({ reffId }, "DOPU callback: no matching order for reffId");
-      }
-    }
-  } catch (err) {
-    logger.error({ err }, "Error processing DOPU callback");
+  if (!reffId) {
+    logger.warn({ data }, "DOPU callback missing refID — ignoring");
+    return;
   }
 
-  // Always respond 200 so DOPU doesn't retry
+  const order = getOrderByReffId(reffId);
+  if (!order) {
+    logger.warn({ reffId }, "DOPU callback: no matching order");
+    return;
+  }
+
+  if (order.status === "done" || order.status === "cancelled") {
+    logger.info({ reffId, orderId: order.id, status: order.status }, "DOPU callback: already finalized");
+    return;
+  }
+
+  const isSuccess =
+    msgUpper.includes("SUKSES") ||
+    msgUpper.includes("SUCCESS") ||
+    msgUpper.includes("BERHASIL") ||
+    (rawStatus === "1" && !msgUpper.includes("PROSES") && !msgUpper.includes("ANTRI") && !msgUpper.includes("PENDING"));
+
+  const isFailed =
+    rawStatus === "0" ||
+    msgUpper.includes("GAGAL") ||
+    msgUpper.includes("FAILED") ||
+    msgUpper.includes("BATAL");
+
+  const bot = getBot();
+  const chatId = order.userId;
+
+  if (isSuccess) {
+    const finalSn = sn || order.sn || reffId;
+    updateOrderStatus(order.id, "done", finalSn || undefined);
+    logger.info({ reffId, orderId: order.id, finalSn }, "DOPU callback: order done");
+
+    if (bot) {
+      const finalUser = getUser(order.userId);
+      const circleNote = order.category === "circle"
+        ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
+        : "";
+      try {
+        await bot.sendMessage(
+          chatId,
+          `✅ <b>ORDER BERHASIL!</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `📦 Produk: <b>${order.packageName}</b>\n` +
+          `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n` +
+          `💰 Harga: <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n` +
+          (finalSn ? `🔑 SN: <code>${finalSn}</code>\n` : "") +
+          `🔖 Ref: <code>${reffId}</code>\n` +
+          (finalUser ? `\n• Saldo tersisa: <b>Rp ${finalUser.saldo.toLocaleString("id-ID")}</b>` : "") +
+          circleNote,
+          { parse_mode: "HTML" }
+        );
+      } catch (err) {
+        logger.error({ err, chatId }, "DOPU callback: failed to notify user (success)");
+      }
+    }
+    return;
+  }
+
+  if (isFailed) {
+    updateOrderStatus(order.id, "cancelled");
+    const refunded = updateSaldo(order.userId, order.price);
+    logger.info({ reffId, orderId: order.id }, "DOPU callback: order cancelled — saldo refunded");
+
+    if (bot) {
+      const errMsg = message.length > 0 ? message.slice(0, 120) : "Transaksi gagal";
+      try {
+        await bot.sendMessage(
+          chatId,
+          `❌ <b>ORDER GAGAL</b>\n\n` +
+          `📦 Produk: <b>${order.packageName}</b>\n` +
+          `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n\n` +
+          `⚠️ ${errMsg}\n` +
+          `🔖 Ref: <code>${reffId}</code>\n\n` +
+          `💰 Saldo <b>Rp ${order.price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+          `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+          { parse_mode: "HTML" }
+        );
+      } catch (err) {
+        logger.error({ err, chatId }, "DOPU callback: failed to notify user (failed)");
+      }
+    }
+    return;
+  }
+
+  logger.info({ reffId, rawStatus, message }, "DOPU callback: status unclear — still pending");
+}
+
+// Support both path variants: /dopu/callback (legacy) and /webhook/dopu (canonical)
+router.all("/dopu/callback", async (req, res) => {
   res.status(200).json({ status: "ok" });
+  await handleDopuCallback({ ...req.query, ...req.body });
+});
+
+router.post("/webhook/dopu", async (req, res) => {
+  res.status(200).json({ status: "ok" });
+  await handleDopuCallback({ ...req.query, ...req.body });
+});
+
+router.get("/webhook/dopu", async (req, res) => {
+  res.status(200).json({ status: "ok" });
+  await handleDopuCallback(req.query as Record<string, any>);
 });
 
 export default router;
