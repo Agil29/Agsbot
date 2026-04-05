@@ -178,17 +178,17 @@ export function PageAnalistik() {
           icon={<Server size={24} className="text-orange-600" />}
           iconBg="bg-orange-50"
           label="Saldo DOPU"
-          value={data?.dopuBalance != null ? formatRp(data.dopuBalance) : "—"}
-          sub="Saldo API Akrab 1 & Circle"
-          subColor="text-orange-500"
+          value={data?.dopuBalance != null ? formatRp(data.dopuBalance) : data?.api1Configured ? "Gagal ambil" : "—"}
+          sub={data?.dopuBalance != null ? `Rp ${data.dopuBalance.toLocaleString("id-ID")}` : "Saldo API Akrab 1 & Circle"}
+          subColor={data?.dopuBalance != null ? "text-orange-600 font-medium" : "text-orange-500"}
         />
         <StatCard
           icon={<DollarSign size={24} className="text-cyan-600" />}
           iconBg="bg-cyan-50"
           label="Saldo KHFY"
-          value={data?.khfyBalance != null ? formatRp(data.khfyBalance) : "—"}
-          sub="Saldo API Akrab 2"
-          subColor="text-cyan-500"
+          value={data?.khfyBalance != null ? formatRp(data.khfyBalance) : data?.api2Configured ? "Cek manual" : "—"}
+          sub={data?.khfyBalance != null ? `Rp ${data.khfyBalance.toLocaleString("id-ID")}` : "API saldo tidak tersedia"}
+          subColor={data?.khfyBalance != null ? "text-cyan-600 font-medium" : "text-slate-400"}
         />
       </div>
 

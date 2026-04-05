@@ -10,18 +10,30 @@ export async function getKhfyBalance(): Promise<number | null> {
   const apiKey = process.env.API2_KEY ?? "";
   const baseUrl = process.env.API2_BASE_URL ?? "";
   if (!apiKey || !baseUrl) return null;
-  try {
-    const res = await axios.get(`${baseUrl}/saldo`, {
-      params: { api_key: apiKey },
-      timeout: 10000,
-    });
-    const data = res.data ?? {};
-    const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit;
-    if (val !== undefined) return Number(val);
-    return null;
-  } catch {
-    return null;
+
+  // Try known KHFY balance endpoints
+  const endpoints = [
+    { url: `${baseUrl}/saldo`, params: { api_key: apiKey } },
+    { url: `${baseUrl}/balance`, params: { api_key: apiKey } },
+    { url: `${baseUrl}/profile`, params: { api_key: apiKey } },
+    { url: `${baseUrl}/member`, params: { api_key: apiKey } },
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await axios.get(ep.url, { params: ep.params, timeout: 8000 });
+      const data = res.data ?? {};
+      if (typeof data === "object" && data !== null) {
+        const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit ?? data.deposit ?? data.wallet;
+        if (val !== undefined && !isNaN(Number(val))) return Number(val);
+      }
+    } catch {
+      // Try next endpoint
+    }
   }
+
+  logger.warn("KHFY: no balance endpoint available");
+  return null;
 }
 
 export async function placeKhfyOrder(params: {

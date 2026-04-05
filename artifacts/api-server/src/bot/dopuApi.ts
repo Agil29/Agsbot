@@ -85,23 +85,31 @@ export async function getDopuBalance(): Promise<number | null> {
   const baseUrl = process.env.DOPU_BASE_URL ?? "http://141.11.190.108:8182";
   const memberId = process.env.DOPU_MEMBER_ID ?? "";
   const pin = process.env.DOPU_PIN ?? "";
+  const password = process.env.DOPU_PASSWORD ?? "";
   if (!memberId || !pin) return null;
   try {
     const res = await axios.get(`${baseUrl}/saldo`, {
-      params: { memberID: memberId, pin },
+      params: { memberID: memberId, pin, password },
       timeout: 10000,
     });
     const data = res.data;
     if (typeof data === "string") {
-      const match = data.match(/saldo[=:\s]*([0-9,.]+)/i);
-      if (match) return Number(match[1].replace(/[,.]/g, "").replace(/\./g, ""));
+      // Handles: "Saldo : Rp 354.867" or "saldo=354867" or "Saldo: 354867"
+      // Skip optional "Rp" and grab the first number after "saldo"
+      const match = data.match(/saldo[^0-9]*([0-9][0-9.,]*)/i);
+      if (match) {
+        // Indonesian format: 354.867 = 354867 (dot as thousand separator)
+        return Number(match[1].replace(/\./g, "").replace(/,/g, ""));
+      }
     }
-    if (typeof data === "object") {
+    if (typeof data === "object" && data !== null) {
       const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit;
-      if (val !== undefined) return Number(val);
+      if (val !== undefined) return Number(String(val).replace(/\./g, "").replace(/,/g, ""));
     }
+    logger.warn({ raw: String(data).slice(0, 200) }, "DOPU /saldo: unexpected format");
     return null;
-  } catch {
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "DOPU /saldo request failed");
     return null;
   }
 }
