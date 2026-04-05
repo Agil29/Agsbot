@@ -323,15 +323,15 @@ export function setupHandlers(bot: TelegramBot) {
       const topup = getTopupById(topupId);
 
       if (!topup) {
-        await bot.answerCallbackQuery(query.id, { text: "Order tidak ditemukan." });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
         return;
       }
       if (topup.status === "expired") {
-        await bot.answerCallbackQuery(query.id, { text: "⏰ Order sudah kadaluarsa." });
+        await bot.answerCallbackQuery(query.id, { text: "⏰ Order sudah kadaluarsa.", show_alert: true }).catch(() => {});
         return;
       }
       if (topup.status === "completed" || topup.status === "done") {
-        await bot.answerCallbackQuery(query.id, { text: "✅ Topup sudah diproses." });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
         return;
       }
 
