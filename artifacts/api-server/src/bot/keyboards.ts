@@ -21,6 +21,8 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
       [
         { text: "AKRAB 1", callback_data: "cat_akrab1" },
         { text: "AKRAB 2", callback_data: "cat_akrab2" },
+      ],
+      [
         { text: "CIRCLE", callback_data: "cat_circle" },
       ],
     ],
