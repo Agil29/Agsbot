@@ -3,6 +3,16 @@ import { logger } from "../lib/logger";
 
 export type TopupStatus = "pending" | "confirming" | "completed" | "expired" | "cancelled";
 
+export type OrderPayload = {
+  sku: string;
+  nomorTujuan: string;
+  packageName: string;
+  category: string;
+  packageId: string;
+  quota: string;
+  validity: string;
+};
+
 export type TopupOrder = {
   id: string;
   userId: number;
@@ -15,6 +25,7 @@ export type TopupOrder = {
   status: TopupStatus;
   createdAt: Date;
   expiresAt: Date;
+  orderPayload?: OrderPayload;
 };
 
 const topups = new Map<string, TopupOrder>();
@@ -27,6 +38,7 @@ export async function createPakasirTopup(data: {
   chatId: number;
   userName: string;
   nominal: number;
+  orderPayload?: OrderPayload;
 }): Promise<{ order: TopupOrder; qrisString: string } | { error: string }> {
   const apiKey = process.env.PAKASIR_API_KEY ?? "";
   const project = process.env.PAKASIR_SLUG ?? "";
@@ -63,6 +75,7 @@ export async function createPakasirTopup(data: {
       status: "pending",
       createdAt: now,
       expiresAt: new Date(now.getTime() + EXPIRY_MINUTES * 60 * 1000),
+      orderPayload: data.orderPayload,
     };
 
     topups.set(orderId, order);

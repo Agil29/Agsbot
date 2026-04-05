@@ -77,6 +77,16 @@ export function confirmOrderKeyboard(
   };
 }
 
+export function paymentMethodKeyboard(): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: "💳 PAKAI SALDO", callback_data: "paysaldo" }],
+      [{ text: "📱 BAYAR LANGSUNG (QRIS)", callback_data: "payqris" }],
+      [{ text: "❌ Batal", callback_data: "cancel_order" }],
+    ],
+  };
+}
+
 export function backToCategoryKeyboard(): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [

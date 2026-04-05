@@ -3,14 +3,16 @@ import QRCode from "qrcode";
 import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
 import { getSession, setSession, clearSession } from "./sessions";
-import { getOrRegisterUser, getUser, formatRegDate } from "./users";
+import { getOrRegisterUser, getUser, updateSaldo, formatRegDate } from "./users";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee } from "./topup";
+import { placeKhfyOrder } from "./khfyApi";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
   packageInlineKeyboard,
   confirmOrderKeyboard,
+  paymentMethodKeyboard,
   backToCategoryKeyboard,
 } from "./keyboards";
 
@@ -236,6 +238,39 @@ export function setupHandlers(bot: TelegramBot) {
     const from = msg.from!;
     const session = getSession(from.id);
 
+    if (session.step === "waiting_nomor_tujuan") {
+      const nomor = msg.text.trim().replace(/\s+/g, "");
+      if (!/^0\d{8,13}$/.test(nomor)) {
+        await bot.sendMessage(
+          msg.chat.id,
+          "❌ Format nomor tidak valid.\nMasukkan nomor HP yang benar.\nContoh: <code>081234567890</code>",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      const user = getUser(from.id);
+      const price = session.selectedPackagePrice ?? 0;
+      setSession(from.id, { step: "select_payment", selectedNomorTujuan: nomor });
+
+      const confirmText =
+        `⚠️ <b>KONFIRMASI PESANAN</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `• Produk: <b>${session.selectedPackageName ?? "-"}</b>\n` +
+        (session.selectedSku ? `• SKU: <b>${session.selectedSku}</b>\n` : "") +
+        `• Nomor: <code>${nomor}</code>\n` +
+        `• Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n\n` +
+        `• Saldo Anda: <b>Rp ${(user?.saldo ?? 0).toLocaleString("id-ID")}</b>\n\n` +
+        `Pilih Metode Pembayaran:`;
+
+      const sent = await bot.sendMessage(msg.chat.id, confirmText, {
+        parse_mode: "HTML",
+        reply_markup: paymentMethodKeyboard(),
+      });
+      setSession(from.id, { paymentMsgId: sent.message_id });
+      return;
+    }
+
     if (session.step === "waiting_topup_amount") {
       const text = msg.text.trim().replace(/[.,]/g, "");
       const nominal = parseInt(text, 10);
@@ -359,6 +394,7 @@ export function setupHandlers(bot: TelegramBot) {
         selectedPackageQuota: pkg.quota,
         selectedPackageValidity: pkg.validity,
         selectedCategory: category,
+        selectedSku: pkg.sku,
       });
 
       const detailLines: string[] = [];
@@ -386,34 +422,180 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (data.startsWith("confirm_")) {
       const session = getSession(userId);
-      const from = query.from;
-      const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
-
-      const order = createOrder({
-        userId: from.id,
-        userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
-        category: session.selectedCategory ?? "",
-        packageId: session.packageId ?? "",
-        packageName: session.selectedPackageName ?? "",
-        price: session.selectedPackagePrice ?? 0,
-        quota: session.selectedPackageQuota ?? "",
-        validity: session.selectedPackageValidity ?? "",
-      });
+      setSession(userId, { step: "waiting_nomor_tujuan" });
 
       await bot.editMessageText(
-        `✅ <b>ORDER DITERIMA</b>\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `Halo <b>${user.firstName}</b>, order Anda telah diterima!\n\n` +
-        `🗂 ID Order: <code>${order.id}</code>\n` +
-        `📦 Paket: <b>${order.packageName}</b>\n` +
-        `📊 Kuota: <b>${order.quota}</b>\n` +
-        `⏱ Masa Aktif: <b>${order.validity}</b>\n` +
-        `💰 Harga: <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n` +
-        `Silakan lakukan pembayaran dan kirim bukti ke admin:\n@${SUPPORT_USERNAME}`,
+        `📱 <b>MASUKKAN NOMOR TUJUAN</b>\n\n` +
+        `Paket: <b>${session.selectedPackageName ?? "-"}</b>\n` +
+        `Harga: <b>Rp ${(session.selectedPackagePrice ?? 0).toLocaleString("id-ID")}</b>\n\n` +
+        `Silahkan masukan nomor tujuan:\n<i>(contoh: 081234567890)</i>`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
+      return;
+    }
+
+    if (data === "paysaldo") {
+      const from = query.from;
+      const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+      const session = getSession(userId);
+      const price = session.selectedPackagePrice ?? 0;
+      const nomor = session.selectedNomorTujuan ?? "";
+      const sku = session.selectedSku ?? "";
+
+      if (!nomor || !sku) {
+        await bot.sendMessage(chatId, "❌ Sesi tidak valid. Silakan order ulang.", { parse_mode: "HTML" });
+        clearSession(userId);
+        return;
+      }
+
+      if (user.saldo < price) {
+        await bot.editMessageText(
+          `❌ <b>Saldo tidak cukup</b>\n\n` +
+          `Saldo Anda: <b>Rp ${user.saldo.toLocaleString("id-ID")}</b>\n` +
+          `Dibutuhkan: <b>Rp ${price.toLocaleString("id-ID")}</b>\n\n` +
+          `Silakan topup saldo terlebih dahulu melalui menu 💰 TOPUP.`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      updateSaldo(userId, -price);
+
+      await bot.editMessageText(
+        `⏳ <b>Memproses order...</b>\n\nSaldo dikurangi sementara. Mohon tunggu...`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+      );
+
+      const result = await placeKhfyOrder({ sku, tujuan: nomor });
+      const updatedUser = getUser(userId);
+
+      if (result.success) {
+        createOrder({
+          userId,
+          userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
+          category: session.selectedCategory ?? "akrab2",
+          packageId: session.packageId ?? "",
+          packageName: session.selectedPackageName ?? sku,
+          price,
+          quota: session.selectedPackageQuota ?? "",
+          validity: session.selectedPackageValidity ?? "",
+          nomorTujuan: nomor,
+          sn: result.sn,
+          paymentMethod: "saldo",
+        });
+
+        await bot.editMessageText(
+          `✅ <b>ORDER BERHASIL!</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
+          `📱 Nomor: <code>${nomor}</code>\n` +
+          `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+          (result.sn ? `🔑 SN: <code>${result.sn}</code>\n` : "") +
+          `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+      } else {
+        updateSaldo(userId, price);
+        const refundedUser = getUser(userId);
+        await bot.editMessageText(
+          `❌ <b>ORDER GAGAL</b>\n\n` +
+          `${result.error}\n\n` +
+          `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+          `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+      }
+
       clearSession(userId);
+      return;
+    }
+
+    if (data === "payqris") {
+      const from = query.from;
+      const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+      const session = getSession(userId);
+      const price = session.selectedPackagePrice ?? 0;
+      const nomor = session.selectedNomorTujuan ?? "";
+      const sku = session.selectedSku ?? "";
+
+      if (!nomor || !sku) {
+        await bot.sendMessage(chatId, "❌ Sesi tidak valid. Silakan order ulang.", { parse_mode: "HTML" });
+        clearSession(userId);
+        return;
+      }
+
+      await bot.editMessageText(
+        `⏳ <b>Membuat QRIS...</b>\n\nMohon tunggu sebentar.`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+      );
+
+      const result = await createPakasirTopup({
+        userId,
+        chatId,
+        userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
+        nominal: price,
+        orderPayload: {
+          sku,
+          nomorTujuan: nomor,
+          packageName: session.selectedPackageName ?? sku,
+          category: session.selectedCategory ?? "akrab2",
+          packageId: session.packageId ?? "",
+          quota: session.selectedPackageQuota ?? "",
+          validity: session.selectedPackageValidity ?? "",
+        },
+      });
+
+      clearSession(userId);
+
+      if ("error" in result) {
+        await bot.editMessageText(
+          `❌ ${result.error}`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      const { order, qrisString } = result;
+      const expiryMinutes = 7;
+
+      let qrBuffer: Buffer;
+      try {
+        qrBuffer = await QRCode.toBuffer(qrisString, { errorCorrectionLevel: "M", width: 512, margin: 2 });
+      } catch (err) {
+        logger.error({ err }, "QR gen failed for order payment");
+        await bot.editMessageText("❌ Gagal membuat gambar QR. Coba lagi.", { chat_id: chatId, message_id: messageId, parse_mode: "HTML" });
+        return;
+      }
+
+      const caption =
+        `📱 <b>BAYAR LANGSUNG (QRIS)</b>\n\n` +
+        `• Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
+        `• Nomor: <code>${nomor}</code>\n` +
+        `• Total: <b>Rp ${order.total.toLocaleString("id-ID")}</b>\n` +
+        `• Order ID: <code>${order.id}</code>\n` +
+        `• Exp: <b>${expiryMinutes} Menit</b>\n\n` +
+        `<i>Scan QR menggunakan GoPay, OVO, Dana, dll.</i>`;
+
+      const qrKeyboard: TelegramBot.InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: "✅ SUDAH BAYAR", callback_data: `topup_paid_${order.id}` }]],
+      };
+
+      try {
+        await bot.deleteMessage(chatId, messageId);
+      } catch { }
+
+      await bot.sendPhoto(chatId, qrBuffer, { caption, parse_mode: "HTML", reply_markup: qrKeyboard });
+
+      setTimeout(async () => {
+        const t = getTopupById(order.id);
+        if (t && t.status === "pending") {
+          updateTopupStatus(order.id, "expired");
+          try {
+            await bot.sendMessage(chatId, `⏰ QRIS order <code>${order.id}</code> kadaluarsa.`, { parse_mode: "HTML" });
+          } catch { }
+        }
+      }, expiryMinutes * 60 * 1000);
+
       return;
     }
   });

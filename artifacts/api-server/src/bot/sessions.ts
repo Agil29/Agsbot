@@ -4,6 +4,8 @@ export type UserSession = {
     | "select_category"
     | "select_package"
     | "confirm_order"
+    | "waiting_nomor_tujuan"
+    | "select_payment"
     | "waiting_topup_amount";
   category?: string;
   selectedCategory?: string;
@@ -12,6 +14,9 @@ export type UserSession = {
   selectedPackagePrice?: number;
   selectedPackageQuota?: string;
   selectedPackageValidity?: string;
+  selectedSku?: string;
+  selectedNomorTujuan?: string;
+  paymentMsgId?: number;
 };
 
 const sessions = new Map<number, UserSession>();

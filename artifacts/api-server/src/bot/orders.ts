@@ -10,6 +10,9 @@ export type Order = {
   price: number;
   quota: string;
   validity: string;
+  nomorTujuan?: string;
+  sn?: string;
+  paymentMethod?: "saldo" | "qris";
   status: OrderStatus;
   createdAt: Date;
   updatedAt: Date;
