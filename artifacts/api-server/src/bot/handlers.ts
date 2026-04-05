@@ -5,7 +5,7 @@ import { getPackages, type Category } from "./store";
 import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, formatRegDate } from "./users";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
-import { calculateFee, createTopup, getTopupById, updateTopupStatus } from "./topup";
+import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee } from "./topup";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
@@ -18,13 +18,6 @@ const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
 const CEK_STOK_URL = process.env.CEK_STOK_URL ?? "";
 const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
 const CEK_LOKASI_URL = process.env.CEK_LOKASI_URL ?? "";
-
-function getPakasirUrl(): string {
-  const raw = process.env.PAKASIR_PAYMENT_URL ?? "";
-  if (!raw) return `https://t.me/${SUPPORT_USERNAME}`;
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
-  return `https://pakasir.com/pay/${raw}`;
-}
 
 function buildProfileText(user: ReturnType<typeof getUser>): string {
   if (!user) return "Profil tidak ditemukan.";
@@ -47,38 +40,45 @@ function buildProfileText(user: ReturnType<typeof getUser>): string {
 async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nominal: number) {
   const user = getUser(userId);
   const userName = user ? user.firstName + (user.lastName ? " " + user.lastName : "") : String(userId);
-  const { fee, total } = calculateFee(nominal);
-  const topupOrder = createTopup({ userId, userName, nominal, chatId });
 
-  const pakasirUrl = getPakasirUrl();
-  const qrUrl = `${pakasirUrl}?amount=${total}&order_id=${topupOrder.id}`;
+  await bot.sendMessage(chatId, "⏳ <b>Membuat QRIS...</b>\n\nMohon tunggu sebentar.", { parse_mode: "HTML" });
+
+  const result = await createPakasirTopup({ userId, chatId, userName, nominal });
+
+  if ("error" in result) {
+    await bot.sendMessage(chatId, `❌ ${result.error}`, { parse_mode: "HTML" });
+    return;
+  }
+
+  const { order, qrisString } = result;
+  const expiryMinutes = 7;
 
   let qrBuffer: Buffer;
   try {
-    qrBuffer = await QRCode.toBuffer(qrUrl, {
+    qrBuffer = await QRCode.toBuffer(qrisString, {
       errorCorrectionLevel: "M",
       width: 512,
       margin: 2,
     });
   } catch (err) {
-    logger.error({ err }, "Failed to generate QR code");
-    await bot.sendMessage(chatId, "❌ Gagal membuat QR. Silakan coba lagi.", { parse_mode: "HTML" });
+    logger.error({ err }, "Failed to generate QR code from QRIS string");
+    await bot.sendMessage(chatId, "❌ Gagal membuat gambar QR. Silakan coba lagi.", { parse_mode: "HTML" });
     return;
   }
 
-  const expiryMinutes = 7;
   const caption =
     `<b>PROSES TOPUP QRIS</b>\n\n` +
-    `• Nominal: <b>Rp ${nominal.toLocaleString("id-ID")}</b>\n` +
-    `• Total: <b>Rp ${total.toLocaleString("id-ID")}</b>\n` +
-    `• Order ID: <code>${topupOrder.id}</code>\n` +
+    `• Nominal: <b>Rp ${order.nominal.toLocaleString("id-ID")}</b>\n` +
+    `• Fee: <b>Rp ${order.fee.toLocaleString("id-ID")}</b>\n` +
+    `• Total: <b>Rp ${order.total.toLocaleString("id-ID")}</b>\n` +
+    `• Order ID: <code>${order.id}</code>\n` +
     `• Exp: <b>${expiryMinutes} Menit</b>\n\n` +
-    `<i>Terdapat fee 0.7% + 310, Untuk nominal di atas Rp 105.000 biayanya menjadi 1% + Rp 0.</i>\n\n` +
+    `<i>Scan QR di atas menggunakan aplikasi pembayaran QRIS (GoPay, OVO, Dana, dll).</i>\n\n` +
     `Silakan bayar sebelum ${expiryMinutes} menit.`;
 
   const keyboard: TelegramBot.InlineKeyboardMarkup = {
     inline_keyboard: [
-      [{ text: "✅ SUDAH BAYAR", callback_data: `topup_paid_${topupOrder.id}` }],
+      [{ text: "✅ SUDAH BAYAR", callback_data: `topup_paid_${order.id}` }],
     ],
   };
 
@@ -89,13 +89,13 @@ async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nom
   });
 
   setTimeout(async () => {
-    const t = getTopupById(topupOrder.id);
+    const t = getTopupById(order.id);
     if (t && t.status === "pending") {
-      updateTopupStatus(topupOrder.id, "expired");
+      updateTopupStatus(order.id, "expired");
       try {
         await bot.sendMessage(
           chatId,
-          `⏰ <b>Topup kadaluarsa</b>\n\nOrder <code>${topupOrder.id}</code> sudah kadaluarsa. Silakan topup ulang jika diperlukan.`,
+          `⏰ <b>Topup kadaluarsa</b>\n\nOrder <code>${order.id}</code> sudah kadaluarsa. Silakan topup ulang jika diperlukan.`,
           { parse_mode: "HTML" }
         );
       } catch { }
