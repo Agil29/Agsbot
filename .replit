@@ -29,3 +29,4 @@ timeoutMs = 20000
 
 [userenv.shared]
 PAKASIR_SLUG = "ags-store-xl"
+API2_BASE_URL = "https://panel.khfy-store.com/api_v2"
