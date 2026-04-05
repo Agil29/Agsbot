@@ -6,6 +6,7 @@ import { loadUsersFromDb } from "./users";
 import { loadOrdersFromDb } from "./orders";
 import { loadTopupsFromDb } from "./topup";
 import { loadStoreFromDb } from "./store";
+import { loadMarkupFromDb } from "./markup";
 
 let botInstance: TelegramBot | null = null;
 
@@ -27,6 +28,7 @@ export async function startBot() {
     loadOrdersFromDb(),
     loadTopupsFromDb(),
     loadStoreFromDb(),
+    loadMarkupFromDb(),
   ]);
 
   const bot = new TelegramBot(token, { polling: false });

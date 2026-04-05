@@ -63,4 +63,9 @@ export const api = {
     update: (data: any) => request<any>("PUT", "/settings", data),
   },
   analytics: () => request<any>("GET", "/analytics"),
+  markup: {
+    list: () => request<any>("GET", "/markup"),
+    update: (category: string, type: string, amount: number) =>
+      request<any>("PUT", `/markup/${category}`, { type, amount }),
+  },
 };

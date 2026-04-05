@@ -8,9 +8,11 @@ import {
   type Category,
 } from "../../bot/store";
 import { refreshAllPackages } from "../../bot/apiService";
-import { getAllUsers, updateSaldo } from "../../bot/users";
+import { getAllUsers, updateSaldo, getUser } from "../../bot/users";
 import { getAllOrders, updateOrderStatus, type OrderStatus } from "../../bot/orders";
 import { getAllTopups, updateTopupStatus, getTopupById } from "../../bot/topup";
+import { getBot } from "../../bot/index";
+import { getAllMarkup, setMarkup, type MarkupType } from "../../bot/markup";
 
 const router = Router();
 
@@ -115,6 +117,7 @@ router.get("/users", requireAdmin, (_req, res) => {
     firstName: u.firstName,
     lastName: u.lastName,
     username: u.username,
+    whatsapp: u.whatsapp,
     uid: u.uid,
     regDate: u.regDate,
     saldo: u.saldo,
@@ -131,7 +134,7 @@ router.delete("/users/:telegramId", requireAdmin, (req, res) => {
   res.json({ success: true, message: "User removed from session (data resets on restart)" });
 });
 
-router.post("/users/:telegramId/saldo", requireAdmin, (req, res) => {
+router.post("/users/:telegramId/saldo", requireAdmin, async (req, res) => {
   const telegramId = parseInt(req.params.telegramId, 10);
   if (isNaN(telegramId)) {
     return res.status(400).json({ error: "Invalid telegramId" });
@@ -143,6 +146,21 @@ router.post("/users/:telegramId/saldo", requireAdmin, (req, res) => {
   const updated = updateSaldo(telegramId, Number(amount));
   if (!updated) {
     return res.status(404).json({ error: "User not found" });
+  }
+  const numAmount = Number(amount);
+  try {
+    const bot = getBot();
+    if (bot) {
+      const sign = numAmount >= 0 ? "+" : "";
+      const msg =
+        `💳 <b>UPDATE SALDO</b>\n\n` +
+        `Admin telah memperbarui saldo Anda:\n\n` +
+        `• Perubahan: <b>${sign}Rp ${Math.abs(numAmount).toLocaleString("id-ID")}</b>\n` +
+        `• Saldo sekarang: <b>Rp ${updated.saldo.toLocaleString("id-ID")}</b>`;
+      await bot.sendMessage(telegramId, msg, { parse_mode: "HTML" });
+    }
+  } catch (_err) {
+    // Notification failed — do not block the response
   }
   res.json({ success: true, data: { telegramId, saldo: updated.saldo } });
 });
@@ -180,6 +198,24 @@ router.put("/topups/:topupId/cancel", requireAdmin, (req, res) => {
   const topup = getTopupById(topupId);
   if (!topup) return res.status(404).json({ error: "Topup tidak ditemukan" });
   const updated = updateTopupStatus(topupId, "cancelled");
+  res.json({ success: true, data: updated });
+});
+
+// ── Markup ──────────────────────────────────────────────────────────────
+router.get("/markup", requireAdmin, (_req, res) => {
+  res.json({ success: true, data: getAllMarkup() });
+});
+
+router.put("/markup/:category", requireAdmin, async (req, res) => {
+  const { category } = req.params;
+  const { type, amount } = req.body;
+  if (!["flat", "percentage"].includes(type)) {
+    return res.status(400).json({ error: "type harus 'flat' atau 'percentage'" });
+  }
+  if (amount === undefined || isNaN(Number(amount)) || Number(amount) < 0) {
+    return res.status(400).json({ error: "amount harus angka >= 0" });
+  }
+  const updated = await setMarkup(category, type as MarkupType, Number(amount));
   res.json({ success: true, data: updated });
 });
 

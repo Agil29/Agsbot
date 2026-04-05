@@ -6,6 +6,7 @@ export type UserProfile = {
   firstName: string;
   lastName?: string;
   username?: string;
+  whatsapp?: string;
   uid: number;
   regDate: Date;
   saldo: number;
@@ -20,6 +21,7 @@ function rowToUser(row: any): UserProfile {
     firstName: row.first_name,
     lastName: row.last_name ?? undefined,
     username: row.username ?? undefined,
+    whatsapp: row.whatsapp ?? undefined,
     uid: Number(row.uid),
     regDate: new Date(row.reg_date),
     saldo: Number(row.saldo),
@@ -28,6 +30,7 @@ function rowToUser(row: any): UserProfile {
 
 export async function loadUsersFromDb(): Promise<void> {
   try {
+    await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(20)").catch(() => {});
     const rows = await query("SELECT * FROM users");
     users.clear();
     let maxUid = 1000;
@@ -91,6 +94,16 @@ export function getOrRegisterUser(
 
 export function getUser(telegramId: number): UserProfile | undefined {
   return users.get(telegramId);
+}
+
+export function setWhatsapp(telegramId: number, whatsapp: string): UserProfile | null {
+  const user = users.get(telegramId);
+  if (!user) return null;
+  user.whatsapp = whatsapp;
+  run("UPDATE users SET whatsapp=$1 WHERE telegram_id=$2", [whatsapp, telegramId]).catch(
+    (err) => logger.error({ err }, "DB update whatsapp failed")
+  );
+  return user;
 }
 
 export function updateSaldo(telegramId: number, amount: number): UserProfile | null {

@@ -7,10 +7,12 @@ export type Order = {
   id: string;
   userId: number;
   userName: string;
+  userUsername?: string;
   category: string;
   packageId: string;
   packageName: string;
   price: number;
+  baseprice: number;
   quota: string;
   validity: string;
   nomorTujuan?: string;
@@ -29,10 +31,12 @@ function rowToOrder(row: any): Order {
     id: row.id,
     userId: Number(row.user_id),
     userName: row.user_name,
+    userUsername: row.user_username ?? undefined,
     category: row.category,
     packageId: row.package_id,
     packageName: row.package_name,
     price: Number(row.price),
+    baseprice: Number(row.baseprice ?? row.price),
     quota: row.quota,
     validity: row.validity,
     nomorTujuan: row.nomor_tujuan ?? undefined,
@@ -47,6 +51,8 @@ function rowToOrder(row: any): Order {
 
 export async function loadOrdersFromDb(): Promise<void> {
   try {
+    await run("ALTER TABLE orders ADD COLUMN IF NOT EXISTS baseprice NUMERIC DEFAULT 0").catch(() => {});
+    await run("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_username VARCHAR(100)").catch(() => {});
     const rows = await query("SELECT * FROM orders ORDER BY created_at DESC");
     orders.length = 0;
     for (const row of rows) orders.push(rowToOrder(row));
@@ -67,12 +73,13 @@ export function createOrder(data: Omit<Order, "id" | "status" | "createdAt" | "u
   orders.unshift(order);
 
   run(
-    `INSERT INTO orders (id, user_id, user_name, category, package_id, package_name, price, quota, validity,
+    `INSERT INTO orders (id, user_id, user_name, user_username, category, package_id, package_name, price, baseprice, quota, validity,
       nomor_tujuan, sn, reff_id, payment_method, status, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
     [
-      order.id, order.userId, order.userName, order.category, order.packageId, order.packageName,
-      order.price, order.quota, order.validity,
+      order.id, order.userId, order.userName, order.userUsername ?? null,
+      order.category, order.packageId, order.packageName,
+      order.price, order.baseprice, order.quota, order.validity,
       order.nomorTujuan ?? null, order.sn ?? null, order.reffId ?? null,
       order.paymentMethod ?? null, order.status, order.createdAt, order.updatedAt,
     ]

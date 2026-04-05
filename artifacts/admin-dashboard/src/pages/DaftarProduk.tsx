@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Package, Plus, Edit2, Trash2, RefreshCw, Zap } from "lucide-react";
+import { Package, Plus, Edit2, Trash2, RefreshCw, Zap, Settings } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Product = {
@@ -18,6 +18,91 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const EMPTY_FORM = { name: "", description: "", price: "", active: true };
+
+function MarkupPanel({ category }: { category: string }) {
+  const [markup, setMarkup] = useState<{ type: string; amount: number } | null>(null);
+  const [editType, setEditType] = useState("flat");
+  const [editAmount, setEditAmount] = useState("0");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    api.markup.list().then((res) => {
+      const m = res.data?.[category];
+      if (m) {
+        setMarkup(m);
+        setEditType(m.type);
+        setEditAmount(String(m.amount));
+      } else {
+        setMarkup({ type: "flat", amount: 0 });
+        setEditType("flat");
+        setEditAmount("0");
+      }
+    }).catch(() => {});
+  }, [category]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await api.markup.update(category, editType, Number(editAmount));
+      setMarkup(res.data);
+      setMsg("Markup disimpan!");
+      setTimeout(() => setMsg(""), 2500);
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Settings size={16} className="text-amber-600" />
+        <span className="font-semibold text-amber-800 text-sm">Pengaturan Markup — {CATEGORY_LABELS[category]}</span>
+        {markup && (
+          <span className="ml-auto text-xs text-amber-600">
+            Saat ini: {markup.type === "percentage" ? `${markup.amount}%` : `+Rp ${markup.amount.toLocaleString("id-ID")}`}
+          </span>
+        )}
+      </div>
+      <div className="flex gap-3 items-end flex-wrap">
+        <div>
+          <label className="block text-xs font-medium text-amber-700 mb-1">Tipe</label>
+          <select
+            value={editType}
+            onChange={(e) => setEditType(e.target.value)}
+            className="px-3 py-1.5 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <option value="flat">Flat (Rp)</option>
+            <option value="percentage">Persentase (%)</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-amber-700 mb-1">
+            Jumlah {editType === "percentage" ? "(%)" : "(Rp)"}
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={editAmount}
+            onChange={(e) => setEditAmount(e.target.value)}
+            className="w-32 px-3 py-1.5 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            placeholder={editType === "percentage" ? "e.g. 5" : "e.g. 2000"}
+          />
+        </div>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg disabled:opacity-50"
+        >
+          {saving ? "Menyimpan..." : "Simpan Markup"}
+        </button>
+        {msg && <span className="text-xs text-amber-700 font-medium">{msg}</span>}
+      </div>
+    </div>
+  );
+}
 
 export function DaftarProduk({ category }: { category: string }) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -125,6 +210,8 @@ export function DaftarProduk({ category }: { category: string }) {
           </button>
         </div>
       </div>
+
+      <MarkupPanel category={category} />
 
       {msg.text && (
         <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm border ${

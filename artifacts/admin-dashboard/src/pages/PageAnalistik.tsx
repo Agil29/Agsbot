@@ -147,7 +147,7 @@ export function PageAnalistik() {
       </div>
 
       {/* Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
         <StatCard
           icon={<Wallet size={24} className="text-blue-600" />}
           iconBg="bg-blue-50"
@@ -175,12 +175,20 @@ export function PageAnalistik() {
           badge="Bln ini"
         />
         <StatCard
-          icon={<DollarSign size={24} className="text-orange-600" />}
+          icon={<Server size={24} className="text-orange-600" />}
           iconBg="bg-orange-50"
-          label="Total Deposit"
-          value={formatRp(data?.depositMember ?? 0)}
-          sub="Semua waktu — topup berhasil"
+          label="Saldo DOPU"
+          value={data?.dopuBalance != null ? formatRp(data.dopuBalance) : "—"}
+          sub="Saldo API Akrab 1 & Circle"
           subColor="text-orange-500"
+        />
+        <StatCard
+          icon={<DollarSign size={24} className="text-cyan-600" />}
+          iconBg="bg-cyan-50"
+          label="Saldo KHFY"
+          value={data?.khfyBalance != null ? formatRp(data.khfyBalance) : "—"}
+          sub="Saldo API Akrab 2"
+          subColor="text-cyan-500"
         />
       </div>
 

@@ -81,6 +81,31 @@ function parseDopuResponse(raw: string): {
   return { success: false, pending: false, sn: "", errorMsg };
 }
 
+export async function getDopuBalance(): Promise<number | null> {
+  const baseUrl = process.env.DOPU_BASE_URL ?? "http://141.11.190.108:8182";
+  const memberId = process.env.DOPU_MEMBER_ID ?? "";
+  const pin = process.env.DOPU_PIN ?? "";
+  if (!memberId || !pin) return null;
+  try {
+    const res = await axios.get(`${baseUrl}/saldo`, {
+      params: { memberID: memberId, pin },
+      timeout: 10000,
+    });
+    const data = res.data;
+    if (typeof data === "string") {
+      const match = data.match(/saldo[=:\s]*([0-9,.]+)/i);
+      if (match) return Number(match[1].replace(/[,.]/g, "").replace(/\./g, ""));
+    }
+    if (typeof data === "object") {
+      const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit;
+      if (val !== undefined) return Number(val);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function placeDopuOrder(params: {
   sku: string;
   tujuan: string;

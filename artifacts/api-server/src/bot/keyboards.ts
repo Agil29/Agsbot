@@ -3,22 +3,16 @@ import { type PackageItem } from "./store";
 
 export type MainMenuOpts = {
   cekPaketUrl?: string;
-  cekStokUrl?: string;
 };
 
 export function mainMenuKeyboard(
   opts: MainMenuOpts = {},
 ): TelegramBot.ReplyKeyboardMarkup {
-  const cekPaketBtn: TelegramBot.KeyboardButton = { text: "📱 CEK PAKET" };
-
-  const cekStokBtn: TelegramBot.KeyboardButton = { text: "📊 CEK STOK" };
-
   return {
     keyboard: [
       [{ text: "📦 ORDER" }],
       [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT TRANSAKSI" }],
-      [cekStokBtn, cekPaketBtn],
-      [{ text: "📍 CEK LOKASI" }],
+      [{ text: "📱 CEK PAKET & AREA" }],
       [{ text: "🏠 Menu" }],
     ],
     resize_keyboard: true,

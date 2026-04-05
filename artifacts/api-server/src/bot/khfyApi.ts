@@ -6,6 +6,24 @@ export type KhfyOrderResult =
   | { success: true; sn: string; message: string; reffId: string }
   | { success: false; error: string; reffId: string };
 
+export async function getKhfyBalance(): Promise<number | null> {
+  const apiKey = process.env.API2_KEY ?? "";
+  const baseUrl = process.env.API2_BASE_URL ?? "";
+  if (!apiKey || !baseUrl) return null;
+  try {
+    const res = await axios.get(`${baseUrl}/saldo`, {
+      params: { api_key: apiKey },
+      timeout: 10000,
+    });
+    const data = res.data ?? {};
+    const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit;
+    if (val !== undefined) return Number(val);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function placeKhfyOrder(params: {
   sku: string;
   tujuan: string;

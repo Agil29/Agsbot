@@ -3,6 +3,8 @@ import { logger } from "../../lib/logger";
 import { getAllUsers } from "../../bot/users";
 import { getAllOrders } from "../../bot/orders";
 import { getAllTopups } from "../../bot/topup";
+import { getDopuBalance } from "../../bot/dopuApi";
+import { getKhfyBalance } from "../../bot/khfyApi";
 
 const router = Router();
 
@@ -75,24 +77,41 @@ router.get("/stats", requireAdmin, (_req, res) => {
   });
 });
 
-router.get("/analytics", requireAdmin, (_req, res) => {
+router.get("/analytics", requireAdmin, async (_req, res) => {
   const orders = getAllOrders();
   const topups = getAllTopups();
   const users = getAllUsers();
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const start12Months = new Date(now.getFullYear() - 1, now.getMonth(), 1);
 
   const successOrders = orders.filter((o: any) => o.status === "done");
   const monthOrders = successOrders.filter((o: any) => new Date(o.createdAt) >= startOfMonth);
-  const penghasilan = monthOrders.reduce((s: number, o: any) => s + o.price, 0);
+  const penghasilan = monthOrders.reduce((s: number, o: any) => {
+    const profit = o.price - (o.baseprice ?? o.price);
+    return s + profit;
+  }, 0);
+  const penghasilan12m = successOrders
+    .filter((o: any) => new Date(o.createdAt) >= start12Months)
+    .reduce((s: number, o: any) => s + (o.price - (o.baseprice ?? o.price)), 0);
   const produkTerjual = monthOrders.length;
 
   const successTopups = topups.filter((t: any) => t.status === "completed" || t.status === "done");
-  const depositMember = successTopups.reduce((s: number, t: any) => s + t.nominal, 0);
+  const depositMember = users.reduce((s: number, u: any) => s + (u.saldo ?? 0), 0);
   const monthDeposit = successTopups
     .filter((t: any) => new Date(t.createdAt) >= startOfMonth)
     .reduce((s: number, t: any) => s + t.nominal, 0);
+
+  // 12-month summary
+  const orders12m = orders.filter((o: any) => new Date(o.createdAt) >= start12Months);
+  const totalSpent12m = orders12m.filter((o: any) => o.status === "done").reduce((s: number, o: any) => s + o.price, 0);
+
+  // Fetch API balances
+  const [dopuBal, khfyBal] = await Promise.all([
+    getDopuBalance().catch(() => null),
+    getKhfyBalance().catch(() => null),
+  ]);
 
   // Build daily user registration for last 30 days
   const days: { date: string; users: number; orders: number; topups: number }[] = [];
@@ -121,12 +140,17 @@ router.get("/analytics", requireAdmin, (_req, res) => {
       depositMember,
       monthDeposit,
       penghasilan,
+      penghasilan12m,
       produkTerjual,
+      produkTerjual12m: orders12m.filter((o: any) => o.status === "done").length,
+      totalSpent12m,
       totalOrders: successOrders.length,
       api1Configured: !!api1Url,
       api2Configured: !!api2Url,
-      api1Label: api1Url ? new URL(api1Url).hostname : "Belum dikonfigurasi",
-      api2Label: api2Url ? new URL(api2Url).hostname : "Belum dikonfigurasi",
+      api1Label: api1Url ? (() => { try { return new URL(api1Url).hostname; } catch { return api1Url; } })() : "Belum dikonfigurasi",
+      api2Label: api2Url ? (() => { try { return new URL(api2Url).hostname; } catch { return api2Url; } })() : "Belum dikonfigurasi",
+      dopuBalance: dopuBal,
+      khfyBalance: khfyBal,
       dailyChart: days,
     },
   });

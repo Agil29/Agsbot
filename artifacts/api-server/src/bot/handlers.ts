@@ -4,7 +4,8 @@ import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
 import { refreshAllPackages } from "./apiService";
 import { getSession, setSession, clearSession } from "./sessions";
-import { getOrRegisterUser, getUser, updateSaldo, formatRegDate } from "./users";
+import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate } from "./users";
+import { getMarkup, applyMarkup } from "./markup";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee } from "./topup";
 import { placeKhfyOrder } from "./khfyApi";
@@ -20,9 +21,7 @@ import {
 } from "./keyboards";
 
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
-const CEK_STOK_URL = process.env.CEK_STOK_URL ?? "";
 const CEK_PAKET_URL = process.env.CEK_PAKET_URL ?? "";
-const CEK_LOKASI_URL = process.env.CEK_LOKASI_URL ?? "";
 const DOPU_CEK_STOK_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
 
 function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPackages> = []): PackageKeyboardOpts {
@@ -51,6 +50,7 @@ function buildProfileText(user: ReturnType<typeof getUser>): string {
     `• Nama: <b>${user.firstName}${user.lastName ? " " + user.lastName : ""}</b>\n` +
     `• ID: <code>${user.telegramId}</code>\n` +
     (user.username ? `• User: @${user.username}\n` : "") +
+    (user.whatsapp ? `• WA: <code>${user.whatsapp}</code>\n` : "") +
     `• UID: <b>${user.uid}</b>\n` +
     `• Reg: <b>${formatRegDate(user.regDate)}</b>\n\n` +
     `<b>Saldo: Rp ${user.saldo.toLocaleString("id-ID")}</b>\n\n` +
@@ -59,6 +59,15 @@ function buildProfileText(user: ReturnType<typeof getUser>): string {
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
     `📦 Sila Pilih Menu di bawah:`
   );
+}
+
+function getPackagesWithMarkup(category: Category) {
+  const markup = getMarkup(category);
+  return getPackages(category).map((pkg) => ({
+    ...pkg,
+    baseprice: pkg.price,
+    price: applyMarkup(pkg.price, markup),
+  }));
 }
 
 async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nominal: number) {
@@ -132,9 +141,18 @@ export function setupHandlers(bot: TelegramBot) {
     const from = msg.from!;
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
+    if (!user.whatsapp) {
+      setSession(from.id, { step: "waiting_whatsapp" });
+      await bot.sendMessage(
+        msg.chat.id,
+        `👋 Halo <b>${user.firstName}</b>!\n\nSelamat datang di bot kami.\n\nSebelum menggunakan layanan, mohon masukkan <b>nomor WhatsApp</b> Anda:\n\nContoh: <code>081234567890</code>`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: DOPU_CEK_STOK_URL }),
+      reply_markup: mainMenuKeyboard(),
     });
   });
 
@@ -144,7 +162,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: DOPU_CEK_STOK_URL }),
+      reply_markup: mainMenuKeyboard(),
     });
   });
 
@@ -195,64 +213,16 @@ export function setupHandlers(bot: TelegramBot) {
     await bot.sendMessage(msg.chat.id, text, { parse_mode: "HTML" });
   });
 
-  bot.onText(/📊 CEK STOK/, async (msg) => {
-    const chatId = msg.chat.id;
-    if (CEK_STOK_URL) {
-      await bot.sendMessage(chatId, "📊 <b>CEK STOK</b>\n\nKlik tombol di bawah untuk melihat stok:", {
-        parse_mode: "HTML",
-        reply_markup: { inline_keyboard: [[{ text: "📊 Buka Cek Stok", url: CEK_STOK_URL }]] },
-      });
-    } else {
-      const akrab1 = getPackages("akrab1");
-      const akrab2 = getPackages("akrab2");
-      const circle = getPackages("circle");
-
-      let akrab2StokDetail = "";
-      if (akrab2.length > 0) {
-        const lines = akrab2.map((p) => {
-          const statusIcon = p.stock && p.stock > 0 ? "✅" : "❌";
-          const statusText = p.stock && p.stock > 0 ? "tersedia" : "kosong";
-          return `  ${statusIcon} ${p.name}: <b>${statusText}</b> — Rp ${p.price.toLocaleString("id-ID")}`;
-        });
-        akrab2StokDetail = "\n" + lines.join("\n");
-      }
-
-      await bot.sendMessage(chatId,
-        `📊 <b>CEK STOK PAKET</b>\n\n` +
-        `🟢 AKRAB 1: <b>${akrab1.length}</b> paket tersedia\n` +
-        `🔵 CIRCLE: <b>${circle.length}</b> paket tersedia\n\n` +
-        `🟡 <b>AKRAB 2:</b>${akrab2.length > 0 ? akrab2StokDetail : " Belum tersedia"}`,
-        { parse_mode: "HTML" }
-      );
-    }
-  });
-
-
-  bot.onText(/📱 CEK PAKET/, async (msg) => {
+  bot.onText(/📱 CEK PAKET & AREA/, async (msg) => {
     const chatId = msg.chat.id;
     if (CEK_PAKET_URL) {
-      await bot.sendMessage(chatId, "📱 <b>CEK PAKET</b>\n\nKlik tombol di bawah untuk cek paket aktif:", {
+      await bot.sendMessage(chatId, "📱 <b>CEK PAKET & AREA</b>\n\nKlik tombol di bawah untuk cek paket aktif & area:", {
         parse_mode: "HTML",
-        reply_markup: { inline_keyboard: [[{ text: "📱 Buka Cek Paket", url: CEK_PAKET_URL }]] },
+        reply_markup: { inline_keyboard: [[{ text: "📱 Buka Cek Paket & Area", url: CEK_PAKET_URL }]] },
       });
     } else {
       await bot.sendMessage(chatId,
-        `📱 <b>CEK PAKET</b>\n\nFitur cek paket belum tersedia. Hubungi @${SUPPORT_USERNAME}`,
-        { parse_mode: "HTML" }
-      );
-    }
-  });
-
-  bot.onText(/📍 CEK LOKASI/, async (msg) => {
-    const chatId = msg.chat.id;
-    if (CEK_LOKASI_URL) {
-      await bot.sendMessage(chatId, "📍 <b>CEK LOKASI</b>\n\nKlik tombol di bawah:", {
-        parse_mode: "HTML",
-        reply_markup: { inline_keyboard: [[{ text: "📍 Buka Cek Lokasi", url: CEK_LOKASI_URL }]] },
-      });
-    } else {
-      await bot.sendMessage(chatId,
-        `📍 <b>CEK LOKASI</b>\n\nMiniapp lokasi belum tersedia. Hubungi @${SUPPORT_USERNAME}`,
+        `📱 <b>CEK PAKET & AREA</b>\n\nFitur cek paket belum tersedia. Hubungi @${SUPPORT_USERNAME}`,
         { parse_mode: "HTML" }
       );
     }
@@ -262,6 +232,32 @@ export function setupHandlers(bot: TelegramBot) {
     if (!msg.text) return;
     const from = msg.from!;
     const session = getSession(from.id);
+
+    if (session.step === "waiting_whatsapp") {
+      const wa = msg.text.trim().replace(/\s+/g, "").replace(/^(\+62|62)/, "0");
+      if (!/^0\d{8,13}$/.test(wa)) {
+        await bot.sendMessage(
+          msg.chat.id,
+          "❌ Format nomor WhatsApp tidak valid.\nMasukkan nomor yang benar.\nContoh: <code>081234567890</code>",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+      const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+      setWhatsapp(from.id, wa);
+      clearSession(from.id);
+      const updatedUser = { ...user, whatsapp: wa };
+      await bot.sendMessage(
+        msg.chat.id,
+        `✅ <b>Pendaftaran Berhasil!</b>\n\nNomor WhatsApp <code>${wa}</code> telah tersimpan.\n\n` +
+        buildProfileText(updatedUser),
+        {
+          parse_mode: "HTML",
+          reply_markup: mainMenuKeyboard(),
+        }
+      );
+      return;
+    }
 
     if (session.step === "waiting_nomor_tujuan") {
       const nomor = msg.text.trim().replace(/\s+/g, "");
@@ -363,7 +359,7 @@ export function setupHandlers(bot: TelegramBot) {
 
       try {
         await refreshAllPackages();
-        const packages = category ? getPackages(category) : [];
+        const packages = category ? getPackagesWithMarkup(category) : [];
         const label = category ? categoryLabels[category] : "Paket";
         await bot.editMessageText(
           `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
@@ -403,7 +399,7 @@ export function setupHandlers(bot: TelegramBot) {
       const category = (session.category as Category | undefined) ?? "akrab2";
       await bot.answerCallbackQuery(callbackQuery.id, { text: "🔄 Memperbarui stok..." });
       await refreshAllPackages();
-      const packages = getPackages(category);
+      const packages = getPackagesWithMarkup(category);
       const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
       if (packages.length === 0) {
         await bot.editMessageText(
@@ -421,7 +417,7 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (data.startsWith("cat_")) {
       const category = data.replace("cat_", "") as Category;
-      const packages = getPackages(category);
+      const packages = getPackagesWithMarkup(category);
       setSession(userId, { step: "select_package", category });
       const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
 
@@ -444,7 +440,7 @@ export function setupHandlers(bot: TelegramBot) {
       const session = getSession(userId);
       const category = session.category as Category | undefined;
       if (!category) return;
-      const packages = getPackages(category);
+      const packages = getPackagesWithMarkup(category);
       await bot.editMessageReplyMarkup(packageInlineKeyboard(packages, page, pkgKeyboardOpts(category, packages)), { chat_id: chatId, message_id: messageId });
       return;
     }
@@ -454,7 +450,7 @@ export function setupHandlers(bot: TelegramBot) {
       const session = getSession(userId);
       const category = session.category as Category | undefined;
       if (!category) return;
-      const packages = getPackages(category);
+      const packages = getPackagesWithMarkup(category);
       const pkg = packages.find((p) => p.id === packageId);
       if (!pkg) { await bot.sendMessage(chatId, "❌ Paket tidak ditemukan."); return; }
 
@@ -466,6 +462,7 @@ export function setupHandlers(bot: TelegramBot) {
         packageId: pkg.id,
         selectedPackageName: pkg.name,
         selectedPackagePrice: pkg.price,
+        selectedPackageBaseprice: pkg.baseprice ?? pkg.price,
         selectedPackageQuota: pkg.quota,
         selectedPackageValidity: pkg.validity,
         selectedCategory: category,
@@ -504,7 +501,7 @@ export function setupHandlers(bot: TelegramBot) {
       const session = getSession(userId);
       const category = session.category as Category | undefined;
       if (!category) return;
-      const packages = getPackages(category);
+      const packages = getPackagesWithMarkup(category);
       const page = session.page ?? 0;
       const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
       await bot.editMessageText(
@@ -588,10 +585,12 @@ export function setupHandlers(bot: TelegramBot) {
         createOrder({
           userId,
           userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
+          userUsername: user.username ?? undefined,
           category: selectedCat,
           packageId: session.packageId ?? "",
           packageName: session.selectedPackageName ?? sku,
           price,
+          baseprice: session.selectedPackageBaseprice ?? price,
           quota: session.selectedPackageQuota ?? "",
           validity: session.selectedPackageValidity ?? "",
           nomorTujuan: nomor,

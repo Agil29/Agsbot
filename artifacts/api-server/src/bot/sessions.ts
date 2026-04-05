@@ -1,6 +1,7 @@
 export type UserSession = {
   step:
     | "idle"
+    | "waiting_whatsapp"
     | "select_category"
     | "select_package"
     | "confirm_order"
@@ -12,11 +13,13 @@ export type UserSession = {
   packageId?: string;
   selectedPackageName?: string;
   selectedPackagePrice?: number;
+  selectedPackageBaseprice?: number;
   selectedPackageQuota?: string;
   selectedPackageValidity?: string;
   selectedSku?: string;
   selectedNomorTujuan?: string;
   paymentMsgId?: number;
+  page?: number;
 };
 
 const sessions = new Map<number, UserSession>();

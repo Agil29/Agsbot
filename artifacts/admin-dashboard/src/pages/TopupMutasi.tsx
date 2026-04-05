@@ -27,10 +27,22 @@ const TOPUP_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   done: { label: "Berhasil", color: "bg-green-100 text-green-700" },
 };
 
+const PROVIDER_LABELS: Record<string, string> = {
+  all: "Semua Provider",
+  dopu: "DOPU (Akrab 1 & Circle)",
+  khfy: "KHFY (Akrab 2)",
+};
+
+function getProvider(category: string): string {
+  if (category === "akrab2") return "khfy";
+  return "dopu";
+}
+
 export function HistoryPenjualan() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const [providerFilter, setProviderFilter] = useState("all");
 
   async function load() {
     setLoading(true);
@@ -56,18 +68,59 @@ export function HistoryPenjualan() {
     }
   }
 
+  const now = new Date();
+  const start12m = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+  const orders12m = orders.filter((o) => new Date(o.createdAt) >= start12m && o.status === "done");
+  const totalSpent12m = orders12m.reduce((s: number, o: any) => s + o.price, 0);
+  const penghasilan12m = orders12m.reduce((s: number, o: any) => s + (o.price - (o.baseprice ?? o.price)), 0);
+
+  const filtered = providerFilter === "all"
+    ? orders
+    : orders.filter((o) => getProvider(o.category) === providerFilter);
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <ShoppingBag size={22} className="text-blue-600" /> History Penjualan
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">{orders.length} transaksi order</p>
+          <p className="text-slate-500 text-sm mt-0.5">{filtered.length} transaksi order</p>
         </div>
         <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
           <RefreshCw size={14} /> Refresh
         </button>
+      </div>
+
+      {/* 12-month summary */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {[
+          { label: "Transaksi 12 Bulan", value: String(orders12m.length), color: "text-blue-600" },
+          { label: "Total Pendapatan 12 Bln", value: formatRp(totalSpent12m), color: "text-green-600" },
+          { label: "Penghasilan 12 Bln", value: formatRp(penghasilan12m), color: "text-purple-600" },
+        ].map((item) => (
+          <div key={item.label} className="bg-white rounded-xl border border-slate-100 p-4 text-center shadow-sm">
+            <p className="text-xs text-slate-500 mb-1">{item.label}</p>
+            <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Provider filter */}
+      <div className="flex gap-2 mb-4">
+        {Object.entries(PROVIDER_LABELS).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setProviderFilter(key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              providerFilter === key
+                ? "bg-blue-600 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {msg && <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">{msg}</div>}
@@ -76,7 +129,7 @@ export function HistoryPenjualan() {
         <div className="overflow-x-auto">
           {loading ? (
             <div className="py-16 text-center text-slate-400"><RefreshCw size={24} className="animate-spin mx-auto mb-2" />Memuat...</div>
-          ) : orders.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="py-16 text-center text-slate-400">Belum ada order</div>
           ) : (
             <table className="w-full text-sm">
@@ -84,24 +137,38 @@ export function HistoryPenjualan() {
                 <tr>
                   <th className="px-4 py-3 text-left font-medium">Order ID</th>
                   <th className="px-4 py-3 text-left font-medium">User</th>
+                  <th className="px-4 py-3 text-left font-medium">Username</th>
                   <th className="px-4 py-3 text-left font-medium">Paket</th>
-                  <th className="px-4 py-3 text-left font-medium">Kategori</th>
+                  <th className="px-4 py-3 text-left font-medium">Provider</th>
                   <th className="px-4 py-3 text-left font-medium">Harga</th>
+                  <th className="px-4 py-3 text-left font-medium">Penghasilan</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Tanggal</th>
                   <th className="px-4 py-3 text-left font-medium">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {orders.map((o) => {
+                {filtered.map((o) => {
                   const st = ORDER_STATUS_LABELS[o.status] ?? { label: o.status, color: "bg-slate-100 text-slate-600" };
+                  const provider = getProvider(o.category);
+                  const providerLabel = provider === "khfy" ? "KHFY" : "DOPU";
+                  const providerColor = provider === "khfy" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700";
+                  const profit = o.price - (o.baseprice ?? o.price);
                   return (
                     <tr key={o.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-mono text-xs text-slate-600">{o.id}</td>
                       <td className="px-4 py-3 font-medium text-slate-800">{o.userName}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">
+                        {o.userUsername ? `@${o.userUsername}` : "—"}
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{o.packageName}</td>
-                      <td className="px-4 py-3 text-slate-500 uppercase text-xs">{o.category}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${providerColor}`}>{providerLabel}</span>
+                      </td>
                       <td className="px-4 py-3 font-medium">{formatRp(o.price)}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-green-700">
+                        {profit > 0 ? `+${formatRp(profit)}` : "—"}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${st.color}`}>{st.label}</span>
                       </td>
