@@ -39,16 +39,21 @@ export function packageInlineKeyboard(
   const pageItems = packages.slice(start, end);
   const totalPages = Math.ceil(packages.length / pageSize);
 
-  const rows: TelegramBot.InlineKeyboardButton[][] = pageItems.map((pkg) => {
+  const buttons: TelegramBot.InlineKeyboardButton[] = pageItems.map((pkg) => {
     let label: string;
     if (pkg.source === "api2" && pkg.sku) {
-      const stockText = pkg.stock && pkg.stock > 0 ? "✅ tersedia" : "❌ kosong";
-      label = `${pkg.name} (${stockText}) — Rp ${pkg.price.toLocaleString("id-ID")}`;
+      const stockText = pkg.stock && pkg.stock > 0 ? `✅ ${pkg.stock}` : "❌";
+      label = `${pkg.name} ${stockText} — Rp ${pkg.price.toLocaleString("id-ID")}`;
     } else {
-      label = `${pkg.name} — Rp ${pkg.price.toLocaleString("id-ID")} | ${pkg.quota} | ${pkg.validity}`;
+      label = `${pkg.name} — Rp ${pkg.price.toLocaleString("id-ID")}`;
     }
-    return [{ text: label, callback_data: `pkg_${pkg.id}` }];
+    return { text: label, callback_data: `pkg_${pkg.id}` };
   });
+
+  const rows: TelegramBot.InlineKeyboardButton[][] = [];
+  for (let i = 0; i < buttons.length; i += 2) {
+    rows.push(buttons.slice(i, i + 2));
+  }
 
   const navRow: TelegramBot.InlineKeyboardButton[] = [];
   if (page > 0)
