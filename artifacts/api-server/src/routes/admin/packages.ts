@@ -10,6 +10,7 @@ import {
 import { refreshAllPackages } from "../../bot/apiService";
 import { getAllUsers, updateSaldo } from "../../bot/users";
 import { getAllOrders, updateOrderStatus, type OrderStatus } from "../../bot/orders";
+import { getAllTopups, updateTopupStatus, getTopupById } from "../../bot/topup";
 
 const router = Router();
 
@@ -150,6 +151,26 @@ router.put("/orders/:orderId/status", requireAdmin, (req, res) => {
   }
   const updated = updateOrderStatus(orderId, status);
   if (!updated) return res.status(404).json({ error: "Order tidak ditemukan" });
+  res.json({ success: true, data: updated });
+});
+
+router.get("/topups", requireAdmin, (_req, res) => {
+  res.json({ success: true, data: getAllTopups() });
+});
+
+router.put("/topups/:topupId/approve", requireAdmin, (req, res) => {
+  const { topupId } = req.params;
+  const topup = getTopupById(topupId);
+  if (!topup) return res.status(404).json({ error: "Topup tidak ditemukan" });
+  const updated = updateTopupStatus(topupId, "done");
+  res.json({ success: true, data: updated });
+});
+
+router.put("/topups/:topupId/cancel", requireAdmin, (req, res) => {
+  const { topupId } = req.params;
+  const topup = getTopupById(topupId);
+  if (!topup) return res.status(404).json({ error: "Topup tidak ditemukan" });
+  const updated = updateTopupStatus(topupId, "cancelled");
   res.json({ success: true, data: updated });
 });
 

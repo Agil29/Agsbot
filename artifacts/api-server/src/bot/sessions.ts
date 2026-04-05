@@ -3,8 +3,8 @@ export type UserSession = {
     | "idle"
     | "select_category"
     | "select_package"
-    | "enter_phone"
-    | "confirm_order";
+    | "confirm_order"
+    | "waiting_topup_amount";
   category?: string;
   selectedCategory?: string;
   packageId?: string;
