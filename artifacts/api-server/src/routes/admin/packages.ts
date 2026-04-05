@@ -3,7 +3,7 @@ import {
   getPackages,
   getAllManualPackages,
   addManualPackage,
-  updateManualPackage,
+  updateAnyPackage,
   deleteManualPackage,
   type Category,
 } from "../../bot/store";
@@ -82,7 +82,7 @@ router.put("/packages/:category/:id", requireAdmin, (req, res) => {
   if (validity !== undefined) updates.validity = String(validity);
   if (active !== undefined) updates.active = Boolean(active);
 
-  const updated = updateManualPackage(category, id, updates as any);
+  const updated = updateAnyPackage(category, id, updates as any);
   if (!updated) {
     return res.status(404).json({ error: "Package not found" });
   }

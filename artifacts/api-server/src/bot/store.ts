@@ -25,8 +25,14 @@ const apiPackages: Record<Category, PackageItem[]> = {
   circle: [],
 };
 
+// Price/name overrides for API packages — survive refresh cycles
+const apiPackageOverrides: Record<string, Partial<Omit<PackageItem, "id" | "source">>> = {};
+
 export function setApiPackages(category: Category, packages: PackageItem[]) {
-  apiPackages[category] = packages;
+  apiPackages[category] = packages.map((pkg) => {
+    const override = apiPackageOverrides[pkg.id];
+    return override ? { ...pkg, ...override } : pkg;
+  });
 }
 
 export function getPackages(category: Category): PackageItem[] {
@@ -58,6 +64,26 @@ export function updateManualPackage(
   if (idx === -1) return null;
   manualPackages[category][idx] = { ...manualPackages[category][idx], ...updates };
   return manualPackages[category][idx];
+}
+
+export function updateAnyPackage(
+  category: Category,
+  id: string,
+  updates: Partial<Omit<PackageItem, "id" | "source">>
+): PackageItem | null {
+  const manualIdx = manualPackages[category].findIndex((p) => p.id === id);
+  if (manualIdx !== -1) {
+    manualPackages[category][manualIdx] = { ...manualPackages[category][manualIdx], ...updates };
+    return manualPackages[category][manualIdx];
+  }
+  const apiIdx = apiPackages[category].findIndex((p) => p.id === id);
+  if (apiIdx !== -1) {
+    // Persist override so it survives the next API refresh
+    apiPackageOverrides[id] = { ...(apiPackageOverrides[id] ?? {}), ...updates };
+    apiPackages[category][apiIdx] = { ...apiPackages[category][apiIdx], ...updates };
+    return apiPackages[category][apiIdx];
+  }
+  return null;
 }
 
 export function deleteManualPackage(category: Category, id: string): boolean {
