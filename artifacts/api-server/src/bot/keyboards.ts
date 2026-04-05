@@ -39,12 +39,16 @@ export function packageInlineKeyboard(
   const pageItems = packages.slice(start, end);
   const totalPages = Math.ceil(packages.length / pageSize);
 
-  const rows: TelegramBot.InlineKeyboardButton[][] = pageItems.map((pkg) => [
-    {
-      text: `${pkg.name} — Rp ${pkg.price.toLocaleString("id-ID")} | ${pkg.quota} | ${pkg.validity}`,
-      callback_data: `pkg_${pkg.id}`,
-    },
-  ]);
+  const rows: TelegramBot.InlineKeyboardButton[][] = pageItems.map((pkg) => {
+    let label: string;
+    if (pkg.source === "api2" && pkg.sku) {
+      const stockText = pkg.stock !== undefined ? `${pkg.stock} stok` : "stok N/A";
+      label = `${pkg.sku} (${stockText}) — Rp ${pkg.price.toLocaleString("id-ID")}`;
+    } else {
+      label = `${pkg.name} — Rp ${pkg.price.toLocaleString("id-ID")} | ${pkg.quota} | ${pkg.validity}`;
+    }
+    return [{ text: label, callback_data: `pkg_${pkg.id}` }];
+  });
 
   const navRow: TelegramBot.InlineKeyboardButton[] = [];
   if (page > 0)

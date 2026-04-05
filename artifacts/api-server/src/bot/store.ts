@@ -7,6 +7,8 @@ export type PackageItem = {
   validity: string;
   active: boolean;
   source: "api1" | "api2" | "manual";
+  sku?: string;
+  stock?: number;
 };
 
 export type Category = "akrab1" | "akrab2" | "circle";

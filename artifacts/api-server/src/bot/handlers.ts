@@ -182,11 +182,22 @@ export function setupHandlers(bot: TelegramBot) {
       const akrab1 = getPackages("akrab1");
       const akrab2 = getPackages("akrab2");
       const circle = getPackages("circle");
+
+      let akrab2StokDetail = "";
+      if (akrab2.length > 0) {
+        const lines = akrab2.map((p) => {
+          const sku = p.sku ?? p.name;
+          const stok = p.stock !== undefined ? p.stock : "-";
+          return `  • ${sku}: <b>${stok}</b>`;
+        });
+        akrab2StokDetail = "\n" + lines.join("\n");
+      }
+
       await bot.sendMessage(chatId,
         `📊 <b>CEK STOK PAKET</b>\n\n` +
         `🟢 AKRAB 1: <b>${akrab1.length}</b> paket tersedia\n` +
-        `🟡 AKRAB 2: <b>${akrab2.length}</b> paket tersedia\n` +
-        `🔵 CIRCLE: <b>${circle.length}</b> paket tersedia`,
+        `🔵 CIRCLE: <b>${circle.length}</b> paket tersedia\n\n` +
+        `🟡 <b>AKRAB 2:</b>${akrab2.length > 0 ? akrab2StokDetail : " Belum tersedia"}`,
         { parse_mode: "HTML" }
       );
     }
@@ -349,12 +360,21 @@ export function setupHandlers(bot: TelegramBot) {
         selectedCategory: category,
       });
 
+      const detailLines: string[] = [];
+      if (pkg.source === "api2" && pkg.sku) {
+        detailLines.push(`SKU: <b>${pkg.sku}</b>`);
+        if (pkg.stock !== undefined) detailLines.push(`Stok: <b>${pkg.stock}</b>`);
+        detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
+      } else {
+        detailLines.push(`Nama: <b>${pkg.name}</b>`);
+        detailLines.push(`Kuota: <b>${pkg.quota}</b>`);
+        detailLines.push(`Masa Aktif: <b>${pkg.validity}</b>`);
+        detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
+      }
+
       await bot.editMessageText(
         `📦 <b>DETAIL PAKET</b>\n\n` +
-        `Nama: <b>${pkg.name}</b>\n` +
-        `Kuota: <b>${pkg.quota}</b>\n` +
-        `Masa Aktif: <b>${pkg.validity}</b>\n` +
-        `Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>\n\n` +
+        detailLines.join("\n") + "\n\n" +
         (pkg.description ? `${pkg.description}\n\n` : "") +
         `Konfirmasi order paket ini?`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: confirmOrderKeyboard(pkg.id) }
