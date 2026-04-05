@@ -24,7 +24,11 @@ const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
 const DOPU_CEK_STOK_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
 
 function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPackages> = []): PackageKeyboardOpts {
-  if (category === "akrab1" || category === "circle") {
+  if (category === "circle") {
+    // 2 columns, all packages on one page, no pagination
+    return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
+  }
+  if (category === "akrab1") {
     // Auto-detect columns: if any label (name + price) is too long for 3 cols, use 2
     const maxLen = packages.reduce((max, p) => {
       let label = p.name;
