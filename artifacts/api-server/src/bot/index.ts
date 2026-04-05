@@ -29,8 +29,15 @@ export async function startBot() {
     loadStoreFromDb(),
   ]);
 
-  const bot = new TelegramBot(token, { polling: true });
+  const bot = new TelegramBot(token, { polling: false });
   botInstance = bot;
+
+  // Drop pending updates so stale messages from before restart are not reprocessed
+  try {
+    await bot.deleteWebhook({ drop_pending_updates: true });
+  } catch { }
+
+  bot.startPolling();
 
   setupHandlers(bot);
   startPackageRefreshScheduler(5 * 60 * 1000);
