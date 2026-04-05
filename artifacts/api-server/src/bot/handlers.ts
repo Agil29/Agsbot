@@ -106,7 +106,8 @@ async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nom
     `• Total: <b>Rp ${order.total.toLocaleString("id-ID")}</b>\n` +
     `• Order ID: <code>${order.id}</code>\n` +
     `• Exp: <b>${expiryMinutes} Menit</b>\n\n` +
-    `<i>Scan QR di atas menggunakan aplikasi pembayaran QRIS (GoPay, OVO, Dana, dll).</i>\n\n` +
+    `📌 <i>Terdapat fee 0.7% + 310, Untuk nominal di atas Rp 105.000 biayanya menjadi 1% + Rp 0.</i>\n\n` +
+    `<i>Scan QR di atas menggunakan aplikasi pembayaran QRIS (GoPay, OVO, Dana, dll).</i>\n` +
     `Silakan bayar sebelum ${expiryMinutes} menit.`;
 
   const keyboard: TelegramBot.InlineKeyboardMarkup = {
@@ -334,74 +335,39 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
-      await bot.answerCallbackQuery(query.id, { text: "🔄 Memeriksa pembayaran..." });
-      updateTopupStatus(topupId, "confirming");
+      // Single instant check — no polling
+      const pakasirStatus = await checkPakasirStatus(topupId).catch(() => null);
+      logger.info({ topupId, pakasirStatus }, "Pakasir status check after SUDAH BAYAR");
 
-      // Immediately check Pakasir — poll up to 4× every 10 seconds
-      await bot.editMessageCaption(
-        `🔄 <b>Memeriksa pembayaran...</b>\n\n` +
-        `Order ID: <code>${topup.id}</code>\n` +
-        `Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-        `Total: <b>Rp ${topup.total.toLocaleString("id-ID")}</b>\n\n` +
-        `<i>Mohon tunggu, kami sedang memverifikasi pembayaran Anda...</i>`,
-        { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-      ).catch(() => {});
+      const isPaid = pakasirStatus && /paid|completed|settlement|success/i.test(pakasirStatus);
 
-      const tryCredit = async () => {
-        const fresh = getTopupById(topupId);
-        if (!fresh || fresh.status === "completed") return true;
-
-        const pakasirStatus = await checkPakasirStatus(topupId).catch(() => null);
-        logger.info({ topupId, pakasirStatus }, "Pakasir status check after SUDAH BAYAR");
-
-        const paid = pakasirStatus && /paid|completed|settlement|success/i.test(pakasirStatus);
-        if (!paid) return false;
-
+      if (isPaid) {
+        // Answer callback with success toast
+        await bot.answerCallbackQuery(query.id, { text: "✅ Pembayaran terdeteksi!" }).catch(() => {});
         updateTopupStatus(topupId, "completed");
         const updatedUser = updateSaldo(topup.userId, topup.nominal);
 
-        try {
-          await bot.editMessageCaption(
-            `✅ <b>TOPUP BERHASIL!</b>\n\n` +
-            `• Order ID: <code>${topup.id}</code>\n` +
-            `• Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-            `• Saldo sekarang: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
-            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-          );
-        } catch {
+        await bot.editMessageCaption(
+          `✅ <b>TOPUP BERHASIL!</b>\n\n` +
+          `• Order ID: <code>${topup.id}</code>\n` +
+          `• Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+          `• Saldo sekarang: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        ).catch(async () => {
           await bot.sendMessage(
             chatId,
             `✅ <b>TOPUP BERHASIL!</b>\n\n` +
-            `• Order ID: <code>${topup.id}</code>\n` +
             `• Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
             `• Saldo sekarang: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }
           );
-        }
-        return true;
-      };
-
-      // Poll 4 times with 10-second gaps
-      let credited = await tryCredit();
-      if (!credited) {
-        for (let attempt = 1; attempt <= 3 && !credited; attempt++) {
-          await new Promise((r) => setTimeout(r, 10000));
-          credited = await tryCredit();
-        }
-      }
-
-      if (!credited) {
-        // Not confirmed after 40 seconds — fall back to manual admin verification
-        try {
-          await bot.editMessageCaption(
-            `⏳ <b>Menunggu Konfirmasi</b>\n\n` +
-            `Order ID: <code>${topup.id}</code>\n` +
-            `Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n\n` +
-            `Pembayaran belum terdeteksi.\n` +
-            `Jika sudah bayar, hubungi <b>@${SUPPORT_USERNAME}</b> dengan screenshot bukti transfer.`,
-            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-          );
-        } catch {}
+        });
+      } else {
+        // Answer with alert popup — shows as a modal dialog on the user's screen
+        await bot.answerCallbackQuery(query.id, {
+          text: "❌ Pembayaran belum terdeteksi. Silakan selesaikan pembayaran terlebih dahulu.",
+          show_alert: true,
+        }).catch(() => {});
       }
       return;
     }
