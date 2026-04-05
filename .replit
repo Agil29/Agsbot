@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -37,3 +37,6 @@ DOPU_PIN = "1234"
 DOPU_PASSWORD = "Imu111111"
 CEK_STOK_AKRAB1_URL = "https://juraganxl.my.id/"
 CEK_STOK_CIRCLE_URL = "https://juraganxl.my.id/"
+
+[nix]
+channel = "stable-25_05"

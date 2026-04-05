@@ -1,5 +1,6 @@
 import axios from "axios";
 import { logger } from "../lib/logger";
+import { query, run } from "../lib/db";
 
 export type TopupStatus = "pending" | "confirming" | "completed" | "expired" | "cancelled";
 
@@ -32,6 +33,37 @@ const topups = new Map<string, TopupOrder>();
 
 const PAKASIR_BASE = "https://app.pakasir.com/api";
 const EXPIRY_MINUTES = 7;
+
+function rowToTopup(row: any): TopupOrder {
+  return {
+    id: row.id,
+    userId: Number(row.user_id),
+    chatId: Number(row.chat_id),
+    userName: row.user_name,
+    nominal: Number(row.nominal),
+    fee: Number(row.fee),
+    total: Number(row.total),
+    qrisString: row.qris_string ?? undefined,
+    status: row.status as TopupStatus,
+    createdAt: new Date(row.created_at),
+    expiresAt: new Date(row.expires_at),
+    orderPayload: row.order_payload ?? undefined,
+  };
+}
+
+export async function loadTopupsFromDb(): Promise<void> {
+  try {
+    const rows = await query("SELECT * FROM topups ORDER BY created_at DESC LIMIT 1000");
+    topups.clear();
+    for (const row of rows) {
+      const t = rowToTopup(row);
+      topups.set(t.id, t);
+    }
+    logger.info({ count: topups.size }, "Loaded topups from DB");
+  } catch (err) {
+    logger.error({ err }, "Failed to load topups from DB");
+  }
+}
 
 export async function createPakasirTopup(data: {
   userId: number;
@@ -79,6 +111,18 @@ export async function createPakasirTopup(data: {
     };
 
     topups.set(orderId, order);
+
+    run(
+      `INSERT INTO topups (id, user_id, chat_id, user_name, nominal, fee, total, qris_string,
+        status, created_at, expires_at, order_payload)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        order.id, order.userId, order.chatId, order.userName, order.nominal, order.fee, order.total,
+        order.qrisString ?? null, order.status, order.createdAt, order.expiresAt,
+        order.orderPayload ? JSON.stringify(order.orderPayload) : null,
+      ]
+    ).catch((err) => logger.error({ err }, "DB insert topup failed"));
+
     return { order, qrisString: payment.payment_number };
   } catch (err: any) {
     logger.error({ err: err?.response?.data ?? err }, "Pakasir API error");
@@ -118,6 +162,9 @@ export async function cancelPakasirTransaction(orderId: string): Promise<boolean
       { headers: { "Content-Type": "application/json" }, timeout: 10000 }
     );
     order.status = "cancelled";
+    run("UPDATE topups SET status='cancelled' WHERE id=$1", [orderId]).catch((err) =>
+      logger.error({ err }, "DB update topup cancel failed")
+    );
     return true;
   } catch {
     return false;
@@ -132,6 +179,11 @@ export function updateTopupStatus(id: string, status: TopupStatus): TopupOrder |
   const t = topups.get(id);
   if (!t) return null;
   t.status = status;
+
+  run("UPDATE topups SET status=$1 WHERE id=$2", [status, id]).catch((err) =>
+    logger.error({ err }, "DB update topup status failed")
+  );
+
   return t;
 }
 

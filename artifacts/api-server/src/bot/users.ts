@@ -1,3 +1,6 @@
+import { query, run } from "../lib/db";
+import { logger } from "../lib/logger";
+
 export type UserProfile = {
   telegramId: number;
   firstName: string;
@@ -11,6 +14,35 @@ export type UserProfile = {
 const users = new Map<number, UserProfile>();
 let uidCounter = 1000;
 
+function rowToUser(row: any): UserProfile {
+  return {
+    telegramId: Number(row.telegram_id),
+    firstName: row.first_name,
+    lastName: row.last_name ?? undefined,
+    username: row.username ?? undefined,
+    uid: Number(row.uid),
+    regDate: new Date(row.reg_date),
+    saldo: Number(row.saldo),
+  };
+}
+
+export async function loadUsersFromDb(): Promise<void> {
+  try {
+    const rows = await query("SELECT * FROM users");
+    users.clear();
+    let maxUid = 1000;
+    for (const row of rows) {
+      const u = rowToUser(row);
+      users.set(u.telegramId, u);
+      if (u.uid > maxUid) maxUid = u.uid;
+    }
+    uidCounter = maxUid;
+    logger.info({ count: users.size }, "Loaded users from DB");
+  } catch (err) {
+    logger.error({ err }, "Failed to load users from DB");
+  }
+}
+
 export function getOrRegisterUser(
   telegramId: number,
   firstName: string,
@@ -19,9 +51,19 @@ export function getOrRegisterUser(
 ): UserProfile {
   if (users.has(telegramId)) {
     const user = users.get(telegramId)!;
+    const changed =
+      user.firstName !== firstName ||
+      user.lastName !== lastName ||
+      user.username !== username;
     user.firstName = firstName;
     if (lastName !== undefined) user.lastName = lastName;
     if (username !== undefined) user.username = username;
+    if (changed) {
+      run(
+        "UPDATE users SET first_name=$1, last_name=$2, username=$3 WHERE telegram_id=$4",
+        [firstName, lastName ?? null, username ?? null, telegramId]
+      ).catch((err) => logger.error({ err }, "DB update user profile failed"));
+    }
     return user;
   }
 
@@ -36,6 +78,14 @@ export function getOrRegisterUser(
     saldo: 0,
   };
   users.set(telegramId, newUser);
+
+  run(
+    `INSERT INTO users (telegram_id, first_name, last_name, username, uid, reg_date, saldo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (telegram_id) DO NOTHING`,
+    [telegramId, firstName, lastName ?? null, username ?? null, newUser.uid, newUser.regDate, 0]
+  ).catch((err) => logger.error({ err }, "DB insert user failed"));
+
   return newUser;
 }
 
@@ -47,6 +97,11 @@ export function updateSaldo(telegramId: number, amount: number): UserProfile | n
   const user = users.get(telegramId);
   if (!user) return null;
   user.saldo += amount;
+
+  run("UPDATE users SET saldo=$1 WHERE telegram_id=$2", [user.saldo, telegramId]).catch(
+    (err) => logger.error({ err }, "DB update saldo failed")
+  );
+
   return user;
 }
 

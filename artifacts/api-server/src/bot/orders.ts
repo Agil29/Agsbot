@@ -1,3 +1,6 @@
+import { query, run } from "../lib/db";
+import { logger } from "../lib/logger";
+
 export type OrderStatus = "pending" | "paid" | "processing" | "done" | "cancelled";
 
 export type Order = {
@@ -20,6 +23,37 @@ export type Order = {
 
 const orders: Order[] = [];
 
+function rowToOrder(row: any): Order {
+  return {
+    id: row.id,
+    userId: Number(row.user_id),
+    userName: row.user_name,
+    category: row.category,
+    packageId: row.package_id,
+    packageName: row.package_name,
+    price: Number(row.price),
+    quota: row.quota,
+    validity: row.validity,
+    nomorTujuan: row.nomor_tujuan ?? undefined,
+    sn: row.sn ?? undefined,
+    paymentMethod: row.payment_method ?? undefined,
+    status: row.status as OrderStatus,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+export async function loadOrdersFromDb(): Promise<void> {
+  try {
+    const rows = await query("SELECT * FROM orders ORDER BY created_at DESC");
+    orders.length = 0;
+    for (const row of rows) orders.push(rowToOrder(row));
+    logger.info({ count: orders.length }, "Loaded orders from DB");
+  } catch (err) {
+    logger.error({ err }, "Failed to load orders from DB");
+  }
+}
+
 export function createOrder(data: Omit<Order, "id" | "status" | "createdAt" | "updatedAt">): Order {
   const order: Order = {
     ...data,
@@ -28,7 +62,20 @@ export function createOrder(data: Omit<Order, "id" | "status" | "createdAt" | "u
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-  orders.push(order);
+  orders.unshift(order);
+
+  run(
+    `INSERT INTO orders (id, user_id, user_name, category, package_id, package_name, price, quota, validity,
+      nomor_tujuan, sn, payment_method, status, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+    [
+      order.id, order.userId, order.userName, order.category, order.packageId, order.packageName,
+      order.price, order.quota, order.validity,
+      order.nomorTujuan ?? null, order.sn ?? null, order.paymentMethod ?? null,
+      order.status, order.createdAt, order.updatedAt,
+    ]
+  ).catch((err) => logger.error({ err }, "DB insert order failed"));
+
   return order;
 }
 
@@ -42,11 +89,18 @@ export function getAllOrders(): Order[] {
   return [...orders].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
-export function updateOrderStatus(orderId: string, status: OrderStatus): Order | null {
+export function updateOrderStatus(orderId: string, status: OrderStatus, sn?: string): Order | null {
   const order = orders.find((o) => o.id === orderId);
   if (!order) return null;
   order.status = status;
   order.updatedAt = new Date();
+  if (sn !== undefined) order.sn = sn;
+
+  run(
+    "UPDATE orders SET status=$1, updated_at=$2, sn=COALESCE($3, sn) WHERE id=$4",
+    [status, order.updatedAt, sn ?? null, orderId]
+  ).catch((err) => logger.error({ err }, "DB update order status failed"));
+
   return order;
 }
 
