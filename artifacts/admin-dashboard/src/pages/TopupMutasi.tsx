@@ -41,7 +41,6 @@ function getProvider(category: string): string {
 export function HistoryPenjualan() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
 
   async function load() {
@@ -55,18 +54,6 @@ export function HistoryPenjualan() {
   }
 
   useEffect(() => { load(); }, []);
-
-  async function setStatus(orderId: string, status: string) {
-    try {
-      await api.orders.setStatus(orderId, status);
-      setMsg(`Status order diperbarui ke "${status}"`);
-      load();
-    } catch (e: any) {
-      setMsg(e.message);
-    } finally {
-      setTimeout(() => setMsg(""), 3000);
-    }
-  }
 
   const now = new Date();
   const start12m = new Date(now.getFullYear() - 1, now.getMonth(), 1);
@@ -123,8 +110,6 @@ export function HistoryPenjualan() {
         ))}
       </div>
 
-      {msg && <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">{msg}</div>}
-
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           {loading ? (
@@ -144,7 +129,6 @@ export function HistoryPenjualan() {
                   <th className="px-4 py-3 text-left font-medium">Penghasilan</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Tanggal</th>
-                  <th className="px-4 py-3 text-left font-medium">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -173,17 +157,6 @@ export function HistoryPenjualan() {
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${st.color}`}>{st.label}</span>
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(o.createdAt)}</td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={o.status}
-                          onChange={(e) => setStatus(o.id, e.target.value)}
-                          className="px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                        >
-                          {Object.keys(ORDER_STATUS_LABELS).map((s) => (
-                            <option key={s} value={s}>{ORDER_STATUS_LABELS[s].label}</option>
-                          ))}
-                        </select>
-                      </td>
                     </tr>
                   );
                 })}
