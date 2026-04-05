@@ -89,6 +89,7 @@ export function getAllOrders(): Order[] {
   return [...orders].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
+
 export function updateOrderStatus(orderId: string, status: OrderStatus, sn?: string): Order | null {
   const order = orders.find((o) => o.id === orderId);
   if (!order) return null;
