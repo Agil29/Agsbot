@@ -25,8 +25,8 @@ const DOPU_CEK_STOK_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.
 
 function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPackages> = []): PackageKeyboardOpts {
   if (category === "circle") {
-    // 2 columns, all packages on one page, no pagination
-    return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
+    // 2 columns, all packages on one page, no pagination, no extra buttons
+    return { columns: 2, pageSize: packages.length || undefined };
   }
   if (category === "akrab1") {
     // Auto-detect columns: if any label (name + price) is too long for 3 cols, use 2
@@ -220,7 +220,7 @@ export function setupHandlers(bot: TelegramBot) {
   bot.on("message", async (msg) => {
     if (!msg.text) return;
     // Skip messages handled by dedicated onText/command handlers to avoid double-processing
-    if (/^\/|🏠|💰|📦|📋|💳|📱/.test(msg.text)) return;
+    if (/^\/|🏠|💰|📦|📋|💳/.test(msg.text)) return;
     const from = msg.from!;
     const session = getSession(from.id);
 
