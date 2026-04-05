@@ -622,13 +622,24 @@ export function setupHandlers(bot: TelegramBot) {
             const poll = async () => {
               attempt++;
               try {
+                // Guard: if callback already finalized this order, stop polling
+                const currentOrd = getOrderByReffId(dopuRef);
+                if (currentOrd && (currentOrd.status === "done" || currentOrd.status === "cancelled")) {
+                  logger.info({ dopuRef, status: currentOrd.status }, "DOPU poll: order already finalized by callback — stopping");
+                  return;
+                }
+
                 const statusRes = await checkDopuOrderStatus(dopuRef, dopuTrxId);
                 logger.info({ dopuRef, attempt, status: statusRes.status }, "DOPU pending poll result");
 
                 if (statusRes.status === "success") {
-                  // Update order to done
                   const ord = getOrderByReffId(dopuRef);
-                  if (ord) updateOrderStatus(ord.id, "done", statusRes.sn);
+                  // Double-check: skip if callback already handled it
+                  if (!ord || ord.status === "done" || ord.status === "cancelled") {
+                    logger.info({ dopuRef }, "DOPU poll: success ignored — order already finalized");
+                    return;
+                  }
+                  updateOrderStatus(ord.id, "done", statusRes.sn);
                   const finalUser = getUser(userId);
                   const circleSuccessNote = selectedCat === "circle"
                     ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle.`
@@ -650,10 +661,14 @@ export function setupHandlers(bot: TelegramBot) {
                 }
 
                 if (statusRes.status === "failed") {
-                  // Refund saldo
-                  updateSaldo(userId, price);
                   const ord = getOrderByReffId(dopuRef);
-                  if (ord) updateOrderStatus(ord.id, "cancelled");
+                  // Skip if callback already cancelled and refunded
+                  if (!ord || ord.status === "cancelled" || ord.status === "done") {
+                    logger.info({ dopuRef }, "DOPU poll: failed ignored — order already finalized");
+                    return;
+                  }
+                  updateSaldo(userId, price);
+                  updateOrderStatus(ord.id, "cancelled");
                   const refundedUser = getUser(userId);
                   await bot.sendMessage(
                     chatId,
@@ -673,7 +688,6 @@ export function setupHandlers(bot: TelegramBot) {
                 if (attempt < MAX_ATTEMPTS) {
                   setTimeout(poll, INTERVAL_MS);
                 } else {
-                  // Max attempts reached — notify admin/user to check manually
                   logger.warn({ dopuRef, nomor, pkgName }, "DOPU order still pending after 30 min");
                 }
               } catch (err) {

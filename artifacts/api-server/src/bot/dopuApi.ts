@@ -127,9 +127,10 @@ export async function checkDopuOrderStatus(reffId: string, trxId?: string): Prom
     const trimmed = raw.trim();
     const upper = trimmed.toUpperCase();
 
-    // "OK" = DOPU confirms the transaction is complete/delivered
-    if (upper === "OK" || upper === "OK\n" || upper === "SUCCESS") {
-      return { status: "success", sn: identifier };
+    // "OK" from DOPU /cek is only an acknowledgment — NOT a status indicator.
+    // DOPU returns "OK" for both failed and pending orders, so we ignore it.
+    if (upper === "OK") {
+      return null; // treat as unknown/pending — wait for real status
     }
 
     if (/status=\d/i.test(trimmed)) {
