@@ -8,7 +8,7 @@ import { getOrRegisterUser, getUser, updateSaldo, formatRegDate } from "./users"
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee } from "./topup";
 import { placeKhfyOrder } from "./khfyApi";
-import { placeDopuOrder } from "./dopuApi";
+import { placeDopuOrder, type DopuOrderResult } from "./dopuApi";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
@@ -533,7 +533,13 @@ export function setupHandlers(bot: TelegramBot) {
         : await placeKhfyOrder({ sku, tujuan: nomor });
       const updatedUser = getUser(userId);
 
+      // Extract DOPU-specific fields safely
+      const dopuResult = useDopu ? (result as DopuOrderResult) : null;
+      const dopuRef = dopuResult?.reffId ?? "";
+      const dopuNote = dopuResult?.note ?? "";
+
       if (result.success) {
+        const sn = result.sn;
         createOrder({
           userId,
           userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
@@ -544,31 +550,37 @@ export function setupHandlers(bot: TelegramBot) {
           quota: session.selectedPackageQuota ?? "",
           validity: session.selectedPackageValidity ?? "",
           nomorTujuan: nomor,
-          sn: result.sn,
+          sn,
           paymentMethod: "saldo",
         });
 
         const circleNote = selectedCat === "circle"
           ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
           : "";
+        const keterangan = useDopu && dopuNote ? `\n📋 <i>${dopuNote}</i>` : "";
         await bot.editMessageText(
           `✅ <b>ORDER BERHASIL!</b>\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
           `📱 Nomor: <code>${nomor}</code>\n` +
           `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
-          (result.sn ? `🔑 SN: <code>${result.sn}</code>\n` : "") +
-          `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
+          (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
+          (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
+          keterangan +
+          `\n\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
           circleNote,
           { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
         );
       } else {
         updateSaldo(userId, price);
         const refundedUser = getUser(userId);
+        const keterangan = useDopu && dopuNote ? `\n\n📋 <i>${dopuNote}</i>` : "";
         await bot.editMessageText(
           `❌ <b>ORDER GAGAL</b>\n\n` +
-          `${result.error}\n\n` +
-          `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+          `⚠️ ${result.error}` +
+          (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
+          keterangan +
+          `\n\n💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
           `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
           { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
         );

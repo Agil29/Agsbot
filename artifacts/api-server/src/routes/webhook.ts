@@ -4,7 +4,7 @@ import { getTopupById, updateTopupStatus } from "../bot/topup";
 import { updateSaldo } from "../bot/users";
 import { createOrder } from "../bot/orders";
 import { placeKhfyOrder } from "../bot/khfyApi";
-import { placeDopuOrder } from "../bot/dopuApi";
+import { placeDopuOrder, type DopuOrderResult } from "../bot/dopuApi";
 import { getBot } from "../bot";
 
 const router = Router();
@@ -56,7 +56,13 @@ router.post("/pakasir", async (req, res) => {
       ? await placeDopuOrder({ sku, tujuan: nomorTujuan })
       : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
 
+    // Extract DOPU-specific fields safely
+    const dopuResult = useDopu ? (result as DopuOrderResult) : null;
+    const dopuRef = dopuResult?.reffId ?? "";
+    const dopuNote = dopuResult?.note ?? "";
+
     if (result.success) {
+      const sn = result.sn;
       createOrder({
         userId: topup.userId,
         userName: topup.userName,
@@ -67,7 +73,7 @@ router.post("/pakasir", async (req, res) => {
         quota,
         validity,
         nomorTujuan,
-        sn: result.sn,
+        sn,
         paymentMethod: "qris",
       });
 
@@ -76,6 +82,7 @@ router.post("/pakasir", async (req, res) => {
           const circleNote = category === "circle"
             ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
             : "";
+          const keterangan = useDopu && dopuNote ? `\n📋 <i>${dopuNote}</i>` : "";
           await bot.sendMessage(
             topup.chatId,
             `✅ <b>ORDER BERHASIL!</b>\n` +
@@ -83,8 +90,10 @@ router.post("/pakasir", async (req, res) => {
             `📦 Produk: <b>${packageName}</b>\n` +
             `📱 Nomor: <code>${nomorTujuan}</code>\n` +
             `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-            (result.sn ? `🔑 SN: <code>${result.sn}</code>\n` : "") +
-            `\n<i>Pembayaran via QRIS telah dikonfirmasi.</i>` +
+            (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
+            (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
+            keterangan +
+            `\n\n<i>Pembayaran via QRIS telah dikonfirmasi.</i>` +
             circleNote,
             { parse_mode: "HTML" }
           );
@@ -93,17 +102,20 @@ router.post("/pakasir", async (req, res) => {
         }
       }
 
-      logger.info({ order_id, sku, sn: result.sn }, "Order via QRIS completed");
+      logger.info({ order_id, sku, sn }, "Order via QRIS completed");
     } else {
       const refunded = updateSaldo(topup.userId, topup.nominal);
 
       if (bot && topup.chatId) {
         try {
+          const keterangan = useDopu && dopuNote ? `\n\n📋 <i>${dopuNote}</i>` : "";
           await bot.sendMessage(
             topup.chatId,
             `❌ <b>ORDER GAGAL</b>\n\n` +
-            `${result.error}\n\n` +
-            `💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah direfund ke saldo Anda.\n` +
+            `⚠️ ${result.error}` +
+            (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
+            keterangan +
+            `\n\n💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
             `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }
           );
