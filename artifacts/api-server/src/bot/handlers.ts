@@ -6,10 +6,10 @@ import { refreshAllPackages } from "./apiService";
 import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
-import { createOrder, getOrdersByUser, formatOrderDate, statusLabel } from "./orders";
+import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus } from "./topup";
 import { placeKhfyOrder } from "./khfyApi";
-import { placeDopuOrder, type DopuOrderResult } from "./dopuApi";
+import { placeDopuOrder, checkDopuOrderStatus, type DopuOrderResult } from "./dopuApi";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
@@ -610,6 +610,79 @@ export function setupHandlers(bot: TelegramBot) {
             circleNote,
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );
+
+          // Auto-poll DOPU status: check every 5 minutes for up to 30 minutes (6 attempts)
+          if (dopuRef) {
+            const pkgName = session.selectedPackageName ?? sku;
+            const MAX_ATTEMPTS = 6;
+            const INTERVAL_MS = 5 * 60 * 1000;
+            let attempt = 0;
+
+            const poll = async () => {
+              attempt++;
+              try {
+                const statusRes = await checkDopuOrderStatus(dopuRef);
+                logger.info({ dopuRef, attempt, status: statusRes.status }, "DOPU pending poll result");
+
+                if (statusRes.status === "success") {
+                  // Update order to done
+                  const ord = getOrderByReffId(dopuRef);
+                  if (ord) updateOrderStatus(ord.id, "done", statusRes.sn);
+                  const finalUser = getUser(userId);
+                  const circleSuccessNote = selectedCat === "circle"
+                    ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle.`
+                    : "";
+                  await bot.sendMessage(
+                    chatId,
+                    `✅ <b>ORDER BERHASIL!</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `📦 Produk: <b>${pkgName}</b>\n` +
+                    `📱 Nomor: <code>${nomor}</code>\n` +
+                    `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+                    (statusRes.sn ? `🔑 SN: <code>${statusRes.sn}</code>\n` : "") +
+                    `🔖 Ref: <code>${dopuRef}</code>\n` +
+                    `\n• Saldo tersisa: <b>Rp ${(finalUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
+                    circleSuccessNote,
+                    { parse_mode: "HTML" }
+                  );
+                  return;
+                }
+
+                if (statusRes.status === "failed") {
+                  // Refund saldo
+                  updateSaldo(userId, price);
+                  const ord = getOrderByReffId(dopuRef);
+                  if (ord) updateOrderStatus(ord.id, "cancelled");
+                  const refundedUser = getUser(userId);
+                  await bot.sendMessage(
+                    chatId,
+                    `❌ <b>ORDER GAGAL</b>\n\n` +
+                    `📦 Produk: <b>${pkgName}</b>\n` +
+                    `📱 Nomor: <code>${nomor}</code>\n\n` +
+                    `⚠️ ${statusRes.error}\n` +
+                    `🔖 Ref: <code>${dopuRef}</code>\n\n` +
+                    `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+                    `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+                    { parse_mode: "HTML" }
+                  );
+                  return;
+                }
+
+                // Still pending — schedule next check if attempts remain
+                if (attempt < MAX_ATTEMPTS) {
+                  setTimeout(poll, INTERVAL_MS);
+                } else {
+                  // Max attempts reached — notify admin/user to check manually
+                  logger.warn({ dopuRef, nomor, pkgName }, "DOPU order still pending after 30 min");
+                }
+              } catch (err) {
+                logger.error({ err, dopuRef, attempt }, "Error during DOPU poll");
+                if (attempt < MAX_ATTEMPTS) setTimeout(poll, INTERVAL_MS);
+              }
+            };
+
+            setTimeout(poll, INTERVAL_MS);
+          }
         } else {
           const circleNote = selectedCat === "circle"
             ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
