@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Package, Plus, Edit2, Trash2, RefreshCw, Check, X, Zap } from "lucide-react";
+import { Package, Plus, Edit2, Trash2, RefreshCw, Zap } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Product = {
@@ -7,8 +7,6 @@ type Product = {
   name: string;
   description: string;
   price: number;
-  quota: string;
-  validity: string;
   active: boolean;
   source: string;
 };
@@ -19,7 +17,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   circle: "CIRCLE",
 };
 
-const EMPTY_FORM = { name: "", description: "", price: "", quota: "", validity: "", active: true };
+const EMPTY_FORM = { name: "", description: "", price: "", active: true };
 
 export function DaftarProduk({ category }: { category: string }) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -97,7 +95,7 @@ export function DaftarProduk({ category }: { category: string }) {
 
   function startEdit(p: Product) {
     setEditId(p.id);
-    setForm({ name: p.name, description: p.description, price: String(p.price), quota: p.quota, validity: p.validity, active: p.active });
+    setForm({ name: p.name, description: p.description, price: String(p.price), active: p.active });
     setShowForm(true);
     window.scrollTo(0, 0);
   }
@@ -147,7 +145,7 @@ export function DaftarProduk({ category }: { category: string }) {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Contoh: AKRAB 1 - 2GB 7 Hari"
+                placeholder="Contoh: SuperMini"
               />
             </div>
             <div>
@@ -159,26 +157,6 @@ export function DaftarProduk({ category }: { category: string }) {
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="15000"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Kuota *</label>
-              <input
-                required
-                value={form.quota}
-                onChange={(e) => setForm({ ...form, quota: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="2GB"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Masa Aktif *</label>
-              <input
-                required
-                value={form.validity}
-                onChange={(e) => setForm({ ...form, validity: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="7 Hari"
               />
             </div>
             <div>
@@ -241,8 +219,6 @@ export function DaftarProduk({ category }: { category: string }) {
                 <tr>
                   <th className="px-4 py-3 text-left font-medium">#</th>
                   <th className="px-4 py-3 text-left font-medium">Nama</th>
-                  <th className="px-4 py-3 text-left font-medium">Kuota</th>
-                  <th className="px-4 py-3 text-left font-medium">Masa Aktif</th>
                   <th className="px-4 py-3 text-left font-medium">Harga</th>
                   <th className="px-4 py-3 text-left font-medium">Sumber</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
@@ -254,8 +230,6 @@ export function DaftarProduk({ category }: { category: string }) {
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-slate-500">{i + 1}</td>
                     <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{p.quota}</td>
-                    <td className="px-4 py-3 text-slate-600">{p.validity}</td>
                     <td className="px-4 py-3 font-medium text-slate-800">
                       Rp {p.price.toLocaleString("id-ID")}
                     </td>
