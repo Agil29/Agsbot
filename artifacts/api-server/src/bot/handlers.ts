@@ -121,7 +121,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: CEK_STOK_JURAGANKUOTA_URL }),
+      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: DOPU_CEK_STOK_URL }),
     });
   });
 
@@ -131,7 +131,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: CEK_STOK_JURAGANKUOTA_URL }),
+      reply_markup: mainMenuKeyboard({ cekPaketUrl: CEK_PAKET_URL || undefined, cekStokUrl: DOPU_CEK_STOK_URL }),
     });
   });
 
