@@ -16,7 +16,7 @@ export async function placeKhfyOrder(params: {
   const reffId = params.reffId ?? randomUUID();
 
   if (!apiKey || !baseUrl) {
-    return { success: false, error: "API AKRAB 2 belum dikonfigurasi.", reffId };
+    return { success: false, error: "Layanan belum dikonfigurasi. Hubungi admin.", reffId };
   }
 
   try {
@@ -47,7 +47,7 @@ export async function placeKhfyOrder(params: {
     };
   } catch (err: any) {
     logger.error({ err: err?.response?.data ?? err?.message }, "KHFY /trx error");
-    const msg = err?.response?.data?.message ?? err?.message ?? "Gagal menghubungi API provider.";
+    const msg = err?.response?.data?.message ?? err?.message ?? "Gagal terhubung ke server. Coba lagi.";
     return { success: false, error: msg, reffId };
   }
 }

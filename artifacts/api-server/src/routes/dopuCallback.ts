@@ -51,7 +51,7 @@ router.all("/dopu/callback", async (req, res) => {
             try {
               await bot.sendMessage(
                 chatId,
-                `❌ <b>ORDER GAGAL (Notifikasi DOPU)</b>\n\n` +
+                `❌ <b>ORDER GAGAL</b>\n\n` +
                 `📦 Produk: <b>${order.packageName}</b>\n` +
                 `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n\n` +
                 `💰 Saldo <b>Rp ${order.price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +

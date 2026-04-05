@@ -39,9 +39,9 @@ function parseDopuResponse(raw: string): {
       // status != 1 → synchronous failure
       let errorMsg = "Transaksi gagal";
       if (msgUpper.includes("IP") || msgUpper.includes("ALAMAT")) {
-        errorMsg = "IP server belum terdaftar di DOPU. Hubungi admin.";
+        errorMsg = "IP server belum terdaftar. Hubungi admin.";
       } else if (msgUpper.includes("SALDO")) {
-        errorMsg = "Saldo DOPU tidak cukup. Hubungi admin.";
+        errorMsg = "Stok tidak tersedia. Hubungi admin.";
       } else if (msgUpper.includes("KOSONG") || msgUpper.includes("STOK")) {
         errorMsg = "Stok sedang kosong/ditutup";
       } else if (msgUpper.includes("NOMOR")) {
@@ -67,9 +67,9 @@ function parseDopuResponse(raw: string): {
 
   let errorMsg = "Transaksi gagal";
   if (upper.includes("IP") || upper.includes("ALAMAT")) {
-    errorMsg = "IP server belum terdaftar di DOPU. Hubungi admin.";
+    errorMsg = "IP server belum terdaftar. Hubungi admin.";
   } else if (upper.includes("SALDO")) {
-    errorMsg = "Saldo DOPU tidak cukup. Hubungi admin.";
+    errorMsg = "Stok tidak tersedia. Hubungi admin.";
   } else if (upper.includes("KOSONG") || upper.includes("STOK")) {
     errorMsg = "Stok sedang kosong/ditutup";
   } else if (upper.includes("NOMOR")) {
@@ -93,7 +93,7 @@ export async function placeDopuOrder(params: {
   const reffId = params.reffId ?? randomUUID().replace(/-/g, "").slice(0, 20);
 
   if (!memberId || !pin) {
-    return { success: false, error: "API DOPU belum dikonfigurasi.", reffId };
+    return { success: false, error: "Layanan belum dikonfigurasi. Hubungi admin.", reffId };
   }
 
   try {
