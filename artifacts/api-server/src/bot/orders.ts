@@ -15,6 +15,7 @@ export type Order = {
   validity: string;
   nomorTujuan?: string;
   sn?: string;
+  reffId?: string;
   paymentMethod?: "saldo" | "qris";
   status: OrderStatus;
   createdAt: Date;
@@ -36,6 +37,7 @@ function rowToOrder(row: any): Order {
     validity: row.validity,
     nomorTujuan: row.nomor_tujuan ?? undefined,
     sn: row.sn ?? undefined,
+    reffId: row.reff_id ?? undefined,
     paymentMethod: row.payment_method ?? undefined,
     status: row.status as OrderStatus,
     createdAt: new Date(row.created_at),
@@ -66,13 +68,13 @@ export function createOrder(data: Omit<Order, "id" | "status" | "createdAt" | "u
 
   run(
     `INSERT INTO orders (id, user_id, user_name, category, package_id, package_name, price, quota, validity,
-      nomor_tujuan, sn, payment_method, status, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      nomor_tujuan, sn, reff_id, payment_method, status, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
     [
       order.id, order.userId, order.userName, order.category, order.packageId, order.packageName,
       order.price, order.quota, order.validity,
-      order.nomorTujuan ?? null, order.sn ?? null, order.paymentMethod ?? null,
-      order.status, order.createdAt, order.updatedAt,
+      order.nomorTujuan ?? null, order.sn ?? null, order.reffId ?? null,
+      order.paymentMethod ?? null, order.status, order.createdAt, order.updatedAt,
     ]
   ).catch((err) => logger.error({ err }, "DB insert order failed"));
 
@@ -89,6 +91,9 @@ export function getAllOrders(): Order[] {
   return [...orders].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
+export function getOrderByReffId(reffId: string): Order | undefined {
+  return orders.find((o) => o.reffId === reffId);
+}
 
 export function updateOrderStatus(orderId: string, status: OrderStatus, sn?: string): Order | null {
   const order = orders.find((o) => o.id === orderId);

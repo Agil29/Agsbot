@@ -59,7 +59,7 @@ router.post("/pakasir", async (req, res) => {
     // Extract DOPU-specific fields safely
     const dopuResult = useDopu ? (result as DopuOrderResult) : null;
     const dopuRef = dopuResult?.reffId ?? "";
-    const dopuNote = dopuResult?.note ?? "";
+    const dopuPending = dopuResult && result.success ? (result as any).pending === true : false;
 
     if (result.success) {
       const sn = result.sn;
@@ -74,47 +74,62 @@ router.post("/pakasir", async (req, res) => {
         validity,
         nomorTujuan,
         sn,
+        reffId: dopuRef || undefined,
         paymentMethod: "qris",
       });
 
       if (bot && topup.chatId) {
         try {
-          const circleNote = category === "circle"
-            ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
-            : "";
-          const keterangan = useDopu && dopuNote ? `\n📋 <i>${dopuNote}</i>` : "";
-          await bot.sendMessage(
-            topup.chatId,
-            `✅ <b>ORDER BERHASIL!</b>\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n\n` +
-            `📦 Produk: <b>${packageName}</b>\n` +
-            `📱 Nomor: <code>${nomorTujuan}</code>\n` +
-            `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-            (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
-            (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
-            keterangan +
-            `\n\n<i>Pembayaran via QRIS telah dikonfirmasi.</i>` +
-            circleNote,
-            { parse_mode: "HTML" }
-          );
+          if (dopuPending) {
+            const circleNote = category === "circle"
+              ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
+              : "";
+            await bot.sendMessage(
+              topup.chatId,
+              `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
+              `━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📦 Produk: <b>${packageName}</b>\n` +
+              `📱 Nomor: <code>${nomorTujuan}</code>\n` +
+              `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+              (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
+              `\n⏳ <i>Paket sedang diproses. Jika dalam 1×24 jam tidak masuk, hubungi admin.</i>` +
+              circleNote,
+              { parse_mode: "HTML" }
+            );
+          } else {
+            const circleNote = category === "circle"
+              ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
+              : "";
+            await bot.sendMessage(
+              topup.chatId,
+              `✅ <b>ORDER BERHASIL!</b>\n` +
+              `━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📦 Produk: <b>${packageName}</b>\n` +
+              `📱 Nomor: <code>${nomorTujuan}</code>\n` +
+              `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+              (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
+              (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
+              `\n<i>Pembayaran via QRIS telah dikonfirmasi.</i>` +
+              circleNote,
+              { parse_mode: "HTML" }
+            );
+          }
         } catch (err) {
           logger.error({ err }, "Failed to notify user about order success");
         }
       }
 
-      logger.info({ order_id, sku, sn }, "Order via QRIS completed");
+      logger.info({ order_id, sku, sn, pending: dopuPending }, "Order via QRIS completed");
     } else {
       const refunded = updateSaldo(topup.userId, topup.nominal);
 
       if (bot && topup.chatId) {
         try {
-          const keterangan = useDopu && dopuNote ? `\n\n📋 <i>${dopuNote}</i>` : "";
           await bot.sendMessage(
             topup.chatId,
             `❌ <b>ORDER GAGAL</b>\n\n` +
             `⚠️ ${result.error}` +
             (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
-            keterangan +
             `\n\n💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
             `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }

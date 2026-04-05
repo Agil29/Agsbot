@@ -557,7 +557,7 @@ export function setupHandlers(bot: TelegramBot) {
       // Extract DOPU-specific fields safely
       const dopuResult = useDopu ? (result as DopuOrderResult) : null;
       const dopuRef = dopuResult?.reffId ?? "";
-      const dopuNote = dopuResult?.note ?? "";
+      const dopuPending = dopuResult && result.success ? (result as any).pending === true : false;
 
       if (result.success) {
         const sn = result.sn;
@@ -572,35 +572,51 @@ export function setupHandlers(bot: TelegramBot) {
           validity: session.selectedPackageValidity ?? "",
           nomorTujuan: nomor,
           sn,
+          reffId: dopuRef || undefined,
           paymentMethod: "saldo",
         });
 
-        const circleNote = selectedCat === "circle"
-          ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
-          : "";
-        const keterangan = useDopu && dopuNote ? `\n📋 <i>${dopuNote}</i>` : "";
-        await bot.editMessageText(
-          `✅ <b>ORDER BERHASIL!</b>\n` +
-          `━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
-          `📱 Nomor: <code>${nomor}</code>\n` +
-          `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
-          (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
-          (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
-          keterangan +
-          `\n\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
-          circleNote,
-          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-        );
+        if (dopuPending) {
+          // DOPU async — order accepted but not yet confirmed
+          const circleNote = selectedCat === "circle"
+            ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
+            : "";
+          await bot.editMessageText(
+            `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
+            `📱 Nomor: <code>${nomor}</code>\n` +
+            `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+            (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
+            `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>\n\n` +
+            `⏳ <i>Paket sedang diproses. Jika dalam 1×24 jam tidak masuk, hubungi admin.</i>` +
+            circleNote,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          );
+        } else {
+          const circleNote = selectedCat === "circle"
+            ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
+            : "";
+          await bot.editMessageText(
+            `✅ <b>ORDER BERHASIL!</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
+            `📱 Nomor: <code>${nomor}</code>\n` +
+            `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+            (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
+            (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
+            `\n\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
+            circleNote,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          );
+        }
       } else {
         updateSaldo(userId, price);
         const refundedUser = getUser(userId);
-        const keterangan = useDopu && dopuNote ? `\n\n📋 <i>${dopuNote}</i>` : "";
         await bot.editMessageText(
           `❌ <b>ORDER GAGAL</b>\n\n` +
           `⚠️ ${result.error}` +
           (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
-          keterangan +
           `\n\n💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
           `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
           { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
