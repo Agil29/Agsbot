@@ -18,22 +18,24 @@ function formatApi1Package(raw: Record<string, unknown>, source: "api1"): Packag
 }
 
 function formatKhfyPackage(raw: Record<string, unknown>): PackageItem {
-  const sku = String(raw.kode ?? raw.produk ?? raw.code ?? raw.sku ?? "");
-  const stock = Number(raw.stok ?? raw.stock ?? raw.qty ?? 0);
-  const price = Number(raw.harga ?? raw.price ?? 0);
-  const name = String(raw.nama ?? raw.name ?? sku);
-  const desc = String(raw.keterangan ?? raw.deskripsi ?? raw.description ?? "");
+  const sku = String(raw.kode_produk ?? raw.kode ?? raw.produk ?? raw.code ?? raw.sku ?? "");
+  const name = String(raw.nama_produk ?? raw.nama ?? raw.name ?? sku);
+  const price = Number(raw.harga_final ?? raw.harga ?? raw.price ?? 0);
+  const desc = String(raw.deskripsi ?? raw.keterangan ?? raw.description ?? "");
+  const kosong = Number(raw.kosong ?? 0);   // 0 = tersedia, 1 = kosong
+  const gangguan = Number(raw.gangguan ?? 0); // 0 = normal, 1 = gangguan
+  const tersedia = kosong === 0 && gangguan === 0;
   return {
     id: `api2_${sku}`,
     name,
     description: desc,
     price,
-    quota: String(raw.kuota ?? raw.quota ?? ""),
-    validity: String(raw.masa_aktif ?? raw.validity ?? ""),
-    active: stock > 0,
+    quota: "",
+    validity: "",
+    active: true,   // always show in list so stock status is visible
     source: "api2",
     sku,
-    stock,
+    stock: tersedia ? 1 : 0,   // 1 = ada, 0 = kosong/gangguan
   };
 }
 
@@ -92,7 +94,7 @@ export async function fetchAkrab2Packages(): Promise<PackageItem[]> {
       : (Array.isArray(res.data?.data) ? res.data.data : []);
 
     const filtered = raw.filter((r) => {
-      const kode = String(r.kode ?? r.produk ?? r.code ?? r.sku ?? "").toUpperCase();
+      const kode = String(r.kode_produk ?? r.kode ?? r.produk ?? r.code ?? r.sku ?? "").toUpperCase();
       return AKRAB2_ALLOWED_SKUS.includes(kode);
     });
 

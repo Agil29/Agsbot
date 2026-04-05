@@ -187,8 +187,9 @@ export function setupHandlers(bot: TelegramBot) {
       if (akrab2.length > 0) {
         const lines = akrab2.map((p) => {
           const sku = p.sku ?? p.name;
-          const stok = p.stock !== undefined ? p.stock : "-";
-          return `  • ${sku}: <b>${stok}</b>`;
+          const statusIcon = p.stock && p.stock > 0 ? "✅" : "❌";
+          const statusText = p.stock && p.stock > 0 ? "tersedia" : "kosong";
+          return `  ${statusIcon} ${sku}: <b>${statusText}</b> — Rp ${p.price.toLocaleString("id-ID")}`;
         });
         akrab2StokDetail = "\n" + lines.join("\n");
       }
@@ -363,7 +364,8 @@ export function setupHandlers(bot: TelegramBot) {
       const detailLines: string[] = [];
       if (pkg.source === "api2" && pkg.sku) {
         detailLines.push(`SKU: <b>${pkg.sku}</b>`);
-        if (pkg.stock !== undefined) detailLines.push(`Stok: <b>${pkg.stock}</b>`);
+        const stokStatus = pkg.stock && pkg.stock > 0 ? "✅ Tersedia" : "❌ Kosong";
+        detailLines.push(`Stok: <b>${stokStatus}</b>`);
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
       } else {
         detailLines.push(`Nama: <b>${pkg.name}</b>`);

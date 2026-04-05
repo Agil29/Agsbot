@@ -42,7 +42,7 @@ export function packageInlineKeyboard(
   const rows: TelegramBot.InlineKeyboardButton[][] = pageItems.map((pkg) => {
     let label: string;
     if (pkg.source === "api2" && pkg.sku) {
-      const stockText = pkg.stock !== undefined ? `${pkg.stock} stok` : "stok N/A";
+      const stockText = pkg.stock && pkg.stock > 0 ? "✅ tersedia" : "❌ kosong";
       label = `${pkg.sku} (${stockText}) — Rp ${pkg.price.toLocaleString("id-ID")}`;
     } else {
       label = `${pkg.name} — Rp ${pkg.price.toLocaleString("id-ID")} | ${pkg.quota} | ${pkg.validity}`;
