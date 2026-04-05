@@ -137,21 +137,40 @@ export async function checkPakasirStatus(orderId: string): Promise<string | null
   const order = topups.get(orderId);
   if (!order) return null;
 
+  const body = { project, order_id: orderId, amount: order.nominal, api_key: apiKey };
+
+  // Try POST first (same pattern as transactioncreate)
   try {
-    const res = await axios.get(`${PAKASIR_BASE}/transactiondetail`, {
-      params: { project, order_id: orderId, api_key: apiKey },
+    const res = await axios.post(`${PAKASIR_BASE}/transactiondetail`, body, {
+      headers: { "Content-Type": "application/json" },
       timeout: 10000,
     });
-    logger.info({ orderId, data: res.data }, "Pakasir transactiondetail response");
-    // Try multiple field paths Pakasir might return
+    logger.info({ orderId, data: res.data }, "Pakasir transactiondetail POST response");
+    const status =
+      res.data?.transaction?.status ??
+      res.data?.data?.status ??
+      res.data?.status ??
+      null;
+    if (status) return String(status);
+  } catch (err: any) {
+    logger.warn({ orderId, status: err?.response?.status, data: err?.response?.data }, "Pakasir transactiondetail POST failed, trying GET");
+  }
+
+  // Fallback: GET with query params + amount
+  try {
+    const res = await axios.get(`${PAKASIR_BASE}/transactiondetail`, {
+      params: body,
+      timeout: 10000,
+    });
+    logger.info({ orderId, data: res.data }, "Pakasir transactiondetail GET response");
     const status =
       res.data?.transaction?.status ??
       res.data?.data?.status ??
       res.data?.status ??
       null;
     return status ? String(status) : null;
-  } catch (err) {
-    logger.error({ err }, "Failed to check Pakasir status");
+  } catch (err: any) {
+    logger.error({ orderId, status: err?.response?.status, data: err?.response?.data }, "Pakasir transactiondetail GET also failed");
     return null;
   }
 }
