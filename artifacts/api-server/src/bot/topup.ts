@@ -213,6 +213,12 @@ export function updateTopupStatus(id: string, status: TopupStatus): TopupOrder |
   return t;
 }
 
+export function getTopupsByUser(userId: number): TopupOrder[] {
+  return [...topups.values()]
+    .filter(t => t.userId === userId && t.status === "completed")
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 export function getAllTopups(): TopupOrder[] {
   return Array.from(topups.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }

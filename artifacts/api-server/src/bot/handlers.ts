@@ -7,7 +7,7 @@ import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
-import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus } from "./topup";
+import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
 import { placeKhfyOrder } from "./khfyApi";
 import { placeDopuOrder, checkDopuOrderStatus, type DopuOrderResult } from "./dopuApi";
 import {
@@ -186,35 +186,122 @@ export function setupHandlers(bot: TelegramBot) {
     );
   });
 
-  bot.onText(/📋 RIWAYAT TRANSAKSI/, async (msg) => {
-    const from = msg.from!;
-    const userOrders = getOrdersByUser(from.id);
+  // ── History helpers ─────────────────────────────────────────────────────────
 
-    if (userOrders.length === 0) {
-      await bot.sendMessage(
-        msg.chat.id,
-        "📋 <b>RIWAYAT TRANSAKSI</b>\n\n━━━━━━━━━━━━━━━━━━━━\n\nAnda belum memiliki riwayat order.",
-        { parse_mode: "HTML" }
-      );
-      return;
+  const HIST_PAGE_SIZE = 8;
+  const HIST_6M_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+
+  function fmtHistDate(d: Date): string {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const HH = String(d.getHours()).padStart(2, "0");
+    const MM = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}/${mm}/${yyyy} ${HH}:${MM}`;
+  }
+
+  function histPageKeyboard(
+    type: "trx" | "saldo",
+    currentPage: number,
+    totalPages: number,
+  ): TelegramBot.InlineKeyboardMarkup {
+    const pageBtns: TelegramBot.InlineKeyboardButton[] = Array.from({ length: totalPages }, (_, i) => ({
+      text: i === currentPage ? `☑️ ${i + 1}` : `${i + 1}`,
+      callback_data: `hist_${type}_${i}`,
+    }));
+
+    const rows: TelegramBot.InlineKeyboardButton[][] = [];
+    const row1: TelegramBot.InlineKeyboardButton[] = [];
+    if (currentPage > 0) row1.push({ text: "Prev", callback_data: `hist_${type}_${currentPage - 1}` });
+    row1.push(...pageBtns.slice(0, 4));
+    rows.push(row1);
+
+    const row2 = [...pageBtns.slice(4)];
+    if (currentPage < totalPages - 1) row2.push({ text: "Next", callback_data: `hist_${type}_${currentPage + 1}` });
+    if (row2.length > 0) rows.push(row2);
+
+    return { inline_keyboard: rows };
+  }
+
+  function buildTrxPage(userId: number, page: number): { text: string; keyboard: TelegramBot.InlineKeyboardMarkup } {
+    const cutoff = new Date(Date.now() - HIST_6M_MS);
+    const items = getOrdersByUser(userId).filter(
+      o => o.status === "done" && new Date(o.createdAt) >= cutoff
+    );
+    const totalPages = Math.max(1, Math.ceil(items.length / HIST_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages - 1);
+    const slice = items.slice(safePage * HIST_PAGE_SIZE, (safePage + 1) * HIST_PAGE_SIZE);
+
+    let text = `📋 <b>Riwayat transaksi ${safePage + 1} of ${totalPages}</b>\n`;
+    if (slice.length === 0) {
+      text += "\nBelum ada transaksi sukses dalam 6 bulan terakhir.";
+    } else {
+      slice.forEach(o => {
+        text +=
+          `\nProduk : ${o.packageName}\n` +
+          `Harga : Rp${o.price.toLocaleString("id-ID")}\n` +
+          `Tanggal : — ${fmtHistDate(new Date(o.createdAt))}\n` +
+          `Status : → success\n`;
+      });
     }
+    return { text, keyboard: histPageKeyboard("trx", safePage, totalPages) };
+  }
 
-    const maxShow = 5;
-    const shown = userOrders.slice(0, maxShow);
-    let text = `📋 <b>RIWAYAT TRANSAKSI</b>\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    shown.forEach((order, idx) => {
-      text +=
-        `<b>${idx + 1}. ${order.packageName}</b>\n` +
-        `   🗂 ID: <code>${order.id}</code>\n` +
-        `   📦 ${order.quota} | ${order.validity}\n` +
-        `   💰 Rp ${order.price.toLocaleString("id-ID")}\n` +
-        `   ${statusLabel[order.status]}\n` +
-        `   🕐 ${formatOrderDate(order.createdAt)}\n\n`;
+  function buildSaldoPage(userId: number, page: number): { text: string; keyboard: TelegramBot.InlineKeyboardMarkup } {
+    const cutoff = new Date(Date.now() - HIST_6M_MS);
+
+    type SaldoEntry = { label: string; date: Date };
+    const entries: SaldoEntry[] = [];
+
+    // Topup masuk
+    getTopupsByUser(userId).forEach(t => {
+      if (new Date(t.createdAt) >= cutoff) {
+        entries.push({
+          label: `+ Rp${t.nominal.toLocaleString("id-ID")} (Topup Saldo)\nTanggal : — ${fmtHistDate(new Date(t.createdAt))}`,
+          date: new Date(t.createdAt),
+        });
+      }
     });
-    if (userOrders.length > maxShow) {
-      text += `<i>... dan ${userOrders.length - maxShow} transaksi lainnya</i>`;
+
+    // Saldo keluar (order via saldo)
+    getOrdersByUser(userId).filter(o => o.paymentMethod === "saldo" && new Date(o.createdAt) >= cutoff).forEach(o => {
+      const label = o.status === "cancelled"
+        ? `+ Rp${o.price.toLocaleString("id-ID")} (Refund: ${o.packageName})\nTanggal : — ${fmtHistDate(new Date(o.createdAt))}`
+        : `- Rp${o.price.toLocaleString("id-ID")} → ${o.packageName}\nTanggal : — ${fmtHistDate(new Date(o.createdAt))}`;
+      entries.push({ label, date: new Date(o.createdAt) });
+    });
+
+    entries.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    const totalPages = Math.max(1, Math.ceil(entries.length / HIST_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages - 1);
+    const slice = entries.slice(safePage * HIST_PAGE_SIZE, (safePage + 1) * HIST_PAGE_SIZE);
+
+    let text = `💰 <b>Riwayat saldo ${safePage + 1} of ${totalPages}</b>\n`;
+    if (slice.length === 0) {
+      text += "\nBelum ada riwayat penggunaan saldo dalam 6 bulan terakhir.";
+    } else {
+      slice.forEach(e => { text += `\n${e.label}\n`; });
     }
-    await bot.sendMessage(msg.chat.id, text, { parse_mode: "HTML" });
+    return { text, keyboard: histPageKeyboard("saldo", safePage, totalPages) };
+  }
+
+  // ── RIWAYAT button ────────────────────────────────────────────────────────
+
+  bot.onText(/📋 RIWAYAT/, async (msg) => {
+    await bot.sendMessage(
+      msg.chat.id,
+      "📋 <b>RIWAYAT</b>\n\nRiwayat transaksi dan saldo 6 bulan terakhir masih bisa di akses",
+      {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "📦 Transaksi", callback_data: "hist_trx_0" },
+            { text: "💰 Saldo", callback_data: "hist_saldo_0" },
+          ]],
+        },
+      }
+    );
   });
 
   bot.on("message", async (msg) => {
@@ -403,6 +490,25 @@ export function setupHandlers(bot: TelegramBot) {
       await bot.editMessageText("❌ Order dibatalkan.\n\nKetik /order untuk memulai order baru.", {
         chat_id: chatId, message_id: messageId,
       });
+      return;
+    }
+
+    // ── History pagination callbacks ────────────────────────────────────────
+    if (data.startsWith("hist_trx_") || data.startsWith("hist_saldo_")) {
+      try { await bot.answerCallbackQuery(query.id); } catch { }
+      const isTrx = data.startsWith("hist_trx_");
+      const page = parseInt(data.split("_").pop() ?? "0", 10);
+      const { text, keyboard } = isTrx
+        ? buildTrxPage(userId, page)
+        : buildSaldoPage(userId, page);
+      try {
+        await bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        });
+      } catch { }
       return;
     }
 

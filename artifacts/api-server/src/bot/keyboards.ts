@@ -11,7 +11,7 @@ export function mainMenuKeyboard(
   return {
     keyboard: [
       [{ text: "📦 ORDER" }],
-      [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT TRANSAKSI" }],
+      [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT" }],
       [{ text: "📱 CEK PAKET & AREA", web_app: { url: "https://bendith.my.id/" } }],
       [{ text: "🏠 Menu" }],
     ],
