@@ -42,6 +42,7 @@ export type PackageKeyboardOpts = {
   columns?: number;
   cekStokUrl?: string;
   pageSize?: number;
+  showRefreshStock?: boolean;
 };
 
 export function packageInlineKeyboard(
@@ -88,6 +89,10 @@ export function packageInlineKeyboard(
   if (page > 0) navRow.push({ text: "⬅ Sebelumnya", callback_data: `page_${page - 1}` });
   if (page < totalPages - 1) navRow.push({ text: "Selanjutnya ➡", callback_data: `page_${page + 1}` });
   if (navRow.length > 0) rows.push(navRow);
+
+  if (opts.showRefreshStock) {
+    rows.push([{ text: "🔄 Refresh Stock", callback_data: "refresh_stock" }]);
+  }
 
   rows.push([{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }]);
 

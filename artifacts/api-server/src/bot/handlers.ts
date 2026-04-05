@@ -37,6 +37,9 @@ function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPack
     // Always show all on one page (no pagination for DOPU)
     return { columns, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
   }
+  if (category === "akrab2") {
+    return { showRefreshStock: true };
+  }
   return {};
 }
 
@@ -392,6 +395,27 @@ export function setupHandlers(bot: TelegramBot) {
       await bot.editMessageText("❌ Order dibatalkan.\n\nKetik /order untuk memulai order baru.", {
         chat_id: chatId, message_id: messageId,
       });
+      return;
+    }
+
+    if (data === "refresh_stock") {
+      const session = getSession(userId);
+      const category = (session.category as Category | undefined) ?? "akrab2";
+      await bot.answerCallbackQuery(callbackQuery.id, { text: "🔄 Memperbarui stok..." });
+      await refreshAllPackages();
+      const packages = getPackages(category);
+      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      if (packages.length === 0) {
+        await bot.editMessageText(
+          `📦 <b>${categoryLabels[category]}</b>\n\n⚠️ Belum ada paket tersedia.\nHubungi admin: @${SUPPORT_USERNAME}`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: backToCategoryKeyboard() }
+        );
+        return;
+      }
+      await bot.editMessageText(
+        `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0, pkgKeyboardOpts(category, packages)) }
+      );
       return;
     }
 
