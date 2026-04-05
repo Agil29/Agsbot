@@ -188,10 +188,9 @@ export function setupHandlers(bot: TelegramBot) {
       let akrab2StokDetail = "";
       if (akrab2.length > 0) {
         const lines = akrab2.map((p) => {
-          const sku = p.sku ?? p.name;
           const statusIcon = p.stock && p.stock > 0 ? "✅" : "❌";
           const statusText = p.stock && p.stock > 0 ? "tersedia" : "kosong";
-          return `  ${statusIcon} ${sku}: <b>${statusText}</b> — Rp ${p.price.toLocaleString("id-ID")}`;
+          return `  ${statusIcon} ${p.name}: <b>${statusText}</b> — Rp ${p.price.toLocaleString("id-ID")}`;
         });
         akrab2StokDetail = "\n" + lines.join("\n");
       }
@@ -257,7 +256,6 @@ export function setupHandlers(bot: TelegramBot) {
         `⚠️ <b>KONFIRMASI PESANAN</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
         `• Produk: <b>${session.selectedPackageName ?? "-"}</b>\n` +
-        (session.selectedSku ? `• SKU: <b>${session.selectedSku}</b>\n` : "") +
         `• Nomor: <code>${nomor}</code>\n` +
         `• Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n\n` +
         `• Saldo Anda: <b>Rp ${(user?.saldo ?? 0).toLocaleString("id-ID")}</b>\n\n` +
@@ -399,7 +397,7 @@ export function setupHandlers(bot: TelegramBot) {
 
       const detailLines: string[] = [];
       if (pkg.source === "api2" && pkg.sku) {
-        detailLines.push(`SKU: <b>${pkg.sku}</b>`);
+        detailLines.push(`Produk: <b>${pkg.name}</b>`);
         const stokStatus = pkg.stock && pkg.stock > 0 ? "✅ Tersedia" : "❌ Kosong";
         detailLines.push(`Stok: <b>${stokStatus}</b>`);
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
