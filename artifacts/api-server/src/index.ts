@@ -2,11 +2,6 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startBot } from "./bot";
 
-// Prevent unhandled promise rejections (e.g. Telegram API 400/409 errors) from crashing the server
-process.on("unhandledRejection", (reason) => {
-  logger.warn({ reason }, "Unhandled promise rejection — ignored to keep server alive");
-});
-
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
