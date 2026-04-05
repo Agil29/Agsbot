@@ -589,7 +589,7 @@ export function setupHandlers(bot: TelegramBot) {
             `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
             (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
             `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>\n\n` +
-            `⏳ <i>Paket sedang diproses. Jika dalam 1×24 jam tidak masuk, hubungi admin.</i>` +
+            `⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` +
             circleNote,
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );

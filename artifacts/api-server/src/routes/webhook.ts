@@ -92,7 +92,7 @@ router.post("/pakasir", async (req, res) => {
               `📱 Nomor: <code>${nomorTujuan}</code>\n` +
               `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
               (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
-              `\n⏳ <i>Paket sedang diproses. Jika dalam 1×24 jam tidak masuk, hubungi admin.</i>` +
+              `\n⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` +
               circleNote,
               { parse_mode: "HTML" }
             );
