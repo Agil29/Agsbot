@@ -8,6 +8,7 @@ export function mainMenuKeyboard(): TelegramBot.ReplyKeyboardMarkup {
       [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT TRANSAKSI" }],
       [{ text: "📊 CEK STOK" }, { text: "📱 CEK PAKET" }],
       [{ text: "📍 CEK LOKASI" }],
+      [{ text: "🏠 Menu" }],
     ],
     resize_keyboard: true,
     one_time_keyboard: false,
@@ -29,7 +30,7 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
 export function packageInlineKeyboard(
   packages: PackageItem[],
   page = 0,
-  pageSize = 5
+  pageSize = 5,
 ): TelegramBot.InlineKeyboardMarkup {
   const start = page * pageSize;
   const end = start + pageSize;
@@ -44,16 +45,22 @@ export function packageInlineKeyboard(
   ]);
 
   const navRow: TelegramBot.InlineKeyboardButton[] = [];
-  if (page > 0) navRow.push({ text: "⬅ Sebelumnya", callback_data: `page_${page - 1}` });
-  if (page < totalPages - 1) navRow.push({ text: "Selanjutnya ➡", callback_data: `page_${page + 1}` });
+  if (page > 0)
+    navRow.push({ text: "⬅ Sebelumnya", callback_data: `page_${page - 1}` });
+  if (page < totalPages - 1)
+    navRow.push({ text: "Selanjutnya ➡", callback_data: `page_${page + 1}` });
   if (navRow.length > 0) rows.push(navRow);
 
-  rows.push([{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }]);
+  rows.push([
+    { text: "🔙 Kembali ke Kategori", callback_data: "back_category" },
+  ]);
 
   return { inline_keyboard: rows };
 }
 
-export function confirmOrderKeyboard(packageId: string): TelegramBot.InlineKeyboardMarkup {
+export function confirmOrderKeyboard(
+  packageId: string,
+): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
@@ -66,6 +73,8 @@ export function confirmOrderKeyboard(packageId: string): TelegramBot.InlineKeybo
 
 export function backToCategoryKeyboard(): TelegramBot.InlineKeyboardMarkup {
   return {
-    inline_keyboard: [[{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }]],
+    inline_keyboard: [
+      [{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }],
+    ],
   };
 }

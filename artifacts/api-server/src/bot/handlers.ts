@@ -2,6 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
 import { getSession, setSession, clearSession } from "./sessions";
+import { getOrRegisterUser, getUser, formatRegDate } from "./users";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
@@ -10,21 +11,59 @@ import {
   backToCategoryKeyboard,
 } from "./keyboards";
 
+const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
+
 export function setupHandlers(bot: TelegramBot) {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
-    const userId = msg.from?.id ?? chatId;
-    const name = msg.from?.first_name ?? "Pelanggan";
-    clearSession(userId);
+    const from = msg.from!;
+    const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+    clearSession(from.id);
 
-    await bot.sendMessage(
-      chatId,
-      `Selamat datang di <b>Ags Store | Paket Akrab</b> 👋\n\nHalo <b>${name}</b>!\n\nSilakan pilih menu di bawah:`,
-      {
-        parse_mode: "HTML",
-        reply_markup: mainMenuKeyboard(),
-      }
-    );
+    const profileText =
+      `👤 <b>PROFIL ANDA</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `• Nama: <b>${user.firstName}${user.lastName ? " " + user.lastName : ""}</b>\n` +
+      `• ID: <code>${user.telegramId}</code>\n` +
+      (user.username ? `• User: @${user.username}\n` : "") +
+      `• UID: <b>${user.uid}</b>\n` +
+      `• Reg: <b>${formatRegDate(user.regDate)}</b>\n\n` +
+      `<b>Saldo: Rp ${user.saldo.toLocaleString("id-ID")}</b>\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `Ada kendala? Hubungi @${SUPPORT_USERNAME}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 Sila Pilih Menu di bawah:`;
+
+    await bot.sendMessage(chatId, profileText, {
+      parse_mode: "HTML",
+      reply_markup: mainMenuKeyboard(),
+    });
+  });
+
+  bot.onText(/🏠 Menu/, async (msg) => {
+    const chatId = msg.chat.id;
+    const from = msg.from!;
+    const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+    clearSession(from.id);
+
+    const profileText =
+      `👤 <b>PROFIL ANDA</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `• Nama: <b>${user.firstName}${user.lastName ? " " + user.lastName : ""}</b>\n` +
+      `• ID: <code>${user.telegramId}</code>\n` +
+      (user.username ? `• User: @${user.username}\n` : "") +
+      `• UID: <b>${user.uid}</b>\n` +
+      `• Reg: <b>${formatRegDate(user.regDate)}</b>\n\n` +
+      `<b>Saldo: Rp ${user.saldo.toLocaleString("id-ID")}</b>\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `Ada kendala? Hubungi @${SUPPORT_USERNAME}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 Sila Pilih Menu di bawah:`;
+
+    await bot.sendMessage(chatId, profileText, {
+      parse_mode: "HTML",
+      reply_markup: mainMenuKeyboard(),
+    });
   });
 
   bot.onText(/\/order/, handleOrder(bot));
@@ -33,7 +72,7 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/💰 TOPUP/, async (msg) => {
     await bot.sendMessage(
       msg.chat.id,
-      "💰 <b>TOPUP SALDO</b>\n\nUntuk topup saldo, silakan hubungi admin:\n@Agsstore_29",
+      `💰 <b>TOPUP SALDO</b>\n\nUntuk topup saldo, silakan hubungi admin:\n@${SUPPORT_USERNAME}`,
       { parse_mode: "HTML" }
     );
   });
@@ -117,7 +156,7 @@ export function setupHandlers(bot: TelegramBot) {
 
       if (packages.length === 0) {
         await bot.editMessageText(
-          `📦 <b>${categoryLabels[category]}</b>\n\n⚠️ Belum ada paket tersedia di kategori ini.\nHubungi admin: @Agsstore_29`,
+          `📦 <b>${categoryLabels[category]}</b>\n\n⚠️ Belum ada paket tersedia di kategori ini.\nHubungi admin: @${SUPPORT_USERNAME}`,
           {
             chat_id: chatId,
             message_id: messageId,
@@ -194,14 +233,15 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (data.startsWith("confirm_")) {
       const session = getSession(userId);
-      const name = query.from.first_name ?? "Pelanggan";
+      const user = getUser(userId);
+      const name = user?.firstName ?? query.from.first_name ?? "Pelanggan";
 
       await bot.editMessageText(
         `✅ <b>ORDER DITERIMA</b>\n\n` +
           `Halo <b>${name}</b>, order Anda telah diterima!\n\n` +
           `Paket: <b>${session.selectedPackageName}</b>\n` +
           `Harga: <b>Rp ${session.selectedPackagePrice?.toLocaleString("id-ID")}</b>\n\n` +
-          `Silakan lakukan pembayaran dan kirim bukti ke admin:\n@Agsstore_29`,
+          `Silakan lakukan pembayaran dan kirim bukti ke admin:\n@${SUPPORT_USERNAME}`,
         {
           chat_id: chatId,
           message_id: messageId,

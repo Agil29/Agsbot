@@ -8,6 +8,7 @@ import {
   type Category,
 } from "../../bot/store";
 import { refreshAllPackages } from "../../bot/apiService";
+import { getAllUsers, updateSaldo } from "../../bot/users";
 
 const router = Router();
 
@@ -104,6 +105,35 @@ router.delete("/packages/:category/:id", requireAdmin, (req, res) => {
 router.post("/refresh", requireAdmin, async (_req, res) => {
   await refreshAllPackages();
   res.json({ success: true, message: "Packages refreshed from APIs" });
+});
+
+router.get("/users", requireAdmin, (_req, res) => {
+  const users = getAllUsers().map((u) => ({
+    telegramId: u.telegramId,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    username: u.username,
+    uid: u.uid,
+    regDate: u.regDate,
+    saldo: u.saldo,
+  }));
+  res.json({ success: true, data: users });
+});
+
+router.post("/users/:telegramId/saldo", requireAdmin, (req, res) => {
+  const telegramId = parseInt(req.params.telegramId, 10);
+  if (isNaN(telegramId)) {
+    return res.status(400).json({ error: "Invalid telegramId" });
+  }
+  const { amount } = req.body;
+  if (amount === undefined || isNaN(Number(amount))) {
+    return res.status(400).json({ error: "amount is required (can be negative to deduct)" });
+  }
+  const updated = updateSaldo(telegramId, Number(amount));
+  if (!updated) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  res.json({ success: true, data: { telegramId, saldo: updated.saldo } });
 });
 
 export default router;
