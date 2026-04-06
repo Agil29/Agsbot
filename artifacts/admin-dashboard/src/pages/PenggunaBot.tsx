@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, RefreshCw, Edit2, Trash2, Check, X, ShieldOff, ShieldCheck } from "lucide-react";
+import { Users, RefreshCw, Edit2, Trash2, Check, X, ShieldOff, ShieldCheck, Search } from "lucide-react";
 import { api } from "@/lib/api";
 
 type User = {
@@ -26,6 +26,19 @@ export function PenggunaBot() {
   const [msg, setMsg] = useState("");
   const [blacklisted, setBlacklisted] = useState<Set<number>>(new Set());
   const [blockingId, setBlockingId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredUsers = search.trim()
+    ? users.filter((u) => {
+        const q = search.trim().toLowerCase();
+        return (
+          String(u.telegramId).includes(q) ||
+          u.firstName.toLowerCase().includes(q) ||
+          (u.lastName ?? "").toLowerCase().includes(q) ||
+          (u.username ?? "").toLowerCase().includes(q)
+        );
+      })
+    : users;
 
   async function load() {
     setLoading(true);
@@ -127,10 +140,36 @@ export function PenggunaBot() {
         <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">{msg}</div>
       )}
 
+      {/* Search box */}
+      <div className="mb-4 relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Cari berdasarkan TG ID, nama, atau username..."
+          className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-          <span className="font-semibold text-slate-700 text-sm">Recent Users</span>
-          <span className="text-xs text-slate-400">{users.length} pengguna · {blacklisted.size} diblokir</span>
+          <span className="font-semibold text-slate-700 text-sm">
+            {search ? `Hasil pencarian "${search}"` : "Recent Users"}
+          </span>
+          <span className="text-xs text-slate-400">
+            {search
+              ? `${filteredUsers.length} dari ${users.length} pengguna`
+              : `${users.length} pengguna · ${blacklisted.size} diblokir`}
+          </span>
         </div>
         <div className="overflow-x-auto">
           {loading ? (
@@ -138,9 +177,9 @@ export function PenggunaBot() {
               <RefreshCw size={24} className="animate-spin mx-auto mb-2" />
               Memuat data...
             </div>
-          ) : users.length === 0 ? (
+          ) : filteredUsers.length === 0 ? (
             <div className="py-16 text-center text-slate-400">
-              Belum ada pengguna
+              {search ? `Tidak ada pengguna dengan "${search}"` : "Belum ada pengguna"}
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -158,7 +197,7 @@ export function PenggunaBot() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map((u, i) => {
+                {filteredUsers.map((u, i) => {
                   const blocked = blacklisted.has(u.telegramId);
                   return (
                     <tr key={u.telegramId} className={`hover:bg-slate-50 ${blocked ? "bg-red-50/40" : ""}`}>
