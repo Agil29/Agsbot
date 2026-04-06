@@ -4,7 +4,7 @@ import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
 import { refreshAllPackages } from "./apiService";
 import { getSession, setSession, clearSession } from "./sessions";
-import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate } from "./users";
+import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate, getAllUsers } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
@@ -23,6 +23,34 @@ import {
 
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME ?? "Agsstore_29";
 const DOPU_CEK_STOK_URL = process.env.CEK_STOK_AKRAB1_URL ?? "https://juraganxl.my.id/";
+
+function getAdminIds(): number[] {
+  const raw = process.env.ADMIN_TELEGRAM_IDS ?? process.env.ADMIN_TELEGRAM_ID ?? "";
+  return raw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+}
+
+function isAdmin(userId: number): boolean {
+  const ids = getAdminIds();
+  return ids.length > 0 && ids.includes(userId);
+}
+
+async function doBroadcast(
+  bot: TelegramBot,
+  message: string,
+): Promise<{ sent: number; failed: number; total: number }> {
+  const users = getAllUsers();
+  let sent = 0, failed = 0;
+  for (const user of users) {
+    try {
+      await bot.sendMessage(user.telegramId, message, { parse_mode: "HTML" });
+      sent++;
+    } catch {
+      failed++;
+    }
+    await new Promise(r => setTimeout(r, 40));
+  }
+  return { sent, failed, total: users.length };
+}
 
 function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPackages> = []): PackageKeyboardOpts {
   if (category === "circle") {
@@ -145,6 +173,7 @@ export function setupHandlers(bot: TelegramBot) {
   // ── Global rate-limit gate (registered first so it fires before all other listeners) ──
   bot.on("message", async (msg) => {
     if (!msg.from) return;
+    if (isAdmin(msg.from.id)) return; // admins are exempt from rate limiting
     const { status, secondsLeft } = recordAndCheck(msg.from.id);
     if (status === "warn") {
       await bot.sendMessage(
@@ -173,6 +202,35 @@ export function setupHandlers(bot: TelegramBot) {
       reply_markup: mainMenuKeyboard(),
     });
   });
+
+  // ── Admin: /broadcast command ─────────────────────────────────────────────
+
+  bot.onText(/\/broadcast/, async (msg) => {
+    const userId = msg.from!.id;
+    if (!isAdmin(userId)) return;
+    clearSession(userId);
+    setSession(userId, { step: "waiting_broadcast_message" });
+    await bot.sendMessage(
+      msg.chat.id,
+      `📢 <b>Mode Broadcast</b>\n\n` +
+      `Kirim pesan yang ingin dibroadcast ke <b>semua user</b>.\n` +
+      `Format HTML didukung: <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;code&gt;</code>\n\n` +
+      `Kirim /cancel untuk membatalkan.`,
+      { parse_mode: "HTML" }
+    );
+  });
+
+  bot.onText(/\/cancel/, async (msg) => {
+    const userId = msg.from!.id;
+    if (!isAdmin(userId)) return;
+    const session = getSession(userId);
+    if (session.step === "waiting_broadcast_message" || session.step === "broadcast_confirm") {
+      clearSession(userId);
+      await bot.sendMessage(msg.chat.id, "❌ Broadcast dibatalkan.", { parse_mode: "HTML" });
+    }
+  });
+
+  // ── 🏠 Menu ──────────────────────────────────────────────────────────────
 
   bot.onText(/🏠 Menu/, async (msg) => {
     if (isBlocked(msg.from!.id)) return;
@@ -328,6 +386,28 @@ export function setupHandlers(bot: TelegramBot) {
     const from = msg.from!;
     const session = getSession(from.id);
 
+    if (session.step === "waiting_broadcast_message" && isAdmin(from.id)) {
+      const bcastMsg = msg.text.trim();
+      if (!bcastMsg || bcastMsg.length === 0) return;
+      const totalUsers = getAllUsers().length;
+      setSession(from.id, { step: "broadcast_confirm", broadcastMessage: bcastMsg });
+      await bot.sendMessage(
+        msg.chat.id,
+        `📢 <b>Preview Broadcast</b>\n━━━━━━━━━━━━━━━━━━━━\n\n${bcastMsg}\n\n━━━━━━━━━━━━━━━━━━━━\n` +
+        `Pesan ini akan dikirim ke <b>${totalUsers} pengguna</b>.\nLanjutkan?`,
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [[
+              { text: `✅ Kirim ke ${totalUsers} user`, callback_data: "bcast_confirm" },
+              { text: "❌ Batalkan", callback_data: "bcast_cancel" },
+            ]],
+          },
+        }
+      );
+      return;
+    }
+
     if (session.step === "waiting_whatsapp") {
       const wa = msg.text.trim().replace(/\s+/g, "").replace(/^(\+62|62)/, "0");
       if (!/^0\d{8,13}$/.test(wa)) {
@@ -412,18 +492,20 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (!chatId || !messageId) return;
 
-    // ── Rate limit check for inline button presses ────────────────────────
-    const rl = recordAndCheck(userId);
-    if (rl.status === "warn") {
-      await bot.answerCallbackQuery(query.id, {
-        text: `⛔ Terlalu cepat! Tunggu ${rl.secondsLeft} detik.`,
-        show_alert: true,
-      }).catch(() => {});
-      return;
-    }
-    if (rl.status === "blocked") {
-      await bot.answerCallbackQuery(query.id).catch(() => {});
-      return;
+    // ── Rate limit check for inline button presses (admins exempt) ──────────
+    if (!isAdmin(userId)) {
+      const rl = recordAndCheck(userId);
+      if (rl.status === "warn") {
+        await bot.answerCallbackQuery(query.id, {
+          text: `⛔ Terlalu cepat! Tunggu ${rl.secondsLeft} detik.`,
+          show_alert: true,
+        }).catch(() => {});
+        return;
+      }
+      if (rl.status === "blocked") {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        return;
+      }
     }
 
     if (data.startsWith("topup_paid_")) {
@@ -521,6 +603,54 @@ export function setupHandlers(bot: TelegramBot) {
       await bot.editMessageText("❌ Order dibatalkan.\n\nKetik /order untuk memulai order baru.", {
         chat_id: chatId, message_id: messageId,
       });
+      return;
+    }
+
+    // ── Admin broadcast callbacks ─────────────────────────────────────────
+    if (data === "bcast_confirm" || data === "bcast_cancel") {
+      try { await bot.answerCallbackQuery(query.id); } catch { }
+
+      if (!isAdmin(userId)) {
+        try { await bot.editMessageText("❌ Bukan admin.", { chat_id: chatId, message_id: messageId }); } catch { }
+        return;
+      }
+
+      if (data === "bcast_cancel") {
+        clearSession(userId);
+        try {
+          await bot.editMessageText("❌ <b>Broadcast dibatalkan.</b>", { chat_id: chatId, message_id: messageId, parse_mode: "HTML" });
+        } catch { }
+        return;
+      }
+
+      const session = getSession(userId);
+      const bcastMsg = session.broadcastMessage;
+      if (!bcastMsg) {
+        try { await bot.editMessageText("❌ Pesan broadcast tidak ditemukan.", { chat_id: chatId, message_id: messageId }); } catch { }
+        return;
+      }
+
+      clearSession(userId);
+      const totalUsers = getAllUsers().length;
+
+      try {
+        await bot.editMessageText(
+          `⏳ <b>Mengirim broadcast...</b>\n\nMengirim ke <b>${totalUsers} user</b>. Mohon tunggu.`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+      } catch { }
+
+      const { sent, failed } = await doBroadcast(bot, bcastMsg);
+
+      try {
+        await bot.editMessageText(
+          `✅ <b>Broadcast Selesai!</b>\n\n` +
+          `👥 Total user: <b>${totalUsers}</b>\n` +
+          `✅ Terkirim: <b>${sent}</b>\n` +
+          `❌ Gagal: <b>${failed}</b>`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+      } catch { }
       return;
     }
 

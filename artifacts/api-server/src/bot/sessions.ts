@@ -7,7 +7,10 @@ export type UserSession = {
     | "confirm_order"
     | "waiting_nomor_tujuan"
     | "select_payment"
-    | "waiting_topup_amount";
+    | "waiting_topup_amount"
+    | "waiting_broadcast_message"
+    | "broadcast_confirm";
+  broadcastMessage?: string;
   category?: string;
   selectedCategory?: string;
   packageId?: string;
