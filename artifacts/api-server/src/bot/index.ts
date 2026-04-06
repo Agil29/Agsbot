@@ -34,9 +34,20 @@ export async function startBot() {
   const bot = new TelegramBot(token, { polling: false });
   botInstance = bot;
 
-  // Drop pending updates so stale messages from before restart are not reprocessed
+  // Drain all pending updates so stale messages from before restart are not reprocessed
   try {
     await bot.deleteWebhook({ drop_pending_updates: true });
+    // Extra safety: consume any queued updates via getUpdates before starting polling
+    let drained = false;
+    while (!drained) {
+      const updates = await bot.getUpdates({ offset: -1, limit: 1, timeout: 0 });
+      if (updates.length === 0) {
+        drained = true;
+      } else {
+        await bot.getUpdates({ offset: updates[updates.length - 1].update_id + 1, limit: 1, timeout: 0 });
+        drained = true;
+      }
+    }
   } catch { }
 
   bot.startPolling();
