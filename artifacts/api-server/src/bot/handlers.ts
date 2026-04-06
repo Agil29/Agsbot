@@ -982,10 +982,21 @@ export function setupHandlers(bot: TelegramBot) {
 function handleOrder(bot: TelegramBot) {
   return async (msg: TelegramBot.Message) => {
     const userId = msg.from?.id ?? msg.chat.id;
+    const chatId = msg.chat.id;
+
+    // Delete previous PILIH KATEGORI message if it exists
+    const prevSession = getSession(userId);
+    if (prevSession.lastOrderMsgId && prevSession.lastOrderChatId) {
+      try { await bot.deleteMessage(prevSession.lastOrderChatId, prevSession.lastOrderMsgId); } catch { }
+    }
+
     setSession(userId, { step: "select_category" });
-    await bot.sendMessage(msg.chat.id, "📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
+
+    const sent = await bot.sendMessage(chatId, "📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
       parse_mode: "HTML",
       reply_markup: categoryInlineKeyboard(),
     });
+
+    setSession(userId, { lastOrderMsgId: sent.message_id, lastOrderChatId: chatId });
   };
 }
