@@ -788,6 +788,34 @@ export function setupHandlers(bot: TelegramBot) {
 
     if (data.startsWith("confirm_")) {
       const session = getSession(userId);
+
+      // Cek stok real-time untuk paket KHFY (akrab2 / source "api2")
+      if (session.selectedCategory === "akrab2" && session.packageId) {
+        const packages = getPackagesWithMarkup("akrab2");
+        const pkg = packages.find((p) => p.id === session.packageId);
+        if (pkg && pkg.stock !== undefined && pkg.stock <= 0) {
+          await bot.answerCallbackQuery(query.id, {
+            text: "❌ Stok paket ini sedang kosong!",
+            show_alert: true,
+          }).catch(() => {});
+          await bot.editMessageText(
+            `📦 <b>DETAIL PAKET</b>\n\n` +
+            `Produk: <b>${pkg.name}</b>\n` +
+            `Stok: <b>❌ Kosong</b>\n` +
+            `Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>\n\n` +
+            `⚠️ <b>Maaf, stok paket ini sedang habis.</b>\n` +
+            `Silakan pilih paket lain atau hubungi admin @${SUPPORT_USERNAME}.`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: "HTML",
+              reply_markup: backToCategoryKeyboard(),
+            }
+          );
+          return;
+        }
+      }
+
       setSession(userId, { step: "waiting_nomor_tujuan" });
 
       await bot.editMessageText(
