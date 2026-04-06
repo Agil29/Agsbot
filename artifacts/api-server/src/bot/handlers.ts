@@ -141,20 +141,6 @@ async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nom
 }
 
 export function setupHandlers(bot: TelegramBot) {
-  // ── Anti-spam: 3-second cooldown per user ─────────────────────────────────
-  const COOLDOWN_MS = 3000;
-  const lastAction = new Map<number, number>();
-
-  function isOnCooldown(userId: number): boolean {
-    const last = lastAction.get(userId) ?? 0;
-    return Date.now() - last < COOLDOWN_MS;
-  }
-
-  function touchCooldown(userId: number): void {
-    lastAction.set(userId, Date.now());
-  }
-  // ─────────────────────────────────────────────────────────────────────────
-
   bot.onText(/\/start/, async (msg) => {
     const from = msg.from!;
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
@@ -176,8 +162,6 @@ export function setupHandlers(bot: TelegramBot) {
 
   bot.onText(/🏠 Menu/, async (msg) => {
     const from = msg.from!;
-    if (isOnCooldown(from.id)) return;
-    touchCooldown(from.id);
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
@@ -186,19 +170,11 @@ export function setupHandlers(bot: TelegramBot) {
     });
   });
 
-  const orderHandler = async (msg: TelegramBot.Message) => {
-    const from = msg.from!;
-    if (isOnCooldown(from.id)) return;
-    touchCooldown(from.id);
-    return handleOrder(bot)(msg);
-  };
-  bot.onText(/\/order/, orderHandler);
-  bot.onText(/📦 ORDER/, orderHandler);
+  bot.onText(/\/order/, handleOrder(bot));
+  bot.onText(/📦 ORDER/, handleOrder(bot));
 
   bot.onText(/💰 TOPUP/, async (msg) => {
     const from = msg.from!;
-    if (isOnCooldown(from.id)) return;
-    touchCooldown(from.id);
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     setSession(from.id, { step: "waiting_topup_amount" });
 
@@ -313,9 +289,6 @@ export function setupHandlers(bot: TelegramBot) {
   // ── RIWAYAT button ────────────────────────────────────────────────────────
 
   bot.onText(/📋 RIWAYAT/, async (msg) => {
-    const from = msg.from!;
-    if (isOnCooldown(from.id)) return;
-    touchCooldown(from.id);
     await bot.sendMessage(
       msg.chat.id,
       "📋 <b>RIWAYAT</b>\n\nRiwayat transaksi dan saldo 6 bulan terakhir masih bisa di akses",
@@ -336,8 +309,6 @@ export function setupHandlers(bot: TelegramBot) {
     // Skip messages handled by dedicated onText/command handlers to avoid double-processing
     if (/^\/|🏠|💰|📦|📋|💳|📱/.test(msg.text)) return;
     const from = msg.from!;
-    if (isOnCooldown(from.id)) return;
-    touchCooldown(from.id);
     const session = getSession(from.id);
 
     if (session.step === "waiting_whatsapp") {
@@ -423,12 +394,6 @@ export function setupHandlers(bot: TelegramBot) {
     const data = query.data ?? "";
 
     if (!chatId || !messageId) return;
-
-    if (isOnCooldown(userId)) {
-      try { await bot.answerCallbackQuery(query.id, { text: "⏳ Terlalu cepat, tunggu sebentar.", show_alert: false }); } catch { }
-      return;
-    }
-    touchCooldown(userId);
 
     if (data.startsWith("topup_paid_")) {
       const topupId = data.replace("topup_paid_", "");
@@ -982,21 +947,10 @@ export function setupHandlers(bot: TelegramBot) {
 function handleOrder(bot: TelegramBot) {
   return async (msg: TelegramBot.Message) => {
     const userId = msg.from?.id ?? msg.chat.id;
-    const chatId = msg.chat.id;
-
-    // Delete previous PILIH KATEGORI message if it exists
-    const prevSession = getSession(userId);
-    if (prevSession.lastOrderMsgId && prevSession.lastOrderChatId) {
-      try { await bot.deleteMessage(prevSession.lastOrderChatId, prevSession.lastOrderMsgId); } catch { }
-    }
-
     setSession(userId, { step: "select_category" });
-
-    const sent = await bot.sendMessage(chatId, "📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
+    await bot.sendMessage(msg.chat.id, "📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
       parse_mode: "HTML",
       reply_markup: categoryInlineKeyboard(),
     });
-
-    setSession(userId, { lastOrderMsgId: sent.message_id, lastOrderChatId: chatId });
   };
 }

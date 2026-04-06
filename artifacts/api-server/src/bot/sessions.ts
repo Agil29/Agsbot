@@ -20,8 +20,6 @@ export type UserSession = {
   selectedNomorTujuan?: string;
   paymentMsgId?: number;
   page?: number;
-  lastOrderMsgId?: number;
-  lastOrderChatId?: number;
 };
 
 const sessions = new Map<number, UserSession>();
