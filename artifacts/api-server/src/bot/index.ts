@@ -44,6 +44,29 @@ export async function startBot() {
   setupHandlers(bot);
   startPackageRefreshScheduler(5 * 60 * 1000);
 
+  // Register bot commands visible to all users
+  const defaultCommands = [
+    { command: "start", description: "Profil & Menu Utama" },
+    { command: "order", description: "Order paket XL" },
+  ];
+  await bot.setMyCommands(defaultCommands).catch(() => {});
+
+  // Register admin-specific commands for each admin (scoped to their chat)
+  const adminIds = (process.env.ADMIN_TELEGRAM_IDS ?? "")
+    .split(",")
+    .map(s => parseInt(s.trim(), 10))
+    .filter(n => !isNaN(n));
+
+  const adminCommands = [
+    ...defaultCommands,
+    { command: "broadcast", description: "Broadcast pesan ke semua user" },
+    { command: "cancel", description: "Batalkan broadcast aktif" },
+  ];
+
+  for (const adminId of adminIds) {
+    await bot.setMyCommands(adminCommands, { scope: { type: "chat", chat_id: adminId } }).catch(() => {});
+  }
+
   logger.info("Telegram bot started with polling");
 }
 

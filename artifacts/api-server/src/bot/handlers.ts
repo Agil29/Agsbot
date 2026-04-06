@@ -199,25 +199,35 @@ export function setupHandlers(bot: TelegramBot) {
     }
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard(),
+      reply_markup: mainMenuKeyboard({ isAdmin: isAdmin(from.id) }),
     });
   });
 
-  // ── Admin: /broadcast command ─────────────────────────────────────────────
+  // ── Admin: broadcast (via keyboard button OR /broadcast command) ──────────
 
-  bot.onText(/\/broadcast/, async (msg) => {
-    const userId = msg.from!.id;
-    if (!isAdmin(userId)) return;
+  async function startBroadcastFlow(chatId: number, userId: number) {
     clearSession(userId);
     setSession(userId, { step: "waiting_broadcast_message" });
     await bot.sendMessage(
-      msg.chat.id,
+      chatId,
       `📢 <b>Mode Broadcast</b>\n\n` +
       `Kirim pesan yang ingin dibroadcast ke <b>semua user</b>.\n` +
       `Format HTML didukung: <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;code&gt;</code>\n\n` +
       `Kirim /cancel untuk membatalkan.`,
       { parse_mode: "HTML" }
     );
+  }
+
+  bot.onText(/📢 BROADCAST/, async (msg) => {
+    const userId = msg.from!.id;
+    if (!isAdmin(userId)) return;
+    await startBroadcastFlow(msg.chat.id, userId);
+  });
+
+  bot.onText(/\/broadcast/, async (msg) => {
+    const userId = msg.from!.id;
+    if (!isAdmin(userId)) return;
+    await startBroadcastFlow(msg.chat.id, userId);
   });
 
   bot.onText(/\/cancel/, async (msg) => {
@@ -239,7 +249,7 @@ export function setupHandlers(bot: TelegramBot) {
     clearSession(from.id);
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
-      reply_markup: mainMenuKeyboard(),
+      reply_markup: mainMenuKeyboard({ isAdmin: isAdmin(from.id) }),
     });
   });
 
@@ -382,7 +392,7 @@ export function setupHandlers(bot: TelegramBot) {
   bot.on("message", async (msg) => {
     if (!msg.text) return;
     // Skip messages handled by dedicated onText/command handlers to avoid double-processing
-    if (/^\/|🏠|💰|📦|📋|💳|📱/.test(msg.text)) return;
+    if (/^\/|🏠|💰|📦|📋|💳|📱|📢/.test(msg.text)) return;
     const from = msg.from!;
     const session = getSession(from.id);
 
@@ -428,7 +438,7 @@ export function setupHandlers(bot: TelegramBot) {
         buildProfileText(updatedUser),
         {
           parse_mode: "HTML",
-          reply_markup: mainMenuKeyboard(),
+          reply_markup: mainMenuKeyboard({ isAdmin: isAdmin(from.id) }),
         }
       );
       return;

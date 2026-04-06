@@ -37,6 +37,7 @@ DOPU_PIN = "1234"
 DOPU_PASSWORD = "Imu111111"
 CEK_STOK_AKRAB1_URL = "https://juraganxl.my.id/"
 CEK_STOK_CIRCLE_URL = "https://juraganxl.my.id/"
+ADMIN_TELEGRAM_IDS = "1451679975"
 
 [nix]
 channel = "stable-25_05"

@@ -6,15 +6,21 @@ export type MainMenuOpts = {
 };
 
 export function mainMenuKeyboard(
-  opts: MainMenuOpts = {},
+  opts: MainMenuOpts & { isAdmin?: boolean } = {},
 ): TelegramBot.ReplyKeyboardMarkup {
+  const keyboard: TelegramBot.KeyboardButton[][] = [
+    [{ text: "📦 ORDER" }],
+    [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT" }],
+    [{ text: "📱 CEK PAKET & AREA", web_app: { url: "https://bendith.my.id/" } }],
+    [{ text: "🏠 Menu" }],
+  ];
+
+  if (opts.isAdmin) {
+    keyboard.push([{ text: "📢 BROADCAST" }]);
+  }
+
   return {
-    keyboard: [
-      [{ text: "📦 ORDER" }],
-      [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT" }],
-      [{ text: "📱 CEK PAKET & AREA", web_app: { url: "https://bendith.my.id/" } }],
-      [{ text: "🏠 Menu" }],
-    ],
+    keyboard,
     resize_keyboard: true,
     one_time_keyboard: false,
   };
