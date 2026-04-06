@@ -8,6 +8,7 @@ import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate } f
 import { getMarkup, applyMarkup } from "./markup";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
+import { recordAndCheck, isBlocked } from "./rateLimit";
 import { placeKhfyOrder } from "./khfyApi";
 import { placeDopuOrder, checkDopuOrderStatus, type DopuOrderResult } from "./dopuApi";
 import {
@@ -141,6 +142,19 @@ async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nom
 }
 
 export function setupHandlers(bot: TelegramBot) {
+  // ── Global rate-limit gate (registered first so it fires before all other listeners) ──
+  bot.on("message", async (msg) => {
+    if (!msg.from) return;
+    const { status, secondsLeft } = recordAndCheck(msg.from.id);
+    if (status === "warn") {
+      await bot.sendMessage(
+        msg.chat.id,
+        `⛔ <b>Terlalu cepat!</b>\n\nAnda mengirim pesan terlalu banyak. Silakan tunggu <b>${secondsLeft} detik</b> sebelum melanjutkan.`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+    }
+  });
+
   bot.onText(/\/start/, async (msg) => {
     const from = msg.from!;
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
@@ -161,6 +175,7 @@ export function setupHandlers(bot: TelegramBot) {
   });
 
   bot.onText(/🏠 Menu/, async (msg) => {
+    if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
@@ -174,6 +189,7 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/📦 ORDER/, handleOrder(bot));
 
   bot.onText(/💰 TOPUP/, async (msg) => {
+    if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     setSession(from.id, { step: "waiting_topup_amount" });
@@ -289,6 +305,7 @@ export function setupHandlers(bot: TelegramBot) {
   // ── RIWAYAT button ────────────────────────────────────────────────────────
 
   bot.onText(/📋 RIWAYAT/, async (msg) => {
+    if (isBlocked(msg.from!.id)) return;
     await bot.sendMessage(
       msg.chat.id,
       "📋 <b>RIWAYAT</b>\n\nRiwayat transaksi dan saldo 6 bulan terakhir masih bisa di akses",
@@ -394,6 +411,20 @@ export function setupHandlers(bot: TelegramBot) {
     const data = query.data ?? "";
 
     if (!chatId || !messageId) return;
+
+    // ── Rate limit check for inline button presses ────────────────────────
+    const rl = recordAndCheck(userId);
+    if (rl.status === "warn") {
+      await bot.answerCallbackQuery(query.id, {
+        text: `⛔ Terlalu cepat! Tunggu ${rl.secondsLeft} detik.`,
+        show_alert: true,
+      }).catch(() => {});
+      return;
+    }
+    if (rl.status === "blocked") {
+      await bot.answerCallbackQuery(query.id).catch(() => {});
+      return;
+    }
 
     if (data.startsWith("topup_paid_")) {
       const topupId = data.replace("topup_paid_", "");
@@ -947,6 +978,7 @@ export function setupHandlers(bot: TelegramBot) {
 function handleOrder(bot: TelegramBot) {
   return async (msg: TelegramBot.Message) => {
     const userId = msg.from?.id ?? msg.chat.id;
+    if (isBlocked(userId)) return;
     setSession(userId, { step: "select_category" });
     await bot.sendMessage(msg.chat.id, "📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
       parse_mode: "HTML",
