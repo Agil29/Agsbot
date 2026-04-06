@@ -1134,7 +1134,7 @@ export function setupHandlers(bot: TelegramBot) {
 
         if (dopuPending) {
           // DOPU async — order accepted but not yet confirmed
-          const circleNote = selectedCat === "circle"
+          const circleNote = selectedCat === "circle" && !useDigiflaz
             ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
             : "";
           await bot.editMessageText(
@@ -1180,7 +1180,7 @@ export function setupHandlers(bot: TelegramBot) {
                   }
                   updateOrderStatus(ord.id, "done", statusRes.sn);
                   const finalUser = getUser(userId);
-                  const circleSuccessNote = selectedCat === "circle"
+                  const circleSuccessNote = selectedCat === "circle" && !useDigiflaz
                     ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle.`
                     : "";
                   await bot.sendMessage(
@@ -1242,7 +1242,7 @@ export function setupHandlers(bot: TelegramBot) {
             setTimeout(poll, INTERVAL_MS);
           }
         } else {
-          const circleNote = selectedCat === "circle"
+          const circleNote = selectedCat === "circle" && !useDigiflaz
             ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
             : "";
           await bot.editMessageText(

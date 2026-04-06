@@ -31,9 +31,11 @@ const PROVIDER_LABELS: Record<string, string> = {
   all: "Semua Provider",
   dopu: "DOPU (Akrab 1 & Circle)",
   khfy: "KHFY (Akrab 2)",
+  digiflaz: "Digiflaz",
 };
 
-function getProvider(category: string): string {
+function getProvider(category: string, packageId?: string): string {
+  if (packageId?.startsWith("digiflaz_")) return "digiflaz";
   if (category === "akrab2") return "khfy";
   return "dopu";
 }
@@ -63,7 +65,7 @@ export function HistoryPenjualan() {
   const penghasilan12m = orders12m.reduce((s: number, o: any) => s + (o.price - (o.baseprice ?? o.price)), 0);
 
   const filtered = orders
-    .filter((o) => providerFilter === "all" || getProvider(o.category) === providerFilter)
+    .filter((o) => providerFilter === "all" || getProvider(o.category, o.packageId) === providerFilter)
     .filter((o) => !search.trim() || String(o.id).toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
@@ -152,9 +154,9 @@ export function HistoryPenjualan() {
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((o) => {
                   const st = ORDER_STATUS_LABELS[o.status] ?? { label: o.status, color: "bg-slate-100 text-slate-600" };
-                  const provider = getProvider(o.category);
-                  const providerLabel = provider === "khfy" ? "KHFY" : "DOPU";
-                  const providerColor = provider === "khfy" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700";
+                  const provider = getProvider(o.category, o.packageId);
+                  const providerLabel = provider === "khfy" ? "KHFY" : provider === "digiflaz" ? "Digiflaz" : "DOPU";
+                  const providerColor = provider === "khfy" ? "bg-blue-50 text-blue-700" : provider === "digiflaz" ? "bg-green-100 text-green-700" : "bg-green-50 text-green-700";
                   const profit = o.price - (o.baseprice ?? o.price);
                   return (
                     <tr key={o.id} className="hover:bg-slate-50">
