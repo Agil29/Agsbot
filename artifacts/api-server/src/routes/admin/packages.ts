@@ -13,6 +13,7 @@ import { getAllOrders, updateOrderStatus, type OrderStatus } from "../../bot/ord
 import { getAllTopups, updateTopupStatus, getTopupById } from "../../bot/topup";
 import { getBot } from "../../bot/index";
 import { getAllMarkup, setMarkup, type MarkupType } from "../../bot/markup";
+import { getAllSaldoLogs, getSaldoLogs } from "../../bot/saldoLog";
 
 import { requireAdmin } from "../../lib/adminAuth";
 
@@ -135,11 +136,15 @@ router.post("/users/:telegramId/saldo", requireAdmin, async (req, res) => {
   if (amount === undefined || isNaN(Number(amount))) {
     return res.status(400).json({ error: "amount is required (can be negative to deduct)" });
   }
-  const updated = updateSaldo(telegramId, Number(amount));
+  const numAmount = Number(amount);
+  const logType = numAmount >= 0 ? "admin_credit" : "admin_deduct";
+  const updated = updateSaldo(telegramId, numAmount, {
+    type: logType as any,
+    note: `Admin ${numAmount >= 0 ? "tambah" : "kurangi"} Rp${Math.abs(numAmount).toLocaleString("id-ID")}`,
+  });
   if (!updated) {
     return res.status(404).json({ error: "User not found" });
   }
-  const numAmount = Number(amount);
   try {
     const bot = getBot();
     if (bot) {
@@ -196,6 +201,18 @@ router.put("/topups/:topupId/cancel", requireAdmin, (req, res) => {
 // ── Markup ──────────────────────────────────────────────────────────────
 router.get("/markup", requireAdmin, (_req, res) => {
   res.json({ success: true, data: getAllMarkup() });
+});
+
+router.get("/saldo-logs", requireAdmin, async (_req, res) => {
+  const logs = await getAllSaldoLogs(500);
+  res.json({ success: true, data: logs });
+});
+
+router.get("/saldo-logs/:telegramId", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.telegramId, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid telegramId" });
+  const logs = await getSaldoLogs(id, 100);
+  res.json({ success: true, data: logs });
 });
 
 router.put("/markup/:category", requireAdmin, async (req, res) => {

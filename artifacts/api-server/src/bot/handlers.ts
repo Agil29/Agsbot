@@ -545,7 +545,11 @@ export function setupHandlers(bot: TelegramBot) {
         // Answer callback with success toast
         await bot.answerCallbackQuery(query.id, { text: "✅ Pembayaran terdeteksi!" }).catch(() => {});
         updateTopupStatus(topupId, "completed");
-        const updatedUser = updateSaldo(topup.userId, topup.nominal);
+        const updatedUser = updateSaldo(topup.userId, topup.nominal, {
+          type: "topup",
+          refId: topupId,
+          note: `QRIS topup Rp${topup.nominal.toLocaleString("id-ID")} via konfirmasi manual`,
+        });
 
         await bot.editMessageCaption(
           `✅ <b>TOPUP BERHASIL!</b>\n\n` +
@@ -832,7 +836,11 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
-      updateSaldo(userId, -price);
+      updateSaldo(userId, -price, {
+        type: "order_deduct",
+        refId: session.packageId ?? sku,
+        note: `Order ${session.selectedPackageName ?? sku} ke ${nomor}`,
+      });
 
       await bot.editMessageText(
         `⏳ <b>Memproses order...</b>\n\nSaldo dikurangi sementara. Mohon tunggu...`,
@@ -944,7 +952,11 @@ export function setupHandlers(bot: TelegramBot) {
                     logger.info({ dopuRef }, "DOPU poll: failed ignored — order already finalized");
                     return;
                   }
-                  updateSaldo(userId, price);
+                  updateSaldo(userId, price, {
+                    type: "order_refund",
+                    refId: ord.id,
+                    note: `Refund order DOPU gagal: ${statusRes.error ?? ""}`,
+                  });
                   updateOrderStatus(ord.id, "cancelled");
                   const refundedUser = getUser(userId);
                   await bot.sendMessage(
@@ -993,7 +1005,11 @@ export function setupHandlers(bot: TelegramBot) {
           );
         }
       } else {
-        updateSaldo(userId, price);
+        updateSaldo(userId, price, {
+          type: "order_refund",
+          refId: session.packageId ?? sku,
+          note: `Refund order gagal: ${result.error ?? ""}`,
+        });
         const refundedUser = getUser(userId);
         await bot.editMessageText(
           `❌ <b>ORDER GAGAL</b>\n\n` +

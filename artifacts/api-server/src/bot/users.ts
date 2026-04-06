@@ -1,5 +1,6 @@
 import { query, run } from "../lib/db";
 import { logger } from "../lib/logger";
+import { logSaldo, type SaldoLogType } from "./saldoLog";
 
 export type UserProfile = {
   telegramId: number;
@@ -105,14 +106,32 @@ export function setWhatsapp(telegramId: number, whatsapp: string): UserProfile |
   return user;
 }
 
-export function updateSaldo(telegramId: number, amount: number): UserProfile | null {
+export function updateSaldo(
+  telegramId: number,
+  amount: number,
+  log?: { type: SaldoLogType; refId?: string; note?: string }
+): UserProfile | null {
   const user = users.get(telegramId);
   if (!user) return null;
+  const balanceBefore = user.saldo;
   user.saldo += amount;
+  const balanceAfter = user.saldo;
 
   run("UPDATE users SET saldo=$1 WHERE telegram_id=$2", [user.saldo, telegramId]).catch(
     (err) => logger.error({ err }, "DB update saldo failed")
   );
+
+  if (log) {
+    logSaldo({
+      telegramId,
+      delta: amount,
+      balanceBefore,
+      balanceAfter,
+      type: log.type,
+      refId: log.refId,
+      note: log.note,
+    });
+  }
 
   return user;
 }

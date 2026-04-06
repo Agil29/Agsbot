@@ -9,6 +9,7 @@ import { HistoryPenjualan, DepositMember } from "@/pages/TopupMutasi";
 import { BotSettings } from "@/pages/BotSettings";
 import { PageAnalistik } from "@/pages/PageAnalistik";
 import { PageBroadcast } from "@/pages/PageBroadcast";
+import { PageSaldoLogs } from "@/pages/PageSaldoLogs";
 
 function AppRoutes({ onLogout }: { onLogout: () => void }) {
   return (
@@ -30,6 +31,7 @@ function AppRoutes({ onLogout }: { onLogout: () => void }) {
         <Route path="/topups" component={DepositMember} />
         <Route path="/settings" component={BotSettings} />
         <Route path="/broadcast" component={PageBroadcast} />
+        <Route path="/saldo-logs" component={PageSaldoLogs} />
         <Route>
           <div className="text-center py-20 text-slate-400">Halaman tidak ditemukan</div>
         </Route>

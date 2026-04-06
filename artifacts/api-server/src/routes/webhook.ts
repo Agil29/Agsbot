@@ -134,7 +134,11 @@ router.post("/pakasir", async (req, res) => {
 
       logger.info({ order_id, sku, sn, pending: dopuPending }, "Order via QRIS completed");
     } else {
-      const refunded = updateSaldo(topup.userId, topup.nominal);
+      const refunded = updateSaldo(topup.userId, topup.nominal, {
+        type: "order_refund",
+        refId: order_id,
+        note: `Refund order QRIS gagal: ${result.error ?? ""}`,
+      });
 
       if (bot && topup.chatId) {
         try {
@@ -158,7 +162,11 @@ router.post("/pakasir", async (req, res) => {
     return res.json({ ok: true, message: "Order payment processed" });
   }
 
-  const updatedUser = updateSaldo(topup.userId, topup.nominal);
+  const updatedUser = updateSaldo(topup.userId, topup.nominal, {
+    type: "topup",
+    refId: order_id,
+    note: `QRIS topup Rp${topup.nominal.toLocaleString("id-ID")} via webhook Pakasir`,
+  });
 
   if (bot && topup.chatId) {
     try {

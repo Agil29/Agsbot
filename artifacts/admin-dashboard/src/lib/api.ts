@@ -63,6 +63,10 @@ export const api = {
     update: (data: any) => request<any>("PUT", "/settings", data),
   },
   analytics: () => request<any>("GET", "/analytics"),
+  saldoLogs: {
+    list: () => request<any>("GET", "/saldo-logs"),
+    byUser: (telegramId: number) => request<any>("GET", `/saldo-logs/${telegramId}`),
+  },
   markup: {
     list: () => request<any>("GET", "/markup"),
     update: (category: string, type: string, amount: number) =>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Users, Package, CreditCard, Settings, ChevronDown, ChevronRight,
-  BarChart3, Menu, X, Bot, LogOut, TrendingUp, Send,
+  BarChart3, Menu, X, Bot, LogOut, TrendingUp, Send, History,
 } from "lucide-react";
 import { clearStoredKey } from "@/lib/api";
 
@@ -30,6 +30,7 @@ const NAV: NavItem[] = [
     children: [
       { label: "History Penjualan", href: "/orders" },
       { label: "Deposit Member", href: "/topups" },
+      { label: "Log Mutasi Saldo", href: "/saldo-logs" },
     ],
   },
   { label: "Broadcast", icon: <Send size={18} />, href: "/broadcast" },

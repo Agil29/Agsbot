@@ -94,7 +94,11 @@ async function handleDopuCallback(data: Record<string, any>) {
 
   if (isFailed) {
     updateOrderStatus(order.id, "cancelled");
-    const refunded = updateSaldo(order.userId, order.price);
+    const refunded = updateSaldo(order.userId, order.price, {
+      type: "order_refund",
+      refId: order.id,
+      note: `Refund DOPU callback gagal: ${message.slice(0, 100)}`,
+    });
     logger.info({ reffId, orderId: order.id }, "DOPU callback: order cancelled — saldo refunded");
 
     if (bot) {
