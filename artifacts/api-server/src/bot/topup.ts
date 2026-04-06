@@ -32,7 +32,7 @@ export type TopupOrder = {
 const topups = new Map<string, TopupOrder>();
 
 const PAKASIR_BASE = "https://app.pakasir.com/api";
-const EXPIRY_MINUTES = 7;
+const EXPIRY_MINUTES = 5;
 
 function rowToTopup(row: any): TopupOrder {
   return {

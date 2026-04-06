@@ -116,7 +116,7 @@ async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nom
   }
 
   const { order, qrisString } = result;
-  const expiryMinutes = 7;
+  const expiryMinutes = 5;
 
   let qrBuffer: Buffer;
   try {
@@ -1086,7 +1086,7 @@ export function setupHandlers(bot: TelegramBot) {
       }
 
       const { order, qrisString } = result;
-      const expiryMinutes = 7;
+      const expiryMinutes = 3;
 
       let qrBuffer: Buffer;
       try {
@@ -1104,6 +1104,7 @@ export function setupHandlers(bot: TelegramBot) {
         `• Total: <b>Rp ${order.total.toLocaleString("id-ID")}</b>\n` +
         `• Order ID: <code>${order.id}</code>\n` +
         `• Exp: <b>${expiryMinutes} Menit</b>\n\n` +
+        `📌 <i>Terdapat fee 0.7% + 310, Untuk nominal di atas Rp 105.000 biayanya menjadi 1% + Rp 0.</i>\n\n` +
         `<i>Scan QR menggunakan GoPay, OVO, Dana, dll.</i>`;
 
       const qrKeyboard: TelegramBot.InlineKeyboardMarkup = {

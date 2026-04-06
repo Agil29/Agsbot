@@ -27,10 +27,10 @@ async function checkExpiredTopups(bot: TelegramBot) {
       const message = isOrderPayment
         ? `⏰ <b>TRANSAKSI KADALUARSA</b>\n\n` +
           `Pembayaran untuk paket <b>${topup.orderPayload!.packageName}</b> ke nomor <code>${topup.orderPayload!.nomorTujuan}</code> ` +
-          `tidak dikonfirmasi dalam waktu 7 menit.\n\n` +
+          `tidak dikonfirmasi dalam waktu 3 menit.\n\n` +
           `Jika sudah membayar, hubungi admin agar diverifikasi manual.`
         : `⏰ <b>TOPUP KADALUARSA</b>\n\n` +
-          `Topup <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b> tidak dibayar dalam 7 menit.\n\n` +
+          `Topup <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b> tidak dibayar dalam 5 menit.\n\n` +
           `Silakan buat topup baru melalui menu 💰 TOPUP.`;
 
       await bot.sendMessage(topup.chatId, message, { parse_mode: "HTML" });
