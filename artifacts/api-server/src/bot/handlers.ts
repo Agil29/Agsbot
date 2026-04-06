@@ -1,5 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import QRCode from "qrcode";
+import { randomUUID } from "crypto";
 import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
 import { refreshAllPackages } from "./apiService";
@@ -839,6 +840,17 @@ export function setupHandlers(bot: TelegramBot) {
       const from = query.from;
       const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
       const session = getSession(userId);
+
+      // === FIX 1: Double-tap guard ===
+      // If the order is already being processed for this user, silently ignore duplicate callback
+      if ((session.step as string) === "processing_order") {
+        await bot.answerCallbackQuery(query.id, {
+          text: "⏳ Order sedang diproses, harap tunggu...",
+          show_alert: false,
+        }).catch(() => {});
+        return;
+      }
+
       const price = session.selectedPackagePrice ?? 0;
       const nomor = session.selectedNomorTujuan ?? "";
       const sku = session.selectedSku ?? "";
@@ -860,6 +872,9 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
+      // Mark session as processing BEFORE lock — subsequent callbacks will be blocked
+      setSession(userId, { step: "processing_order" as any });
+
       // Atomic check + deduct — safe under concurrent requests for the same user
       const deductResult = await withUserLock(userId, () =>
         deductSaldoAtomic(userId, price, {
@@ -870,6 +885,8 @@ export function setupHandlers(bot: TelegramBot) {
       );
 
       if (!deductResult.success) {
+        // Deduction failed — reset session so user can retry
+        setSession(userId, { step: "waiting_nomor_tujuan" });
         const currentSaldo = deductResult.user?.saldo ?? user.saldo;
         await bot.editMessageText(
           `❌ <b>Saldo tidak cukup</b>\n\n` +
@@ -881,41 +898,52 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
+      const selectedCat = session.selectedCategory ?? "akrab2";
+      const useDopu = selectedCat === "akrab1" || selectedCat === "circle";
+
+      // Pre-generate reffId for DOPU so it can be stored before the API call
+      const preReffId = randomUUID().replace(/-/g, "").slice(0, 20);
+
+      // === FIX 4/5: Create order record BEFORE calling API ===
+      // This ensures the transaction is always recorded even if the bot crashes mid-order.
+      // Status "processing" means: saldo deducted, API call in-flight.
+      const pendingOrder = createOrder({
+        userId,
+        userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
+        userUsername: user.username ?? undefined,
+        category: selectedCat,
+        packageId: session.packageId ?? "",
+        packageName: session.selectedPackageName ?? sku,
+        price,
+        baseprice: session.selectedPackageBaseprice ?? price,
+        quota: session.selectedPackageQuota ?? "",
+        validity: session.selectedPackageValidity ?? "",
+        nomorTujuan: nomor,
+        reffId: useDopu ? preReffId : undefined,
+        paymentMethod: "saldo",
+      });
+      // Override default "pending" → "processing" immediately
+      updateOrderStatus(pendingOrder.id, "processing");
+
       await bot.editMessageText(
         `⏳ <b>Memproses order...</b>\n\nSaldo dikurangi sementara. Mohon tunggu...`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
 
-      const selectedCat = session.selectedCategory ?? "akrab2";
-      const useDopu = selectedCat === "akrab1" || selectedCat === "circle";
       const result = useDopu
-        ? await placeDopuOrder({ sku, tujuan: nomor })
+        ? await placeDopuOrder({ sku, tujuan: nomor, reffId: preReffId })
         : await placeKhfyOrder({ sku, tujuan: nomor });
       const updatedUser = getUser(userId);
 
       // Extract DOPU-specific fields safely
       const dopuResult = useDopu ? (result as DopuOrderResult) : null;
-      const dopuRef = dopuResult?.reffId ?? "";
+      const dopuRef = dopuResult?.reffId ?? preReffId;
       const dopuPending = dopuResult && result.success ? (result as any).pending === true : false;
 
       if (result.success) {
         const sn = result.sn;
-        createOrder({
-          userId,
-          userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
-          userUsername: user.username ?? undefined,
-          category: selectedCat,
-          packageId: session.packageId ?? "",
-          packageName: session.selectedPackageName ?? sku,
-          price,
-          baseprice: session.selectedPackageBaseprice ?? price,
-          quota: session.selectedPackageQuota ?? "",
-          validity: session.selectedPackageValidity ?? "",
-          nomorTujuan: nomor,
-          sn,
-          reffId: dopuRef || undefined,
-          paymentMethod: "saldo",
-        });
+        // Update the pre-created order with SN and final status
+        updateOrderStatus(pendingOrder.id, dopuPending ? "processing" : "done", sn || undefined);
 
         if (dopuPending) {
           // DOPU async — order accepted but not yet confirmed
@@ -1044,9 +1072,11 @@ export function setupHandlers(bot: TelegramBot) {
           );
         }
       } else {
+        // API call failed — mark order cancelled, then refund saldo
+        updateOrderStatus(pendingOrder.id, "cancelled");
         await creditSaldoAtomic(userId, price, {
           type: "order_refund",
-          refId: session.packageId ?? sku,
+          refId: pendingOrder.id,
           note: `Refund order gagal: ${result.error ?? ""}`,
         });
         const refundedUser = getUser(userId);
