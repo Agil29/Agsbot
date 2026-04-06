@@ -14,6 +14,7 @@ import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, chec
 import { recordAndCheck, isBlocked } from "./rateLimit";
 import { placeKhfyOrder } from "./khfyApi";
 import { placeDopuOrder, checkDopuOrderStatus, type DopuOrderResult } from "./dopuApi";
+import { placeDigiflazOrder, type DigiflazOrderResult } from "./digiflazApi";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
@@ -924,6 +925,7 @@ export function setupHandlers(bot: TelegramBot) {
         selectedPackageValidity: pkg.validity,
         selectedCategory: category,
         selectedSku: pkg.sku,
+        selectedSource: pkg.source,
         page: currentPage,
       });
 
@@ -1073,9 +1075,11 @@ export function setupHandlers(bot: TelegramBot) {
       }
 
       const selectedCat = session.selectedCategory ?? "akrab2";
-      const useDopu = selectedCat === "akrab1" || selectedCat === "circle";
+      const selectedSource = session.selectedSource ?? "";
+      const useDigiflaz = selectedSource === "digiflaz";
+      const useDopu = !useDigiflaz && (selectedSource === "dopu" || selectedCat === "akrab1" || selectedCat === "circle");
 
-      // Pre-generate reffId for DOPU so it can be stored before the API call
+      // Pre-generate reffId for DOPU/Digiflaz so it can be stored before the API call
       const preReffId = randomUUID().replace(/-/g, "").slice(0, 20);
 
       // === FIX 4/5: Create order record BEFORE calling API ===
@@ -1093,7 +1097,7 @@ export function setupHandlers(bot: TelegramBot) {
         quota: session.selectedPackageQuota ?? "",
         validity: session.selectedPackageValidity ?? "",
         nomorTujuan: nomor,
-        reffId: useDopu ? preReffId : undefined,
+        reffId: (useDopu || useDigiflaz) ? preReffId : undefined,
         paymentMethod: "saldo",
       });
       // Override default "pending" → "processing" immediately
@@ -1104,15 +1108,19 @@ export function setupHandlers(bot: TelegramBot) {
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
 
-      const result = useDopu
-        ? await placeDopuOrder({ sku, tujuan: nomor, reffId: preReffId })
-        : await placeKhfyOrder({ sku, tujuan: nomor });
+      const result = useDigiflaz
+        ? await placeDigiflazOrder({ sku, tujuan: nomor, refId: preReffId })
+        : useDopu
+          ? await placeDopuOrder({ sku, tujuan: nomor, reffId: preReffId })
+          : await placeKhfyOrder({ sku, tujuan: nomor });
       const updatedUser = getUser(userId);
 
-      // Extract DOPU-specific fields safely
+      // Extract provider-specific fields safely
       const dopuResult = useDopu ? (result as DopuOrderResult) : null;
-      const dopuRef = dopuResult?.reffId ?? preReffId;
-      const dopuPending = dopuResult && result.success ? (result as any).pending === true : false;
+      const digiflazResult = useDigiflaz ? (result as DigiflazOrderResult) : null;
+      const dopuRef = dopuResult?.reffId ?? (digiflazResult ? (result as DigiflazOrderResult).refId : "") ?? preReffId;
+      const dopuPending = (dopuResult && result.success ? (result as any).pending === true : false)
+        || (digiflazResult && result.success ? (result as any).pending === true : false);
 
       if (result.success) {
         const sn = result.sn;
@@ -1311,6 +1319,7 @@ export function setupHandlers(bot: TelegramBot) {
           packageId: session.packageId ?? "",
           quota: session.selectedPackageQuota ?? "",
           validity: session.selectedPackageValidity ?? "",
+          source: session.selectedSource,
         },
       });
 

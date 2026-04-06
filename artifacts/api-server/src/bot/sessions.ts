@@ -26,6 +26,7 @@ export type UserSession = {
   selectedNomorTujuan?: string;
   paymentMsgId?: number;
   page?: number;
+  selectedSource?: string;
 };
 
 const sessions = new Map<number, UserSession>();

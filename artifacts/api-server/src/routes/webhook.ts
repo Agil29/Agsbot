@@ -5,6 +5,7 @@ import { creditSaldoAtomic } from "../bot/users";
 import { createOrder } from "../bot/orders";
 import { placeKhfyOrder } from "../bot/khfyApi";
 import { placeDopuOrder, type DopuOrderResult } from "../bot/dopuApi";
+import { placeDigiflazOrder, type DigiflazOrderResult } from "../bot/digiflazApi";
 import { getBot } from "../bot";
 
 const router = Router();
@@ -60,19 +61,24 @@ router.post("/pakasir", async (req, res) => {
   const bot = getBot();
 
   if (topup.orderPayload) {
-    const { sku, nomorTujuan, packageName, category, packageId, quota, validity } = topup.orderPayload;
+    const { sku, nomorTujuan, packageName, category, packageId, quota, validity, source } = topup.orderPayload;
 
-    logger.info({ order_id, sku, nomorTujuan, category }, "Processing order payment via QRIS webhook");
+    logger.info({ order_id, sku, nomorTujuan, category, source }, "Processing order payment via QRIS webhook");
 
-    const useDopu = category === "akrab1" || category === "circle";
-    const result = useDopu
-      ? await placeDopuOrder({ sku, tujuan: nomorTujuan })
-      : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
+    const useDigiflaz = source === "digiflaz";
+    const useDopu = !useDigiflaz && (category === "akrab1" || category === "circle");
+    const result = useDigiflaz
+      ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan })
+      : useDopu
+        ? await placeDopuOrder({ sku, tujuan: nomorTujuan })
+        : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
 
-    // Extract DOPU-specific fields safely
+    // Extract provider-specific fields safely
     const dopuResult = useDopu ? (result as DopuOrderResult) : null;
-    const dopuRef = dopuResult?.reffId ?? "";
-    const dopuPending = dopuResult && result.success ? (result as any).pending === true : false;
+    const digiflazResult = useDigiflaz ? (result as DigiflazOrderResult) : null;
+    const dopuRef = dopuResult?.reffId ?? digiflazResult?.refId ?? "";
+    const dopuPending = (dopuResult && result.success ? (result as any).pending === true : false)
+      || (digiflazResult && result.success ? (result as any).pending === true : false);
 
     if (result.success) {
       const sn = result.sn;

@@ -1,6 +1,7 @@
 import axios from "axios";
 import { logger } from "../lib/logger";
 import { type PackageItem, type Category, setApiPackages } from "./store";
+import { getDigiflazPrice } from "./digiflazApi";
 
 const AKRAB2_ALLOWED_SKUS = ["XLA14", "XLA32", "XLA39", "XLA51", "XLA65", "XLA89"];
 
@@ -143,13 +144,49 @@ export async function fetchAkrab2Packages(): Promise<PackageItem[]> {
   }
 }
 
+const DIGIFLAZ_CIRCLE_SKUS: Array<{ sku: string; name: string; description: string; quota: string; validity: string }> = [
+  {
+    sku: "Mal30",
+    name: "Mall XL 30GB",
+    description: "Kuota Mall 30GB\n\nnote:\n- Tidak menambah masa aktif\n- Cuma bisa order 1x dalam 1 bln\n- Tidak sedang tergabung dalam paket circle\n- Umur kartu minimal 60hr",
+    quota: "30 GB",
+    validity: "30 Hari",
+  },
+];
+
+async function fetchDigiflazCirclePackages(): Promise<PackageItem[]> {
+  const username = process.env.DIGIFLAZ_USERNAME ?? "";
+  const apiKey = process.env.DIGIFLAZ_API_KEY ?? "";
+  if (!username || !apiKey) return [];
+
+  const results: PackageItem[] = [];
+  for (const item of DIGIFLAZ_CIRCLE_SKUS) {
+    const price = await getDigiflazPrice(item.sku);
+    results.push({
+      id: `digiflaz_${item.sku}`,
+      name: item.name,
+      description: item.description,
+      price,
+      quota: item.quota,
+      validity: item.validity,
+      active: true,
+      source: "digiflaz",
+      sku: item.sku,
+    });
+  }
+  logger.info({ count: results.length }, "Fetched Digiflaz circle packages");
+  return results;
+}
+
 export async function refreshAllPackages() {
   logger.info("Refreshing all packages from APIs...");
-  const [akrab1, circle, akrab2] = await Promise.all([
+  const [akrab1, circleDopu, akrab2, circleDigiflaz] = await Promise.all([
     fetchAkrab1Packages(),
     fetchCirclePackages(),
     fetchAkrab2Packages(),
+    fetchDigiflazCirclePackages(),
   ]);
+  const circle = [...circleDopu, ...circleDigiflaz];
   setApiPackages("akrab1", akrab1);
   setApiPackages("circle", circle);
   setApiPackages("akrab2", akrab2);

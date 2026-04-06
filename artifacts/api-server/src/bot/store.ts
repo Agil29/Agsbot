@@ -9,7 +9,7 @@ export type PackageItem = {
   quota: string;
   validity: string;
   active: boolean;
-  source: "api1" | "api2" | "dopu" | "manual";
+  source: "api1" | "api2" | "dopu" | "manual" | "digiflaz";
   sku?: string;
   stock?: number;
 };
