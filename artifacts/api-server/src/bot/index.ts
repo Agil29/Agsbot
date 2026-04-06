@@ -58,6 +58,7 @@ export async function startBot() {
   const defaultCommands = [
     { command: "start", description: "Profil & Menu Utama" },
     { command: "order", description: "Order paket XL" },
+    { command: "chatadmin", description: "Chat dengan admin" },
   ];
   await bot.setMyCommands(defaultCommands).catch(() => {});
 

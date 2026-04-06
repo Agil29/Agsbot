@@ -298,8 +298,8 @@ export function setupHandlers(bot: TelegramBot) {
     });
   });
 
-  // ── 💬 CHAT ADMIN ────────────────────────────────────────────────────────
-  bot.onText(/💬 CHAT ADMIN/, async (msg) => {
+  // ── 💬 CHAT ADMIN ─────────────────────────────────────────────────────────
+  bot.onText(/\/chatadmin/, async (msg) => {
     if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
     if (isAdmin(from.id)) return; // admin tidak perlu chat diri sendiri

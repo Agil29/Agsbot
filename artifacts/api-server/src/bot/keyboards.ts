@@ -12,7 +12,6 @@ export function mainMenuKeyboard(
     [{ text: "📦 ORDER" }],
     [{ text: "💰 TOPUP" }, { text: "📋 RIWAYAT" }],
     [{ text: "📱 CEK PAKET & AREA", web_app: { url: "https://bendith.my.id/" } }],
-    [{ text: "💬 CHAT ADMIN" }],
     [{ text: "🏠 Menu" }],
   ];
 
