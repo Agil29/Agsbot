@@ -9,7 +9,18 @@ import { getBot } from "../bot";
 
 const router = Router();
 
+const PAKASIR_SECRET = process.env.PAKASIR_WEBHOOK_SECRET ?? "";
+
 router.post("/pakasir", async (req, res) => {
+  // Verify webhook secret if configured
+  if (PAKASIR_SECRET) {
+    const token = (req.query.secret as string) ?? req.headers["x-webhook-secret"] ?? "";
+    if (token !== PAKASIR_SECRET) {
+      logger.warn({ ip: req.ip }, "Pakasir webhook: invalid secret");
+      return res.status(401).json({ ok: false, message: "Unauthorized" });
+    }
+  }
+
   const { order_id, amount, status, project } = req.body as {
     order_id?: string;
     amount?: number;

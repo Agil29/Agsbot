@@ -3,15 +3,9 @@ import { logger } from "../../lib/logger";
 import { getAllUsers } from "../../bot/users";
 import { getBot } from "../../bot";
 
+import { requireAdmin } from "../../lib/adminAuth";
+
 const router = Router();
-
-const ADMIN_KEY = process.env.ADMIN_API_KEY ?? "admin123";
-
-function requireAdmin(req: any, res: any, next: any) {
-  const key = req.headers["x-admin-key"] ?? req.query.key;
-  if (key !== ADMIN_KEY) return res.status(401).json({ error: "Unauthorized" });
-  next();
-}
 
 router.post("/broadcast", requireAdmin, async (req, res) => {
   const { message, parseMode } = req.body as { message?: string; parseMode?: string };

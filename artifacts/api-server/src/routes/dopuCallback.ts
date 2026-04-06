@@ -6,6 +6,19 @@ import { getBot } from "../bot/index";
 
 const router = Router();
 
+const DOPU_SECRET = process.env.DOPU_CALLBACK_SECRET ?? "";
+
+function verifyDopuSecret(req: any, res: any): boolean {
+  if (!DOPU_SECRET) return true;
+  const token = (req.query.secret as string) ?? req.headers["x-dopu-secret"] ?? "";
+  if (token !== DOPU_SECRET) {
+    logger.warn({ ip: req.ip }, "DOPU callback: invalid secret");
+    res.status(401).json({ status: "unauthorized" });
+    return false;
+  }
+  return true;
+}
+
 async function handleDopuCallback(data: Record<string, any>) {
   logger.info({ data }, "DOPU callback received");
 
@@ -110,16 +123,19 @@ async function handleDopuCallback(data: Record<string, any>) {
 
 // Support both path variants: /dopu/callback (legacy) and /webhook/dopu (canonical)
 router.all("/dopu/callback", async (req, res) => {
+  if (!verifyDopuSecret(req, res)) return;
   res.status(200).json({ status: "ok" });
   await handleDopuCallback({ ...req.query, ...req.body });
 });
 
 router.post("/webhook/dopu", async (req, res) => {
+  if (!verifyDopuSecret(req, res)) return;
   res.status(200).json({ status: "ok" });
   await handleDopuCallback({ ...req.query, ...req.body });
 });
 
 router.get("/webhook/dopu", async (req, res) => {
+  if (!verifyDopuSecret(req, res)) return;
   res.status(200).json({ status: "ok" });
   await handleDopuCallback(req.query as Record<string, any>);
 });

@@ -6,15 +6,9 @@ import { getAllTopups } from "../../bot/topup";
 import { getDopuBalance } from "../../bot/dopuApi";
 import { getKhfyBalance } from "../../bot/khfyApi";
 
+import { requireAdmin } from "../../lib/adminAuth";
+
 const router = Router();
-
-const ADMIN_KEY = process.env.ADMIN_API_KEY ?? "admin123";
-
-function requireAdmin(req: any, res: any, next: any) {
-  const key = req.headers["x-admin-key"] ?? req.query.key;
-  if (key !== ADMIN_KEY) return res.status(401).json({ error: "Unauthorized" });
-  next();
-}
 
 const runtimeConfig: Record<string, string> = {
   API1_BASE_URL: process.env.API1_BASE_URL ?? "",

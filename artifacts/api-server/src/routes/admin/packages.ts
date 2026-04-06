@@ -14,17 +14,9 @@ import { getAllTopups, updateTopupStatus, getTopupById } from "../../bot/topup";
 import { getBot } from "../../bot/index";
 import { getAllMarkup, setMarkup, type MarkupType } from "../../bot/markup";
 
+import { requireAdmin } from "../../lib/adminAuth";
+
 const router = Router();
-
-const ADMIN_KEY = process.env.ADMIN_API_KEY ?? "admin123";
-
-function requireAdmin(req: any, res: any, next: any) {
-  const key = req.headers["x-admin-key"] ?? req.query.key;
-  if (key !== ADMIN_KEY) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  next();
-}
 
 const VALID_CATEGORIES: Category[] = ["akrab1", "akrab2", "circle"];
 
