@@ -340,7 +340,8 @@ export function setupHandlers(bot: TelegramBot) {
     } else {
       slice.forEach(o => {
         text +=
-          `\nProduk : ${o.packageName}\n` +
+          `\nOrder ID : <code>${o.id}</code>\n` +
+          `Produk : ${o.packageName}\n` +
           `Harga : Rp${o.price.toLocaleString("id-ID")}\n` +
           `Tanggal : — ${fmtHistDate(new Date(o.createdAt))}\n` +
           `Status : → success\n`;
