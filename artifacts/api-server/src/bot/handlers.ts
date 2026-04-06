@@ -270,6 +270,9 @@ export function setupHandlers(bot: TelegramBot) {
     if (session.step === "waiting_broadcast_message" || session.step === "broadcast_confirm") {
       clearSession(userId);
       await bot.sendMessage(msg.chat.id, "❌ Broadcast dibatalkan.", { parse_mode: "HTML" });
+    } else if (session.step === "waiting_admin_reply") {
+      clearSession(userId);
+      await bot.sendMessage(msg.chat.id, "❌ Mode balas dibatalkan.", { parse_mode: "HTML" });
     }
   });
 
@@ -475,6 +478,28 @@ export function setupHandlers(bot: TelegramBot) {
     const from = msg.from!;
     const session = getSession(from.id);
 
+    // ── Admin in waiting_admin_reply mode: relay next typed message to target user ──
+    if (isAdmin(from.id) && session.step === "waiting_admin_reply") {
+      const targetUserId = session.replyTargetUserId;
+      if (targetUserId) {
+        const replyText = msg.text ?? "";
+        if (replyText) {
+          await bot.sendMessage(
+            targetUserId,
+            `💬 <b>Pesan dari Admin:</b>\n\n${replyText}`,
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+          await bot.sendMessage(
+            msg.chat.id,
+            `✅ Pesan terkirim ke user.`,
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+        }
+      }
+      clearSession(from.id);
+      return;
+    }
+
     // ── Admin reply relay: if admin replies to a forwarded chat message, send it back to the user ──
     if (isAdmin(from.id) && msg.reply_to_message) {
       const replyToId = msg.reply_to_message.message_id;
@@ -510,11 +535,17 @@ export function setupHandlers(bot: TelegramBot) {
             adminId,
             `💬 <b>Pesan dari ${userName}</b>${userTag}\n` +
             `🆔 <code>${from.id}</code>\n\n` +
-            `${userText}\n\n` +
-            `<i>Balas pesan ini untuk membalas ke user.</i>`,
-            { parse_mode: "HTML" }
+            `${userText}`,
+            {
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: "💬 Balas Chat", callback_data: `reply_chat_${from.id}` },
+                ]],
+              },
+            }
           );
-          // Map forwarded message ID → user chatId so admin reply can be routed
+          // Map forwarded message ID → user chatId so Telegram-reply routing still works
           adminReplyMap.set(forwarded.message_id, msg.chat.id);
         } catch { }
       }
@@ -650,6 +681,23 @@ export function setupHandlers(bot: TelegramBot) {
         await bot.answerCallbackQuery(query.id).catch(() => {});
         return;
       }
+    }
+
+    // ── Admin: Balas Chat button ──────────────────────────────────────────────
+    if (data.startsWith("reply_chat_") && isAdmin(userId)) {
+      const targetUserId = parseInt(data.replace("reply_chat_", ""), 10);
+      if (!isNaN(targetUserId)) {
+        setSession(userId, { step: "waiting_admin_reply", replyTargetUserId: targetUserId });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(
+          chatId,
+          `✏️ <b>Mode Balas</b>\n\nKetik balasan Anda untuk user <code>${targetUserId}</code>.\nPesan berikutnya akan langsung dikirim ke user.\n\n<i>Kirim /cancel untuk membatalkan.</i>`,
+          { parse_mode: "HTML" }
+        );
+      } else {
+        await bot.answerCallbackQuery(query.id, { text: "ID user tidak valid.", show_alert: true }).catch(() => {});
+      }
+      return;
     }
 
     if (data.startsWith("topup_paid_")) {

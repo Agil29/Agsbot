@@ -10,8 +10,10 @@ export type UserSession = {
     | "waiting_topup_amount"
     | "waiting_broadcast_message"
     | "broadcast_confirm"
-    | "chat_admin";
+    | "chat_admin"
+    | "waiting_admin_reply";
   broadcastMessage?: string;
+  replyTargetUserId?: number;
   category?: string;
   selectedCategory?: string;
   packageId?: string;
