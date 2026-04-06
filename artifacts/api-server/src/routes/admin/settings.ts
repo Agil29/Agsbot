@@ -17,6 +17,8 @@ const runtimeConfig: Record<string, string> = {
   API2_KEY: process.env.API2_KEY ?? "",
   SUPPORT_USERNAME: process.env.SUPPORT_USERNAME ?? "Agsstore_29",
   PAKASIR_SLUG: process.env.PAKASIR_SLUG ?? "",
+  PAKASIR_API_KEY: process.env.PAKASIR_API_KEY ?? "",
+  PAKASIR_WEBHOOK_SECRET: process.env.PAKASIR_WEBHOOK_SECRET ?? "",
 };
 
 export function getRuntimeConfig() {
@@ -27,11 +29,16 @@ router.get("/settings", requireAdmin, (_req, res) => {
   const safe = { ...runtimeConfig };
   if (safe.API1_KEY) safe.API1_KEY = "***";
   if (safe.API2_KEY) safe.API2_KEY = "***";
+  if (safe.PAKASIR_API_KEY) safe.PAKASIR_API_KEY = "***";
+  if (safe.PAKASIR_WEBHOOK_SECRET) safe.PAKASIR_WEBHOOK_SECRET = "***";
   res.json({ success: true, data: safe });
 });
 
 router.put("/settings", requireAdmin, (req, res) => {
-  const allowed = ["API1_BASE_URL", "API1_KEY", "API2_BASE_URL", "API2_KEY", "SUPPORT_USERNAME", "PAKASIR_SLUG"];
+  const allowed = [
+    "API1_BASE_URL", "API1_KEY", "API2_BASE_URL", "API2_KEY",
+    "SUPPORT_USERNAME", "PAKASIR_SLUG", "PAKASIR_API_KEY", "PAKASIR_WEBHOOK_SECRET",
+  ];
   const updated: Record<string, string> = {};
 
   for (const key of allowed) {
