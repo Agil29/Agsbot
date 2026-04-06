@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, RefreshCw, Edit2, Trash2, Check, X } from "lucide-react";
+import { Users, RefreshCw, Edit2, Trash2, Check, X, ShieldOff, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 
 type User = {
@@ -24,18 +24,30 @@ export function PenggunaBot() {
   const [editSaldo, setEditSaldo] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [blacklisted, setBlacklisted] = useState<Set<number>>(new Set());
+  const [blockingId, setBlockingId] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const res = await api.users.list();
-      setUsers(res.data ?? []);
+      const [usersRes, blRes] = await Promise.all([
+        api.users.list(),
+        api.blacklist.list(),
+      ]);
+      setUsers(usersRes.data ?? []);
+      const blSet = new Set<number>((blRes.data ?? []).map((e: any) => Number(e.telegramId)));
+      setBlacklisted(blSet);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => { load(); }, []);
+
+  function showMsg(text: string) {
+    setMsg(text);
+    setTimeout(() => setMsg(""), 3000);
+  }
 
   async function saveSaldo(telegramId: number) {
     const amount = parseInt(editSaldo, 10);
@@ -45,14 +57,13 @@ export function PenggunaBot() {
       const currentUser = users.find((u) => u.telegramId === telegramId);
       const diff = amount - (currentUser?.saldo ?? 0);
       await api.users.setSaldo(telegramId, diff);
-      setMsg("Saldo diperbarui");
+      showMsg("Saldo diperbarui");
       setEditId(null);
       load();
     } catch (e: any) {
-      setMsg(e.message);
+      showMsg(e.message);
     } finally {
       setSaving(false);
-      setTimeout(() => setMsg(""), 3000);
     }
   }
 
@@ -60,12 +71,41 @@ export function PenggunaBot() {
     if (!confirm("Hapus user ini dari sesi?")) return;
     try {
       await api.users.delete(telegramId);
-      setMsg("User dihapus dari sesi");
+      showMsg("User dihapus dari sesi");
       load();
     } catch (e: any) {
-      setMsg(e.message);
+      showMsg(e.message);
+    }
+  }
+
+  async function toggleBlacklist(telegramId: number, isBlocked: boolean) {
+    const name = users.find((u) => u.telegramId === telegramId)?.firstName ?? String(telegramId);
+    if (isBlocked) {
+      if (!confirm(`Buka blokir ${name}?`)) return;
+    } else {
+      const reason = prompt(`Alasan blokir ${name} (opsional):`);
+      if (reason === null) return; // user cancelled
+      setBlockingId(telegramId);
+      try {
+        await api.blacklist.add(telegramId, reason || undefined);
+        showMsg(`${name} berhasil diblokir`);
+        setBlacklisted((prev) => new Set([...prev, telegramId]));
+      } catch (e: any) {
+        showMsg(e.message);
+      } finally {
+        setBlockingId(null);
+      }
+      return;
+    }
+    setBlockingId(telegramId);
+    try {
+      await api.blacklist.remove(telegramId);
+      showMsg(`${name} berhasil dibuka blokirnya`);
+      setBlacklisted((prev) => { const s = new Set(prev); s.delete(telegramId); return s; });
+    } catch (e: any) {
+      showMsg(e.message);
     } finally {
-      setTimeout(() => setMsg(""), 3000);
+      setBlockingId(null);
     }
   }
 
@@ -90,7 +130,7 @@ export function PenggunaBot() {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
           <span className="font-semibold text-slate-700 text-sm">Recent Users</span>
-          <span className="text-xs text-slate-400">{users.length} pengguna</span>
+          <span className="text-xs text-slate-400">{users.length} pengguna · {blacklisted.size} diblokir</span>
         </div>
         <div className="overflow-x-auto">
           {loading ? (
@@ -113,66 +153,95 @@ export function PenggunaBot() {
                   <th className="px-4 py-3 text-left font-medium">Balance</th>
                   <th className="px-4 py-3 text-left font-medium">TG ID</th>
                   <th className="px-4 py-3 text-left font-medium">Join Date</th>
+                  <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map((u, i) => (
-                  <tr key={u.telegramId} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-500">{i + 1}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-600">#{u.uid}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {u.firstName}{u.lastName ? " " + u.lastName : ""}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {u.username ? `@${u.username}` : <span className="text-slate-300">-</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      {editId === u.telegramId ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={editSaldo}
-                            onChange={(e) => setEditSaldo(e.target.value)}
-                            className="w-28 px-2 py-1 border border-blue-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
+                {users.map((u, i) => {
+                  const blocked = blacklisted.has(u.telegramId);
+                  return (
+                    <tr key={u.telegramId} className={`hover:bg-slate-50 ${blocked ? "bg-red-50/40" : ""}`}>
+                      <td className="px-4 py-3 text-slate-500">{i + 1}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">#{u.uid}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {u.firstName}{u.lastName ? " " + u.lastName : ""}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500">
+                        {u.username ? `@${u.username}` : <span className="text-slate-300">-</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {editId === u.telegramId ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={editSaldo}
+                              onChange={(e) => setEditSaldo(e.target.value)}
+                              className="w-28 px-2 py-1 border border-blue-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <button
+                              onClick={() => saveSaldo(u.telegramId)}
+                              disabled={saving}
+                              className="p-1 text-green-600 hover:text-green-700"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button onClick={() => setEditId(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-green-700 font-medium">
+                            Rp {u.saldo.toLocaleString("id-ID")}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{u.telegramId}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(u.regDate)}</td>
+                      <td className="px-4 py-3">
+                        {blocked ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">
+                            <ShieldOff size={10} /> Diblokir
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                            <ShieldCheck size={10} /> Aktif
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button
-                            onClick={() => saveSaldo(u.telegramId)}
-                            disabled={saving}
-                            className="p-1 text-green-600 hover:text-green-700"
+                            onClick={() => { setEditId(u.telegramId); setEditSaldo(String(u.saldo)); }}
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 flex items-center gap-1"
                           >
-                            <Check size={14} />
+                            <Edit2 size={11} /> Edit
                           </button>
-                          <button onClick={() => setEditId(null)} className="p-1 text-slate-400 hover:text-slate-600">
-                            <X size={14} />
+                          <button
+                            onClick={() => toggleBlacklist(u.telegramId, blocked)}
+                            disabled={blockingId === u.telegramId}
+                            className={`px-3 py-1.5 text-white rounded text-xs flex items-center gap-1 disabled:opacity-50 ${
+                              blocked
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "bg-red-500 hover:bg-red-600"
+                            }`}
+                          >
+                            {blocked
+                              ? <><ShieldCheck size={11} /> Buka</>
+                              : <><ShieldOff size={11} /> Blokir</>
+                            }
+                          </button>
+                          <button
+                            onClick={() => deleteUser(u.telegramId)}
+                            className="px-3 py-1.5 bg-slate-400 text-white rounded text-xs hover:bg-slate-500 flex items-center gap-1"
+                          >
+                            <Trash2 size={11} /> Hapus
                           </button>
                         </div>
-                      ) : (
-                        <span className="text-green-700 font-medium">
-                          Rp {u.saldo.toLocaleString("id-ID")}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{u.telegramId}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(u.regDate)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setEditId(u.telegramId); setEditSaldo(String(u.saldo)); }}
-                          className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 flex items-center gap-1"
-                        >
-                          <Edit2 size={11} /> Edit
-                        </button>
-                        <button
-                          onClick={() => deleteUser(u.telegramId)}
-                          className="px-3 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600 flex items-center gap-1"
-                        >
-                          <Trash2 size={11} /> Hapus
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

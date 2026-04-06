@@ -72,6 +72,13 @@ export const api = {
     update: (category: string, type: string, amount: number) =>
       request<any>("PUT", `/markup/${category}`, { type, amount }),
   },
+  blacklist: {
+    list: () => request<any>("GET", "/blacklist"),
+    add: (telegramId: number, reason?: string) =>
+      request<any>("POST", `/blacklist/${telegramId}`, { reason }),
+    remove: (telegramId: number) =>
+      request<any>("DELETE", `/blacklist/${telegramId}`),
+  },
   productMarkup: {
     list: () => request<any>("GET", "/product-markup"),
     set: (sku: string, category: string, type: string, amount: number) =>

@@ -8,6 +8,7 @@ import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, setWhatsapp, formatRegDate, getAllUsers, deductSaldoAtomic, creditSaldoAtomic, withUserLock } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
 import { getProductMarkup } from "./productMarkup";
+import { isBlacklisted } from "./blacklist";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
 import { recordAndCheck, isBlocked } from "./rateLimit";
@@ -181,6 +182,15 @@ export function setupHandlers(bot: TelegramBot) {
   // ── Global rate-limit gate (registered first so it fires before all other listeners) ──
   bot.on("message", async (msg) => {
     if (!msg.from) return;
+    // Blacklist check — blocked users get a polite refusal on every message
+    if (isBlacklisted(msg.from.id)) {
+      await bot.sendMessage(
+        msg.chat.id,
+        `🚫 <b>Akses Ditolak</b>\n\nAkun Anda telah diblokir dari layanan ini.\nHubungi admin jika ada kesalahan.`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+      return;
+    }
     if (isAdmin(msg.from.id)) return; // admins are exempt from rate limiting
     const { status, secondsLeft } = recordAndCheck(msg.from.id);
     if (status === "warn") {
@@ -509,6 +519,15 @@ export function setupHandlers(bot: TelegramBot) {
     const data = query.data ?? "";
 
     if (!chatId || !messageId) return;
+
+    // Blacklist check
+    if (isBlacklisted(userId)) {
+      await bot.answerCallbackQuery(query.id, {
+        text: "🚫 Akun Anda telah diblokir dari layanan ini.",
+        show_alert: true,
+      }).catch(() => {});
+      return;
+    }
 
     // ── Rate limit check for inline button presses (admins exempt) ──────────
     if (!isAdmin(userId)) {

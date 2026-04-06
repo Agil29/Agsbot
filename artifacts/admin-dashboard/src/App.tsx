@@ -10,6 +10,7 @@ import { BotSettings } from "@/pages/BotSettings";
 import { PageAnalistik } from "@/pages/PageAnalistik";
 import { PageBroadcast } from "@/pages/PageBroadcast";
 import { PageSaldoLogs } from "@/pages/PageSaldoLogs";
+import { PageBlacklist } from "@/pages/PageBlacklist";
 
 function AppRoutes({ onLogout }: { onLogout: () => void }) {
   return (
@@ -32,6 +33,7 @@ function AppRoutes({ onLogout }: { onLogout: () => void }) {
         <Route path="/settings" component={BotSettings} />
         <Route path="/broadcast" component={PageBroadcast} />
         <Route path="/saldo-logs" component={PageSaldoLogs} />
+        <Route path="/blacklist" component={PageBlacklist} />
         <Route>
           <div className="text-center py-20 text-slate-400">Halaman tidak ditemukan</div>
         </Route>

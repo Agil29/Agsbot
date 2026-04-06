@@ -20,6 +20,11 @@ import {
   setProductMarkup,
   deleteProductMarkup,
 } from "../../bot/productMarkup";
+import {
+  getAllBlacklist,
+  addToBlacklist,
+  removeFromBlacklist,
+} from "../../bot/blacklist";
 
 import { requireAdmin } from "../../lib/adminAuth";
 
@@ -219,6 +224,25 @@ router.get("/saldo-logs/:telegramId", requireAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: "Invalid telegramId" });
   const logs = await getSaldoLogs(id, 100);
   res.json({ success: true, data: logs });
+});
+
+router.get("/blacklist", requireAdmin, (_req, res) => {
+  res.json({ success: true, data: getAllBlacklist() });
+});
+
+router.post("/blacklist/:telegramId", requireAdmin, async (req, res) => {
+  const telegramId = parseInt(req.params.telegramId, 10);
+  if (isNaN(telegramId)) return res.status(400).json({ error: "telegramId tidak valid" });
+  const { reason } = req.body;
+  const entry = await addToBlacklist(telegramId, reason || undefined);
+  res.json({ success: true, data: entry });
+});
+
+router.delete("/blacklist/:telegramId", requireAdmin, async (req, res) => {
+  const telegramId = parseInt(req.params.telegramId, 10);
+  if (isNaN(telegramId)) return res.status(400).json({ error: "telegramId tidak valid" });
+  const removed = await removeFromBlacklist(telegramId);
+  res.json({ success: true, removed });
 });
 
 router.get("/product-markup", requireAdmin, (_req, res) => {

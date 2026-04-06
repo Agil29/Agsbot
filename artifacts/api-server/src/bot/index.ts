@@ -10,6 +10,7 @@ import { loadTopupsFromDb } from "./topup";
 import { loadStoreFromDb } from "./store";
 import { loadMarkupFromDb } from "./markup";
 import { loadProductMarkupsFromDb } from "./productMarkup";
+import { loadBlacklistFromDb } from "./blacklist";
 
 let botInstance: TelegramBot | null = null;
 
@@ -36,6 +37,7 @@ export async function startBot() {
     loadStoreFromDb(),
     loadMarkupFromDb(),
     loadProductMarkupsFromDb(),
+    loadBlacklistFromDb(),
   ]);
 
   const bot = new TelegramBot(token, { polling: false });

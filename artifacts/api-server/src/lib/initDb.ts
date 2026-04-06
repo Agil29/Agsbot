@@ -103,6 +103,14 @@ export async function initDb(): Promise<void> {
     await run(`CREATE INDEX IF NOT EXISTS idx_saldo_logs_telegram_id ON saldo_logs (telegram_id, created_at DESC)`);
 
     await run(`
+      CREATE TABLE IF NOT EXISTS blacklist (
+        telegram_id BIGINT PRIMARY KEY,
+        reason      TEXT,
+        blocked_at  TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
+    await run(`
       CREATE TABLE IF NOT EXISTS product_markup (
         sku        TEXT PRIMARY KEY,
         category   VARCHAR(20) NOT NULL,
