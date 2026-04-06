@@ -7,6 +7,7 @@ type User = {
   firstName: string;
   lastName?: string;
   username?: string;
+  whatsapp?: string;
   uid: number;
   saldo: number;
   regDate: string;
@@ -35,7 +36,8 @@ export function PenggunaBot() {
           String(u.telegramId).includes(q) ||
           u.firstName.toLowerCase().includes(q) ||
           (u.lastName ?? "").toLowerCase().includes(q) ||
-          (u.username ?? "").toLowerCase().includes(q)
+          (u.username ?? "").toLowerCase().includes(q) ||
+          (u.whatsapp ?? "").includes(q)
         );
       })
     : users;
@@ -147,7 +149,7 @@ export function PenggunaBot() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari berdasarkan TG ID, nama, atau username..."
+          placeholder="Cari berdasarkan TG ID, nama, username, atau no WhatsApp..."
           className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {search && (
@@ -189,6 +191,7 @@ export function PenggunaBot() {
                   <th className="px-4 py-3 text-left font-medium">UID</th>
                   <th className="px-4 py-3 text-left font-medium">Name</th>
                   <th className="px-4 py-3 text-left font-medium">Username</th>
+                  <th className="px-4 py-3 text-left font-medium">WhatsApp</th>
                   <th className="px-4 py-3 text-left font-medium">Balance</th>
                   <th className="px-4 py-3 text-left font-medium">TG ID</th>
                   <th className="px-4 py-3 text-left font-medium">Join Date</th>
@@ -208,6 +211,9 @@ export function PenggunaBot() {
                       </td>
                       <td className="px-4 py-3 text-slate-500">
                         {u.username ? `@${u.username}` : <span className="text-slate-300">-</span>}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                        {u.whatsapp ?? <span className="text-slate-300">-</span>}
                       </td>
                       <td className="px-4 py-3">
                         {editId === u.telegramId ? (
