@@ -3,6 +3,7 @@ import { logger } from "../lib/logger";
 import { initDb } from "../lib/initDb";
 import { setupHandlers } from "./handlers";
 import { startPackageRefreshScheduler } from "./apiService";
+import { startTopupExpiryChecker } from "./topupExpiry";
 import { loadUsersFromDb } from "./users";
 import { loadOrdersFromDb } from "./orders";
 import { loadTopupsFromDb } from "./topup";
@@ -47,6 +48,7 @@ export async function startBot() {
 
   setupHandlers(bot);
   startPackageRefreshScheduler(5 * 60 * 1000);
+  startTopupExpiryChecker(bot);
 
   // Register bot commands visible to all users
   const defaultCommands = [
