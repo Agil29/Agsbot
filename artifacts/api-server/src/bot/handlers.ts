@@ -6,6 +6,7 @@ import { refreshAllPackages } from "./apiService";
 import { getSession, setSession, clearSession } from "./sessions";
 import { getOrRegisterUser, getUser, setWhatsapp, formatRegDate, getAllUsers, deductSaldoAtomic, creditSaldoAtomic, withUserLock } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
+import { getProductMarkup } from "./productMarkup";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
 import { recordAndCheck, isBlocked } from "./rateLimit";
@@ -94,12 +95,18 @@ function buildProfileText(user: ReturnType<typeof getUser>): string {
 }
 
 function getPackagesWithMarkup(category: Category) {
-  const markup = getMarkup(category);
-  return getPackages(category).map((pkg) => ({
-    ...pkg,
-    baseprice: pkg.price,
-    price: applyMarkup(pkg.price, markup),
-  }));
+  const categoryMarkup = getMarkup(category);
+  return getPackages(category).map((pkg) => {
+    // Per-product markup overrides category markup when set
+    const perProduct = pkg.sku ? getProductMarkup(pkg.sku) : null;
+    const activeMarkup = perProduct ?? categoryMarkup;
+    return {
+      ...pkg,
+      baseprice: pkg.price,
+      price: applyMarkup(pkg.price, activeMarkup),
+      hasProductMarkup: perProduct !== null,
+    };
+  });
 }
 
 async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nominal: number) {

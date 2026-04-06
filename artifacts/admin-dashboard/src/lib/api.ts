@@ -72,4 +72,11 @@ export const api = {
     update: (category: string, type: string, amount: number) =>
       request<any>("PUT", `/markup/${category}`, { type, amount }),
   },
+  productMarkup: {
+    list: () => request<any>("GET", "/product-markup"),
+    set: (sku: string, category: string, type: string, amount: number) =>
+      request<any>("PUT", `/product-markup/${encodeURIComponent(sku)}`, { category, type, amount }),
+    remove: (sku: string) =>
+      request<any>("DELETE", `/product-markup/${encodeURIComponent(sku)}`),
+  },
 };

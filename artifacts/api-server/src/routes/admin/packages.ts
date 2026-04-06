@@ -14,6 +14,12 @@ import { getAllTopups, updateTopupStatus, getTopupById } from "../../bot/topup";
 import { getBot } from "../../bot/index";
 import { getAllMarkup, setMarkup, type MarkupType } from "../../bot/markup";
 import { getAllSaldoLogs, getSaldoLogs } from "../../bot/saldoLog";
+import {
+  getAllProductMarkups,
+  getProductMarkup,
+  setProductMarkup,
+  deleteProductMarkup,
+} from "../../bot/productMarkup";
 
 import { requireAdmin } from "../../lib/adminAuth";
 
@@ -213,6 +219,32 @@ router.get("/saldo-logs/:telegramId", requireAdmin, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: "Invalid telegramId" });
   const logs = await getSaldoLogs(id, 100);
   res.json({ success: true, data: logs });
+});
+
+router.get("/product-markup", requireAdmin, (_req, res) => {
+  res.json({ success: true, data: getAllProductMarkups() });
+});
+
+router.get("/product-markup/:sku", requireAdmin, (req, res) => {
+  const setting = getProductMarkup(decodeURIComponent(req.params.sku));
+  if (!setting) return res.status(404).json({ error: "Tidak ditemukan" });
+  res.json({ success: true, data: setting });
+});
+
+router.put("/product-markup/:sku", requireAdmin, async (req, res) => {
+  const sku = decodeURIComponent(req.params.sku);
+  const { category, type, amount } = req.body;
+  if (!category) return res.status(400).json({ error: "category diperlukan" });
+  if (!["flat", "percentage"].includes(type)) return res.status(400).json({ error: "type harus 'flat' atau 'percentage'" });
+  if (amount === undefined || isNaN(Number(amount)) || Number(amount) < 0) return res.status(400).json({ error: "amount harus angka >= 0" });
+  const result = await setProductMarkup(sku, category, type as MarkupType, Number(amount));
+  res.json({ success: true, data: result });
+});
+
+router.delete("/product-markup/:sku", requireAdmin, async (req, res) => {
+  const sku = decodeURIComponent(req.params.sku);
+  const deleted = await deleteProductMarkup(sku);
+  res.json({ success: true, deleted });
 });
 
 router.put("/markup/:category", requireAdmin, async (req, res) => {

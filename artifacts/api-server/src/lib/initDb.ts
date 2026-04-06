@@ -102,6 +102,16 @@ export async function initDb(): Promise<void> {
 
     await run(`CREATE INDEX IF NOT EXISTS idx_saldo_logs_telegram_id ON saldo_logs (telegram_id, created_at DESC)`);
 
+    await run(`
+      CREATE TABLE IF NOT EXISTS product_markup (
+        sku        TEXT PRIMARY KEY,
+        category   VARCHAR(20) NOT NULL,
+        type       VARCHAR(10) NOT NULL DEFAULT 'flat',
+        amount     NUMERIC NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
     // Safe column additions for any future migrations
     await run("ALTER TABLE users  ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(20)").catch(() => {});
     await run("ALTER TABLE orders ADD COLUMN IF NOT EXISTS baseprice NUMERIC DEFAULT 0").catch(() => {});
