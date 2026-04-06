@@ -179,6 +179,9 @@ async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nom
 }
 
 export function setupHandlers(bot: TelegramBot) {
+  // Map: admin forwarded msg ID → original user chatId (for reply routing)
+  const adminReplyMap = new Map<number, number>();
+
   // ── Global rate-limit gate (registered first so it fires before all other listeners) ──
   bot.on("message", async (msg) => {
     if (!msg.from) return;
@@ -204,8 +207,20 @@ export function setupHandlers(bot: TelegramBot) {
 
   bot.onText(/\/start/, async (msg) => {
     const from = msg.from!;
+    const prevSession = getSession(from.id);
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
+    if (prevSession.step === "chat_admin") {
+      const userName = `${user.firstName}${user.lastName ? " " + user.lastName : ""}`;
+      const adminIds = getAdminIds();
+      for (const adminId of adminIds) {
+        await bot.sendMessage(
+          adminId,
+          `ℹ️ <b>${userName}</b> (<code>${from.id}</code>) telah mengakhiri sesi chat.`,
+          { parse_mode: "HTML" }
+        ).catch(() => {});
+      }
+    }
     if (!user.whatsapp) {
       setSession(from.id, { step: "waiting_whatsapp" });
       await bot.sendMessage(
@@ -263,12 +278,57 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/🏠 Menu/, async (msg) => {
     if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
+    const prevSession = getSession(from.id);
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
+    if (prevSession.step === "chat_admin") {
+      const userName = `${user.firstName}${user.lastName ? " " + user.lastName : ""}`;
+      const adminIds = getAdminIds();
+      for (const adminId of adminIds) {
+        await bot.sendMessage(
+          adminId,
+          `ℹ️ <b>${userName}</b> (<code>${from.id}</code>) telah mengakhiri sesi chat.`,
+          { parse_mode: "HTML" }
+        ).catch(() => {});
+      }
+    }
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
       reply_markup: mainMenuKeyboard({ isAdmin: isAdmin(from.id) }),
     });
+  });
+
+  // ── 💬 CHAT ADMIN ────────────────────────────────────────────────────────
+  bot.onText(/💬 CHAT ADMIN/, async (msg) => {
+    if (isBlocked(msg.from!.id)) return;
+    const from = msg.from!;
+    if (isAdmin(from.id)) return; // admin tidak perlu chat diri sendiri
+    const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+    setSession(from.id, { step: "chat_admin" });
+
+    await bot.sendMessage(
+      msg.chat.id,
+      `💬 <b>Mode Chat Admin</b>\n\n` +
+      `Anda sekarang terhubung dengan admin.\n` +
+      `Kirim pesan Anda dan admin akan membalasnya.\n\n` +
+      `<i>Tekan 🏠 Menu atau /start untuk mengakhiri sesi chat.</i>`,
+      { parse_mode: "HTML" }
+    );
+
+    // Notify admin
+    const adminIds = getAdminIds();
+    const userName = `${user.firstName}${user.lastName ? " " + user.lastName : ""}`;
+    const userTag = user.username ? ` (@${user.username})` : "";
+    for (const adminId of adminIds) {
+      await bot.sendMessage(
+        adminId,
+        `💬 <b>User ingin chat</b>\n\n` +
+        `👤 <b>${userName}</b>${userTag}\n` +
+        `🆔 TG ID: <code>${from.id}</code>\n\n` +
+        `<i>Balas pesan dari user di bawah ini untuk menghubungi mereka.</i>`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+    }
   });
 
   bot.onText(/\/order/, handleOrder(bot));
@@ -411,9 +471,55 @@ export function setupHandlers(bot: TelegramBot) {
   bot.on("message", async (msg) => {
     if (!msg.text) return;
     // Skip messages handled by dedicated onText/command handlers to avoid double-processing
-    if (/^\/|🏠|💰|📦|📋|💳|📱|📢/.test(msg.text)) return;
+    if (/^\/|🏠|💰|📦|📋|💳|📱|📢|💬/.test(msg.text)) return;
     const from = msg.from!;
     const session = getSession(from.id);
+
+    // ── Admin reply relay: if admin replies to a forwarded chat message, send it back to the user ──
+    if (isAdmin(from.id) && msg.reply_to_message) {
+      const replyToId = msg.reply_to_message.message_id;
+      const targetChatId = adminReplyMap.get(replyToId);
+      if (targetChatId) {
+        const replyText = msg.text ?? "";
+        if (replyText) {
+          await bot.sendMessage(
+            targetChatId,
+            `💬 <b>Pesan dari Admin:</b>\n\n${replyText}`,
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+          await bot.sendMessage(
+            msg.chat.id,
+            `✅ Pesan terkirim ke user.`,
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+        }
+        return;
+      }
+    }
+
+    if (session.step === "chat_admin" && !isAdmin(from.id)) {
+      const userText = msg.text ?? "";
+      if (!userText) return;
+      const user = getUser(from.id);
+      const userName = user ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}` : String(from.id);
+      const userTag = user?.username ? ` (@${user.username})` : "";
+      const adminIds = getAdminIds();
+      for (const adminId of adminIds) {
+        try {
+          const forwarded = await bot.sendMessage(
+            adminId,
+            `💬 <b>Pesan dari ${userName}</b>${userTag}\n` +
+            `🆔 <code>${from.id}</code>\n\n` +
+            `${userText}\n\n` +
+            `<i>Balas pesan ini untuk membalas ke user.</i>`,
+            { parse_mode: "HTML" }
+          );
+          // Map forwarded message ID → user chatId so admin reply can be routed
+          adminReplyMap.set(forwarded.message_id, msg.chat.id);
+        } catch { }
+      }
+      return;
+    }
 
     if (session.step === "waiting_broadcast_message" && isAdmin(from.id)) {
       const bcastMsg = msg.text.trim();
