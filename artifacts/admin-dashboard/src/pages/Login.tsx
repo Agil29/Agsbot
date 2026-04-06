@@ -59,7 +59,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
           </button>
         </form>
         <p className="text-xs text-slate-400 text-center mt-4">
-          Default key: <code className="bg-slate-100 px-1 rounded">admin123</code>
+          Gunakan <code className="bg-slate-100 px-1 rounded">ADMIN_API_KEY</code> dari environment
         </p>
       </div>
     </div>
