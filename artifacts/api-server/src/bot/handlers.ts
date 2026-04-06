@@ -4,7 +4,7 @@ import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
 import { refreshAllPackages } from "./apiService";
 import { getSession, setSession, clearSession } from "./sessions";
-import { getOrRegisterUser, getUser, updateSaldo, setWhatsapp, formatRegDate, getAllUsers } from "./users";
+import { getOrRegisterUser, getUser, setWhatsapp, formatRegDate, getAllUsers, deductSaldoAtomic, creditSaldoAtomic, withUserLock } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
@@ -545,7 +545,7 @@ export function setupHandlers(bot: TelegramBot) {
         // Answer callback with success toast
         await bot.answerCallbackQuery(query.id, { text: "✅ Pembayaran terdeteksi!" }).catch(() => {});
         updateTopupStatus(topupId, "completed");
-        const updatedUser = updateSaldo(topup.userId, topup.nominal, {
+        const updatedUser = await creditSaldoAtomic(topup.userId, topup.nominal, {
           type: "topup",
           refId: topupId,
           note: `QRIS topup Rp${topup.nominal.toLocaleString("id-ID")} via konfirmasi manual`,
@@ -825,22 +825,26 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
-      if (user.saldo < price) {
+      // Atomic check + deduct — safe under concurrent requests for the same user
+      const deductResult = await withUserLock(userId, () =>
+        deductSaldoAtomic(userId, price, {
+          type: "order_deduct",
+          refId: session.packageId ?? sku,
+          note: `Order ${session.selectedPackageName ?? sku} ke ${nomor}`,
+        })
+      );
+
+      if (!deductResult.success) {
+        const currentSaldo = deductResult.user?.saldo ?? user.saldo;
         await bot.editMessageText(
           `❌ <b>Saldo tidak cukup</b>\n\n` +
-          `Saldo Anda: <b>Rp ${user.saldo.toLocaleString("id-ID")}</b>\n` +
+          `Saldo Anda: <b>Rp ${currentSaldo.toLocaleString("id-ID")}</b>\n` +
           `Dibutuhkan: <b>Rp ${price.toLocaleString("id-ID")}</b>\n\n` +
           `Silakan topup saldo terlebih dahulu melalui menu 💰 TOPUP.`,
           { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
         );
         return;
       }
-
-      updateSaldo(userId, -price, {
-        type: "order_deduct",
-        refId: session.packageId ?? sku,
-        note: `Order ${session.selectedPackageName ?? sku} ke ${nomor}`,
-      });
 
       await bot.editMessageText(
         `⏳ <b>Memproses order...</b>\n\nSaldo dikurangi sementara. Mohon tunggu...`,
@@ -952,7 +956,7 @@ export function setupHandlers(bot: TelegramBot) {
                     logger.info({ dopuRef }, "DOPU poll: failed ignored — order already finalized");
                     return;
                   }
-                  updateSaldo(userId, price, {
+                  await creditSaldoAtomic(userId, price, {
                     type: "order_refund",
                     refId: ord.id,
                     note: `Refund order DOPU gagal: ${statusRes.error ?? ""}`,
@@ -1005,7 +1009,7 @@ export function setupHandlers(bot: TelegramBot) {
           );
         }
       } else {
-        updateSaldo(userId, price, {
+        await creditSaldoAtomic(userId, price, {
           type: "order_refund",
           refId: session.packageId ?? sku,
           note: `Refund order gagal: ${result.error ?? ""}`,

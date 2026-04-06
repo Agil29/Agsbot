@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { logger } from "../lib/logger";
 import { getOrderByReffId, updateOrderStatus } from "../bot/orders";
-import { updateSaldo, getUser } from "../bot/users";
+import { creditSaldoAtomic, getUser } from "../bot/users";
 import { getBot } from "../bot/index";
 
 const router = Router();
@@ -94,7 +94,7 @@ async function handleDopuCallback(data: Record<string, any>) {
 
   if (isFailed) {
     updateOrderStatus(order.id, "cancelled");
-    const refunded = updateSaldo(order.userId, order.price, {
+    const refunded = await creditSaldoAtomic(order.userId, order.price, {
       type: "order_refund",
       refId: order.id,
       note: `Refund DOPU callback gagal: ${message.slice(0, 100)}`,

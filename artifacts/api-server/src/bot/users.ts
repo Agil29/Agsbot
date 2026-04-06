@@ -2,6 +2,24 @@ import { query, run } from "../lib/db";
 import { logger } from "../lib/logger";
 import { logSaldo, type SaldoLogType } from "./saldoLog";
 
+// Per-user async lock — prevents two simultaneous operations on the same user
+const userLocks = new Map<number, Promise<void>>();
+
+export async function withUserLock<T>(telegramId: number, fn: () => Promise<T>): Promise<T> {
+  const prev = userLocks.get(telegramId) ?? Promise.resolve();
+  let releaseLock!: () => void;
+  const next = new Promise<void>((res) => { releaseLock = res; });
+  userLocks.set(telegramId, prev.then(() => next));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    releaseLock();
+    // Clean up map entry if no other waiter
+    if (userLocks.get(telegramId) === next) userLocks.delete(telegramId);
+  }
+}
+
 export type UserProfile = {
   telegramId: number;
   firstName: string;
@@ -134,6 +152,84 @@ export function updateSaldo(
   }
 
   return user;
+}
+
+/**
+ * Atomically deducts `amount` from user saldo using a single DB UPDATE.
+ * The WHERE clause (saldo >= amount) guarantees no negative balance even under concurrency.
+ * Returns { success: false } if user not found or saldo insufficient.
+ */
+export async function deductSaldoAtomic(
+  telegramId: number,
+  amount: number,
+  log?: { type: SaldoLogType; refId?: string; note?: string }
+): Promise<{ success: boolean; user: UserProfile | null }> {
+  const rows = await query<{ saldo: string }>(
+    "UPDATE users SET saldo = saldo - $1 WHERE telegram_id = $2 AND saldo >= $1 RETURNING saldo",
+    [amount, telegramId]
+  );
+
+  if (rows.length === 0) {
+    // Insufficient balance or user not found
+    return { success: false, user: users.get(telegramId) ?? null };
+  }
+
+  const newSaldo = Number(rows[0].saldo);
+  const user = users.get(telegramId);
+  if (user) {
+    const balanceBefore = user.saldo;
+    user.saldo = newSaldo;
+    if (log) {
+      logSaldo({
+        telegramId,
+        delta: -amount,
+        balanceBefore,
+        balanceAfter: newSaldo,
+        type: log.type,
+        refId: log.refId,
+        note: log.note,
+      });
+    }
+  }
+
+  return { success: true, user: user ?? null };
+}
+
+/**
+ * Atomically credits `amount` to user saldo using a single DB UPDATE.
+ * Used for topup / refund flows to avoid double-credit under concurrency.
+ */
+export async function creditSaldoAtomic(
+  telegramId: number,
+  amount: number,
+  log?: { type: SaldoLogType; refId?: string; note?: string }
+): Promise<UserProfile | null> {
+  const rows = await query<{ saldo: string }>(
+    "UPDATE users SET saldo = saldo + $1 WHERE telegram_id = $2 RETURNING saldo",
+    [amount, telegramId]
+  );
+
+  if (rows.length === 0) return null;
+
+  const newSaldo = Number(rows[0].saldo);
+  const user = users.get(telegramId);
+  if (user) {
+    const balanceBefore = user.saldo;
+    user.saldo = newSaldo;
+    if (log) {
+      logSaldo({
+        telegramId,
+        delta: amount,
+        balanceBefore,
+        balanceAfter: newSaldo,
+        type: log.type,
+        refId: log.refId,
+        note: log.note,
+      });
+    }
+  }
+
+  return user ?? null;
 }
 
 export function getAllUsers(): UserProfile[] {

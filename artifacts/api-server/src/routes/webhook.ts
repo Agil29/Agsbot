@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { logger } from "../lib/logger";
 import { getTopupById, updateTopupStatus } from "../bot/topup";
-import { updateSaldo } from "../bot/users";
+import { creditSaldoAtomic } from "../bot/users";
 import { createOrder } from "../bot/orders";
 import { placeKhfyOrder } from "../bot/khfyApi";
 import { placeDopuOrder, type DopuOrderResult } from "../bot/dopuApi";
@@ -134,7 +134,7 @@ router.post("/pakasir", async (req, res) => {
 
       logger.info({ order_id, sku, sn, pending: dopuPending }, "Order via QRIS completed");
     } else {
-      const refunded = updateSaldo(topup.userId, topup.nominal, {
+      const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
         type: "order_refund",
         refId: order_id,
         note: `Refund order QRIS gagal: ${result.error ?? ""}`,
@@ -162,7 +162,7 @@ router.post("/pakasir", async (req, res) => {
     return res.json({ ok: true, message: "Order payment processed" });
   }
 
-  const updatedUser = updateSaldo(topup.userId, topup.nominal, {
+  const updatedUser = await creditSaldoAtomic(topup.userId, topup.nominal, {
     type: "topup",
     refId: order_id,
     note: `QRIS topup Rp${topup.nominal.toLocaleString("id-ID")} via webhook Pakasir`,
