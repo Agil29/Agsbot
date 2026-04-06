@@ -77,7 +77,7 @@ export function packageInlineKeyboard(
 
   // Cek Stok URL button at top for DOPU categories
   if (opts.cekStokUrl) {
-    rows.push([{ text: "📊 Cek Stok & Kuota", web_app: { url: opts.cekStokUrl } }]);
+    rows.push([{ text: "📊 Cek Stok", web_app: { url: opts.cekStokUrl } }]);
   }
 
   // Package grid
