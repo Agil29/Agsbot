@@ -3,8 +3,10 @@ import { Settings, Save, RefreshCw, CheckCircle, AlertCircle, Zap, CreditCard, C
 import { api } from "@/lib/api";
 
 type Config = {
-  API1_BASE_URL: string;
-  API1_KEY: string;
+  DOPU_BASE_URL: string;
+  DOPU_MEMBER_ID: string;
+  DOPU_PIN: string;
+  DOPU_PASSWORD: string;
   API2_BASE_URL: string;
   API2_KEY: string;
   SUPPORT_USERNAME: string;
@@ -14,8 +16,10 @@ type Config = {
 };
 
 const EMPTY: Config = {
-  API1_BASE_URL: "",
-  API1_KEY: "",
+  DOPU_BASE_URL: "",
+  DOPU_MEMBER_ID: "",
+  DOPU_PIN: "",
+  DOPU_PASSWORD: "",
   API2_BASE_URL: "",
   API2_KEY: "",
   SUPPORT_USERNAME: "Agsstore_29",
@@ -46,6 +50,21 @@ function SecretInput({
       {isSaved && (
         <p className="text-xs text-slate-400 mt-1">Sudah tersimpan. Isi hanya jika ingin mengubah.</p>
       )}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      {children}
     </div>
   );
 }
@@ -109,6 +128,10 @@ export function BotSettings() {
     });
   }
 
+  function set(key: keyof Config) {
+    return (v: string) => setConfig((c) => ({ ...c, [key]: v }));
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-slate-400">
@@ -140,59 +163,71 @@ export function BotSettings() {
       )}
 
       <form onSubmit={handleSave} className="space-y-5">
-        {/* API 1 — DOPU */}
+
+        {/* DOPU — API 1 */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
             <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">1</span>
-            API 1 — AKRAB 1 & CIRCLE
+            DOPU — AKRAB 1 & CIRCLE
           </h2>
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Base URL</label>
+            <Field label="Base URL">
               <input
                 type="url"
-                value={config.API1_BASE_URL}
-                onChange={(e) => setConfig({ ...config, API1_BASE_URL: e.target.value })}
+                value={config.DOPU_BASE_URL}
+                onChange={(e) => set("DOPU_BASE_URL")(e.target.value)}
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="https://api.provider1.com"
+                placeholder="http://141.11.190.108:8182"
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">API Key</label>
+            </Field>
+            <Field label="Member ID">
+              <input
+                value={config.DOPU_MEMBER_ID}
+                onChange={(e) => set("DOPU_MEMBER_ID")(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="BRT423"
+              />
+            </Field>
+            <Field label="PIN">
               <SecretInput
-                value={config.API1_KEY}
-                onChange={(v) => setConfig({ ...config, API1_KEY: v })}
-                placeholder="API key..."
+                value={config.DOPU_PIN}
+                onChange={set("DOPU_PIN")}
+                placeholder="PIN akun DOPU..."
               />
-            </div>
+            </Field>
+            <Field label="Password">
+              <SecretInput
+                value={config.DOPU_PASSWORD}
+                onChange={set("DOPU_PASSWORD")}
+                placeholder="Password akun DOPU..."
+              />
+            </Field>
           </div>
         </div>
 
-        {/* API 2 — KHFY */}
+        {/* KHFY — API 2 */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
             <span className="w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">2</span>
-            API 2 — AKRAB 2
+            KHFY — AKRAB 2
           </h2>
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Base URL</label>
+            <Field label="Base URL">
               <input
                 type="url"
                 value={config.API2_BASE_URL}
-                onChange={(e) => setConfig({ ...config, API2_BASE_URL: e.target.value })}
+                onChange={(e) => set("API2_BASE_URL")(e.target.value)}
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="https://api.provider2.com"
+                placeholder="https://panel.khfy-store.com/api_v2"
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">API Key</label>
+            </Field>
+            <Field label="API Key">
               <SecretInput
                 value={config.API2_KEY}
-                onChange={(v) => setConfig({ ...config, API2_KEY: v })}
-                placeholder="API key..."
+                onChange={set("API2_KEY")}
+                placeholder="API key KHFY..."
               />
-            </div>
+            </Field>
           </div>
         </div>
 
@@ -203,39 +238,33 @@ export function BotSettings() {
             Pakasir — Payment QRIS
           </h2>
           <p className="text-xs text-slate-400 mb-4">Konfigurasi koneksi ke Pakasir untuk topup saldo via QRIS</p>
-
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Project Slug</label>
+            <Field label="Project Slug">
               <input
                 value={config.PAKASIR_SLUG}
-                onChange={(e) => setConfig({ ...config, PAKASIR_SLUG: e.target.value })}
+                onChange={(e) => set("PAKASIR_SLUG")(e.target.value)}
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="ags-store-xl"
               />
               <p className="text-xs text-slate-400 mt-1">Nama project/toko di dashboard Pakasir</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">API Key Pakasir</label>
+            </Field>
+            <Field label="API Key Pakasir">
               <SecretInput
                 value={config.PAKASIR_API_KEY}
-                onChange={(v) => setConfig({ ...config, PAKASIR_API_KEY: v })}
+                onChange={set("PAKASIR_API_KEY")}
                 placeholder="API key dari dashboard Pakasir..."
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Webhook Secret</label>
+            </Field>
+            <Field label="Webhook Secret">
               <SecretInput
                 value={config.PAKASIR_WEBHOOK_SECRET}
-                onChange={(v) => setConfig({ ...config, PAKASIR_WEBHOOK_SECRET: v })}
+                onChange={set("PAKASIR_WEBHOOK_SECRET")}
                 placeholder="Secret untuk verifikasi notifikasi Pakasir..."
               />
               <p className="text-xs text-slate-400 mt-1">Opsional — untuk mengamankan endpoint webhook dari request palsu</p>
-            </div>
+            </Field>
 
-            {/* Webhook URL info */}
+            {/* Webhook URL */}
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
               <div className="flex items-start gap-2 mb-2">
                 <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
@@ -264,18 +293,17 @@ export function BotSettings() {
         {/* General */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="font-semibold text-slate-800 mb-4">Pengaturan Umum</h2>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Username Support Telegram</label>
+          <Field label="Username Support Telegram">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">@</span>
               <input
                 value={config.SUPPORT_USERNAME}
-                onChange={(e) => setConfig({ ...config, SUPPORT_USERNAME: e.target.value })}
+                onChange={(e) => set("SUPPORT_USERNAME")(e.target.value)}
                 className="w-full pl-7 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Agsstore_29"
               />
             </div>
-          </div>
+          </Field>
         </div>
 
         <div className="flex gap-3">

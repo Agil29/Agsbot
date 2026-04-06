@@ -11,8 +11,10 @@ import { requireAdmin } from "../../lib/adminAuth";
 const router = Router();
 
 const runtimeConfig: Record<string, string> = {
-  API1_BASE_URL: process.env.API1_BASE_URL ?? "",
-  API1_KEY: process.env.API1_KEY ?? "",
+  DOPU_BASE_URL: process.env.DOPU_BASE_URL ?? "",
+  DOPU_MEMBER_ID: process.env.DOPU_MEMBER_ID ?? "",
+  DOPU_PIN: process.env.DOPU_PIN ?? "",
+  DOPU_PASSWORD: process.env.DOPU_PASSWORD ?? "",
   API2_BASE_URL: process.env.API2_BASE_URL ?? "",
   API2_KEY: process.env.API2_KEY ?? "",
   SUPPORT_USERNAME: process.env.SUPPORT_USERNAME ?? "Agsstore_29",
@@ -27,7 +29,8 @@ export function getRuntimeConfig() {
 
 router.get("/settings", requireAdmin, (_req, res) => {
   const safe = { ...runtimeConfig };
-  if (safe.API1_KEY) safe.API1_KEY = "***";
+  if (safe.DOPU_PIN) safe.DOPU_PIN = "***";
+  if (safe.DOPU_PASSWORD) safe.DOPU_PASSWORD = "***";
   if (safe.API2_KEY) safe.API2_KEY = "***";
   if (safe.PAKASIR_API_KEY) safe.PAKASIR_API_KEY = "***";
   if (safe.PAKASIR_WEBHOOK_SECRET) safe.PAKASIR_WEBHOOK_SECRET = "***";
@@ -36,7 +39,8 @@ router.get("/settings", requireAdmin, (_req, res) => {
 
 router.put("/settings", requireAdmin, (req, res) => {
   const allowed = [
-    "API1_BASE_URL", "API1_KEY", "API2_BASE_URL", "API2_KEY",
+    "DOPU_BASE_URL", "DOPU_MEMBER_ID", "DOPU_PIN", "DOPU_PASSWORD",
+    "API2_BASE_URL", "API2_KEY",
     "SUPPORT_USERNAME", "PAKASIR_SLUG", "PAKASIR_API_KEY", "PAKASIR_WEBHOOK_SECRET",
   ];
   const updated: Record<string, string> = {};
@@ -132,7 +136,7 @@ router.get("/analytics", requireAdmin, async (_req, res) => {
     });
   }
 
-  const api1Url = runtimeConfig.API1_BASE_URL;
+  const dopuUrl = runtimeConfig.DOPU_BASE_URL;
   const api2Url = runtimeConfig.API2_BASE_URL;
 
   res.json({
@@ -146,9 +150,9 @@ router.get("/analytics", requireAdmin, async (_req, res) => {
       produkTerjual12m: orders12m.filter((o: any) => o.status === "done").length,
       totalSpent12m,
       totalOrders: successOrders.length,
-      api1Configured: !!api1Url,
+      api1Configured: !!dopuUrl,
       api2Configured: !!api2Url,
-      api1Label: api1Url ? (() => { try { return new URL(api1Url).hostname; } catch { return api1Url; } })() : "Belum dikonfigurasi",
+      api1Label: dopuUrl ? (() => { try { return new URL(dopuUrl).hostname; } catch { return dopuUrl; } })() : "Belum dikonfigurasi",
       api2Label: api2Url ? (() => { try { return new URL(api2Url).hostname; } catch { return api2Url; } })() : "Belum dikonfigurasi",
       dopuBalance: dopuBal,
       khfyBalance: khfyBal,
