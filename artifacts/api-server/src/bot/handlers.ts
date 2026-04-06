@@ -930,10 +930,15 @@ export function setupHandlers(bot: TelegramBot) {
       });
 
       const detailLines: string[] = [];
+      const showDescription = pkg.source !== "digiflaz";
       if (pkg.source === "api2" && pkg.sku) {
         detailLines.push(`Produk: <b>${pkg.name}</b>`);
         const stokStatus = pkg.stock && pkg.stock > 0 ? "✅ Tersedia" : "❌ Kosong";
         detailLines.push(`Stok: <b>${stokStatus}</b>`);
+        detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
+      } else if (pkg.source === "digiflaz") {
+        detailLines.push(`Nama: <b>${pkg.name}</b>`);
+        detailLines.push(`Masa Aktif: <b>${pkg.validity}</b>`);
         detailLines.push(`Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>`);
       } else if (isDopu && pkg.sku) {
         detailLines.push(`Produk: <b>${pkg.name}</b>`);
@@ -949,7 +954,7 @@ export function setupHandlers(bot: TelegramBot) {
       await bot.editMessageText(
         `📦 <b>DETAIL PAKET</b>\n\n` +
         detailLines.join("\n") + "\n\n" +
-        (pkg.description ? `${pkg.description}\n\n` : "") +
+        (showDescription && pkg.description ? `${pkg.description}\n\n` : "") +
         `Konfirmasi order paket ini?`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: confirmOrderKeyboard(pkg.id, isDopu) }
       );

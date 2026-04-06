@@ -520,9 +520,11 @@ export function DaftarProduk({ category }: { category: string }) {
                             ? "bg-purple-100 text-purple-700"
                             : p.source === "dopu"
                             ? "bg-orange-100 text-orange-700"
+                            : p.source === "digiflaz"
+                            ? "bg-green-100 text-green-700"
                             : "bg-blue-100 text-blue-700"
                         }`}>
-                          {p.source === "manual" ? "Manual" : p.source === "dopu" ? "DOPU" : "KHFY"}
+                          {p.source === "manual" ? "Manual" : p.source === "dopu" ? "DOPU" : p.source === "digiflaz" ? "Digiflaz" : "KHFY"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
