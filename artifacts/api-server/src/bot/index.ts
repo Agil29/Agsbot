@@ -1,5 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "../lib/logger";
+import { initDb } from "../lib/initDb";
 import { setupHandlers } from "./handlers";
 import { startPackageRefreshScheduler } from "./apiService";
 import { loadUsersFromDb } from "./users";
@@ -22,7 +23,10 @@ export async function startBot() {
     return;
   }
 
-  // Load all persistent data from DB before starting
+  // Ensure all tables exist (safe to run every start)
+  await initDb();
+
+  // Load all persistent data from DB
   await Promise.all([
     loadUsersFromDb(),
     loadOrdersFromDb(),

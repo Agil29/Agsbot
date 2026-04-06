@@ -30,7 +30,6 @@ function rowToUser(row: any): UserProfile {
 
 export async function loadUsersFromDb(): Promise<void> {
   try {
-    await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(20)").catch(() => {});
     const rows = await query("SELECT * FROM users");
     users.clear();
     let maxUid = 1000;

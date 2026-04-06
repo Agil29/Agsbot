@@ -51,8 +51,6 @@ function rowToOrder(row: any): Order {
 
 export async function loadOrdersFromDb(): Promise<void> {
   try {
-    await run("ALTER TABLE orders ADD COLUMN IF NOT EXISTS baseprice NUMERIC DEFAULT 0").catch(() => {});
-    await run("ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_username VARCHAR(100)").catch(() => {});
     const rows = await query("SELECT * FROM orders ORDER BY created_at DESC");
     orders.length = 0;
     for (const row of rows) orders.push(rowToOrder(row));

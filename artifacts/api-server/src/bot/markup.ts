@@ -13,13 +13,6 @@ const markupSettings: Record<string, MarkupSetting> = {};
 
 export async function loadMarkupFromDb(): Promise<void> {
   try {
-    await run(`
-      CREATE TABLE IF NOT EXISTS markup_settings (
-        category VARCHAR(20) PRIMARY KEY,
-        type VARCHAR(10) NOT NULL DEFAULT 'flat',
-        amount NUMERIC NOT NULL DEFAULT 0
-      )
-    `);
     const rows = await query<{ category: string; type: string; amount: string }>(
       "SELECT category, type, amount FROM markup_settings"
     );
