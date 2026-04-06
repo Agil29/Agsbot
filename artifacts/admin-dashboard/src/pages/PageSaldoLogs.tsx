@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { History, ArrowUpCircle, ArrowDownCircle, RefreshCw, ShieldCheck, TrendingDown } from "lucide-react";
+import { History, ArrowUpCircle, ArrowDownCircle, RefreshCw, ShieldCheck, TrendingDown, Search, X } from "lucide-react";
 
 type SaldoLog = {
   id: number;
@@ -40,6 +40,7 @@ export function PageSaldoLogs() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
 
   async function load() {
     setLoading(true);
@@ -56,7 +57,9 @@ export function PageSaldoLogs() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = filter === "all" ? logs : logs.filter(l => l.type === filter);
+  const filtered = logs
+    .filter(l => filter === "all" || l.type === filter)
+    .filter(l => !search.trim() || String(l.telegramId).includes(search.trim()));
 
   const totalIn = logs.filter(l => l.delta > 0).reduce((s, l) => s + l.delta, 0);
   const totalOut = logs.filter(l => l.delta < 0).reduce((s, l) => s + Math.abs(l.delta), 0);
@@ -92,6 +95,22 @@ export function PageSaldoLogs() {
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="flex items-center gap-2 p-4 border-b border-slate-100 flex-wrap">
+          {/* Search by TG ID */}
+          <div className="relative mr-2">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari TG ID..."
+              className="pl-7 pr-7 py-1 text-xs border border-slate-200 rounded-full focus:outline-none focus:ring-1 focus:ring-blue-500 w-36"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={11} />
+              </button>
+            )}
+          </div>
           <span className="text-sm text-slate-500 mr-1">Filter:</span>
           {["all", "topup", "order_deduct", "order_refund", "admin_credit", "admin_deduct"].map(t => (
             <button key={t} onClick={() => setFilter(t)}

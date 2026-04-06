@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CreditCard, ShoppingBag, RefreshCw, Check, X } from "lucide-react";
+import { CreditCard, ShoppingBag, RefreshCw, Check, X, Search } from "lucide-react";
 import { api } from "@/lib/api";
 
 function formatDate(s: string) {
@@ -42,6 +42,7 @@ export function HistoryPenjualan() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [providerFilter, setProviderFilter] = useState("all");
+  const [search, setSearch] = useState("");
 
   async function load() {
     setLoading(true);
@@ -61,9 +62,9 @@ export function HistoryPenjualan() {
   const totalSpent12m = orders12m.reduce((s: number, o: any) => s + o.price, 0);
   const penghasilan12m = orders12m.reduce((s: number, o: any) => s + (o.price - (o.baseprice ?? o.price)), 0);
 
-  const filtered = providerFilter === "all"
-    ? orders
-    : orders.filter((o) => getProvider(o.category) === providerFilter);
+  const filtered = orders
+    .filter((o) => providerFilter === "all" || getProvider(o.category) === providerFilter)
+    .filter((o) => !search.trim() || String(o.id).toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
     <div>
@@ -93,8 +94,23 @@ export function HistoryPenjualan() {
         ))}
       </div>
 
-      {/* Provider filter */}
-      <div className="flex gap-2 mb-4">
+      {/* Search + Provider filter */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari Order ID..."
+            className="pl-7 pr-7 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={11} />
+            </button>
+          )}
+        </div>
         {Object.entries(PROVIDER_LABELS).map(([key, label]) => (
           <button
             key={key}
@@ -115,7 +131,9 @@ export function HistoryPenjualan() {
           {loading ? (
             <div className="py-16 text-center text-slate-400"><RefreshCw size={24} className="animate-spin mx-auto mb-2" />Memuat...</div>
           ) : filtered.length === 0 ? (
-            <div className="py-16 text-center text-slate-400">Belum ada order</div>
+            <div className="py-16 text-center text-slate-400">
+              {search ? `Tidak ada order dengan ID "${search}"` : "Belum ada order"}
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600">
@@ -173,6 +191,7 @@ export function DepositMember() {
   const [topups, setTopups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const [search, setSearch] = useState("");
 
   async function load() {
     setLoading(true);
@@ -200,10 +219,13 @@ export function DepositMember() {
   }
 
   const totalDeposit = topups.filter((t) => t.status === "completed" || t.status === "done").reduce((s: number, t: any) => s + t.nominal, 0);
+  const filteredTopups = search.trim()
+    ? topups.filter((t) => String(t.id).toLowerCase().includes(search.trim().toLowerCase()))
+    : topups;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <CreditCard size={22} className="text-blue-600" /> Deposit Member
@@ -217,12 +239,33 @@ export function DepositMember() {
 
       {msg && <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">{msg}</div>}
 
+      {/* Search by Order ID */}
+      <div className="mb-4">
+        <div className="relative w-full max-w-sm">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari Order ID..."
+            className="w-full pl-9 pr-8 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           {loading ? (
             <div className="py-16 text-center text-slate-400"><RefreshCw size={24} className="animate-spin mx-auto mb-2" />Memuat...</div>
-          ) : topups.length === 0 ? (
-            <div className="py-16 text-center text-slate-400">Belum ada topup</div>
+          ) : filteredTopups.length === 0 ? (
+            <div className="py-16 text-center text-slate-400">
+              {search ? `Tidak ada deposit dengan Order ID "${search}"` : "Belum ada topup"}
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600">
@@ -238,7 +281,7 @@ export function DepositMember() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {topups.map((t) => {
+                {filteredTopups.map((t) => {
                   const st = TOPUP_STATUS_LABELS[t.status] ?? { label: t.status, color: "bg-slate-100 text-slate-600" };
                   return (
                     <tr key={t.id} className="hover:bg-slate-50">
