@@ -50,13 +50,17 @@ export function packageInlineKeyboard(
   page = 0,
   opts: PackageKeyboardOpts = {},
 ): TelegramBot.InlineKeyboardMarkup {
+  // Separate Digiflaz packages (shown next to Cek Stok) from the regular grid
+  const digiflazPkgs = packages.filter((p) => p.source === "digiflaz");
+  const gridPkgs = packages.filter((p) => p.source !== "digiflaz");
+
   const columns = opts.columns ?? 2;
   const effectivePageSize =
-    opts.pageSize ?? (columns === 3 ? packages.length : 6);
+    opts.pageSize ?? (columns === 3 ? gridPkgs.length : 6);
   const start = page * effectivePageSize;
   const end = start + effectivePageSize;
-  const pageItems = packages.slice(start, end);
-  const totalPages = Math.ceil(packages.length / effectivePageSize);
+  const pageItems = gridPkgs.slice(start, end);
+  const totalPages = Math.ceil(gridPkgs.length / effectivePageSize);
 
   const buttons: TelegramBot.InlineKeyboardButton[] = pageItems.map((pkg) => {
     let label: string;
@@ -75,9 +79,22 @@ export function packageInlineKeyboard(
 
   const rows: TelegramBot.InlineKeyboardButton[][] = [];
 
-  // Cek Stok URL button at top for DOPU categories
+  // Top row: Cek Stok + Digiflaz shortcut buttons side by side
   if (opts.cekStokUrl) {
-    rows.push([{ text: "📊 Cek Stok", web_app: { url: opts.cekStokUrl } }]);
+    const topRow: TelegramBot.InlineKeyboardButton[] = [
+      { text: "📊 Cek Stok", web_app: { url: opts.cekStokUrl } },
+      ...digiflazPkgs.map((pkg) => ({
+        text: pkg.name + (pkg.price > 0 ? ` — Rp ${pkg.price.toLocaleString("id-ID")}` : ""),
+        callback_data: `pkg_${pkg.id}`,
+      })),
+    ];
+    rows.push(topRow);
+  } else if (digiflazPkgs.length > 0) {
+    // No cekStokUrl but still have digiflaz packages — show them in their own row
+    rows.push(digiflazPkgs.map((pkg) => ({
+      text: pkg.name + (pkg.price > 0 ? ` — Rp ${pkg.price.toLocaleString("id-ID")}` : ""),
+      callback_data: `pkg_${pkg.id}`,
+    })));
   }
 
   // Package grid

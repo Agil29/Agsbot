@@ -147,7 +147,7 @@ export async function fetchAkrab2Packages(): Promise<PackageItem[]> {
 const DIGIFLAZ_CIRCLE_SKUS: Array<{ sku: string; name: string; description: string; quota: string; validity: string }> = [
   {
     sku: "Mal30",
-    name: "Mall XL 30GB",
+    name: "Masa Aktif",
     description: "Kuota Mall 30GB\n\nnote:\n- Tidak menambah masa aktif\n- Cuma bisa order 1x dalam 1 bln\n- Tidak sedang tergabung dalam paket circle\n- Umur kartu minimal 60hr",
     quota: "30 GB",
     validity: "30 Hari",
