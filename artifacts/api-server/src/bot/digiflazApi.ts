@@ -30,10 +30,15 @@ export async function getDigiflazPrice(sku: string): Promise<number> {
       { cmd: "prepaid", username, sign },
       { timeout: 15000 }
     );
-    const list: any[] = Array.isArray(res.data?.data) ? res.data.data : [];
+    const raw = res.data;
+    const list: any[] = Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw)
+      ? raw
+      : [];
     const item = list.find((p: any) => p.buyer_sku_code === sku);
     const price = Number(item?.price ?? 0);
-    logger.info({ sku, price }, "Fetched Digiflaz price");
+    logger.info({ sku, price, listLength: list.length }, "Fetched Digiflaz price");
     return price;
   } catch (err) {
     logger.error({ err, sku }, "Failed to fetch Digiflaz price list");
