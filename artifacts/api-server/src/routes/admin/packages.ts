@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getPackages,
+  getAllPackagesAdmin,
   getAllManualPackages,
   addManualPackage,
   updateAnyPackage,
@@ -46,7 +47,7 @@ router.get("/packages/:category", requireAdmin, (req, res) => {
   if (!validateCategory(category)) {
     return res.status(400).json({ error: "Invalid category. Use akrab1, akrab2, or circle" });
   }
-  const packages = getPackages(category);
+  const packages = getAllPackagesAdmin(category);
   res.json({ success: true, category, data: packages });
 });
 

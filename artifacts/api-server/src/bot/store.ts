@@ -91,6 +91,12 @@ export function getPackages(category: Category): PackageItem[] {
   return [...api, ...manual];
 }
 
+export function getAllPackagesAdmin(category: Category): PackageItem[] {
+  const api = apiPackages[category];
+  const manual = manualPackages[category];
+  return [...api, ...manual];
+}
+
 export function getAllManualPackages(): Record<Category, PackageItem[]> {
   return manualPackages;
 }
