@@ -14,7 +14,7 @@ import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, chec
 import { recordAndCheck, isBlocked } from "./rateLimit";
 import { placeKhfyOrder } from "./khfyApi";
 import { placeDopuOrder, checkDopuOrderStatus, type DopuOrderResult } from "./dopuApi";
-import { placeDigiflazOrder, type DigiflazOrderResult } from "./digiflazApi";
+import { placeDigiflazOrder, checkDigiflazOrderStatus, type DigiflazOrderResult } from "./digiflazApi";
 import {
   mainMenuKeyboard,
   categoryInlineKeyboard,
@@ -1150,7 +1150,7 @@ export function setupHandlers(bot: TelegramBot) {
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );
 
-          // Auto-poll DOPU status: check every 1 minute for up to 30 minutes (30 attempts)
+          // Auto-poll status: check every 1 minute for up to 30 minutes (30 attempts)
           if (dopuRef) {
             const pkgName = session.selectedPackageName ?? sku;
             const dopuTrxId = sn || undefined; // DOPU's own #trx number (e.g. "403619")
@@ -1164,18 +1164,20 @@ export function setupHandlers(bot: TelegramBot) {
                 // Guard: if callback already finalized this order, stop polling
                 const currentOrd = getOrderByReffId(dopuRef);
                 if (currentOrd && (currentOrd.status === "done" || currentOrd.status === "cancelled")) {
-                  logger.info({ dopuRef, status: currentOrd.status }, "DOPU poll: order already finalized by callback — stopping");
+                  logger.info({ dopuRef, status: currentOrd.status }, "Poll: order already finalized by callback — stopping");
                   return;
                 }
 
-                const statusRes = await checkDopuOrderStatus(dopuRef, dopuTrxId);
-                logger.info({ dopuRef, attempt, status: statusRes.status }, "DOPU pending poll result");
+                // Use the right status check based on provider
+                const statusRes = useDigiflaz
+                  ? await checkDigiflazOrderStatus(dopuRef)
+                  : await checkDopuOrderStatus(dopuRef, dopuTrxId);
+                logger.info({ dopuRef, attempt, status: statusRes.status, provider: useDigiflaz ? "digiflaz" : "dopu" }, "Pending poll result");
 
                 if (statusRes.status === "success") {
                   const ord = getOrderByReffId(dopuRef);
-                  // Double-check: skip if callback already handled it
                   if (!ord || ord.status === "done" || ord.status === "cancelled") {
-                    logger.info({ dopuRef }, "DOPU poll: success ignored — order already finalized");
+                    logger.info({ dopuRef }, "Poll: success ignored — order already finalized");
                     return;
                   }
                   updateOrderStatus(ord.id, "done", statusRes.sn);
@@ -1201,15 +1203,15 @@ export function setupHandlers(bot: TelegramBot) {
 
                 if (statusRes.status === "failed") {
                   const ord = getOrderByReffId(dopuRef);
-                  // Skip if callback already cancelled and refunded
                   if (!ord || ord.status === "cancelled" || ord.status === "done") {
-                    logger.info({ dopuRef }, "DOPU poll: failed ignored — order already finalized");
+                    logger.info({ dopuRef }, "Poll: failed ignored — order already finalized");
                     return;
                   }
+                  const providerName = useDigiflaz ? "Digiflaz" : "DOPU";
                   await creditSaldoAtomic(userId, price, {
                     type: "order_refund",
                     refId: ord.id,
-                    note: `Refund order DOPU gagal: ${statusRes.error ?? ""}`,
+                    note: `Refund order ${providerName} gagal: ${(statusRes as any).error ?? ""}`,
                   });
                   updateOrderStatus(ord.id, "cancelled");
                   const refundedUser = getUser(userId);
@@ -1218,7 +1220,7 @@ export function setupHandlers(bot: TelegramBot) {
                     `❌ <b>ORDER GAGAL</b>\n\n` +
                     `📦 Produk: <b>${pkgName}</b>\n` +
                     `📱 Nomor: <code>${nomor}</code>\n\n` +
-                    `⚠️ ${statusRes.error}\n` +
+                    `⚠️ ${(statusRes as any).error}\n` +
                     `🔖 Ref: <code>${dopuRef}</code>\n\n` +
                     `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
                     `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
@@ -1231,10 +1233,10 @@ export function setupHandlers(bot: TelegramBot) {
                 if (attempt < MAX_ATTEMPTS) {
                   setTimeout(poll, INTERVAL_MS);
                 } else {
-                  logger.warn({ dopuRef, nomor, pkgName }, "DOPU order still pending after 30 min");
+                  logger.warn({ dopuRef, nomor, pkgName, provider: useDigiflaz ? "digiflaz" : "dopu" }, "Order still pending after 30 min");
                 }
               } catch (err) {
-                logger.error({ err, dopuRef, attempt }, "Error during DOPU poll");
+                logger.error({ err, dopuRef, attempt }, "Error during order status poll");
                 if (attempt < MAX_ATTEMPTS) setTimeout(poll, INTERVAL_MS);
               }
             };

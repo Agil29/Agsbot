@@ -41,6 +41,52 @@ export async function getDigiflazPrice(sku: string): Promise<number> {
   }
 }
 
+export type DigiflazStatusResult =
+  | { status: "success"; sn: string }
+  | { status: "pending" }
+  | { status: "failed"; error: string };
+
+export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazStatusResult> {
+  const { username, apiKey } = getCreds();
+  if (!username || !apiKey) return { status: "failed", error: "Digiflaz belum dikonfigurasi" };
+
+  try {
+    const sign = md5(username + apiKey + refId);
+    const res = await axios.post(
+      `${BASE_URL}/transaction`,
+      {
+        username,
+        ref_id: refId,
+        sign,
+      },
+      { timeout: 15000 }
+    );
+
+    const data = res.data?.data;
+    const status = String(data?.status ?? "").toLowerCase();
+    const sn = String(data?.sn ?? "");
+
+    logger.info({ refId, status, sn }, "Digiflaz status check result");
+
+    if (status === "sukses" || status === "success") {
+      return { status: "success", sn };
+    } else if (status === "pending") {
+      return { status: "pending" };
+    } else {
+      const error = String(data?.message ?? data?.rc ?? "Transaksi gagal");
+      return { status: "failed", error };
+    }
+  } catch (err: any) {
+    const errMsg =
+      err?.response?.data?.data?.message ??
+      err?.response?.data?.message ??
+      err?.message ??
+      "Kesalahan koneksi ke Digiflaz";
+    logger.error({ err: errMsg, refId }, "Digiflaz status check error");
+    return { status: "pending" }; // treat network error as still pending
+  }
+}
+
 export async function placeDigiflazOrder(opts: {
   sku: string;
   tujuan: string;
