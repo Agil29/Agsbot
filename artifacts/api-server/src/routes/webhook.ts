@@ -67,16 +67,19 @@ router.post("/pakasir", async (req, res) => {
 
     const useDigiflaz = source === "digiflaz";
     const useDopu = !useDigiflaz && (category === "akrab1" || category === "circle");
+    // Generate a stable refId for traceability (especially for Digiflaz/DOPU)
+    const { randomUUID } = await import("crypto");
+    const webhookRefId = randomUUID().replace(/-/g, "").slice(0, 20);
     const result = useDigiflaz
-      ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan })
+      ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan, refId: webhookRefId })
       : useDopu
-        ? await placeDopuOrder({ sku, tujuan: nomorTujuan })
+        ? await placeDopuOrder({ sku, tujuan: nomorTujuan, reffId: webhookRefId })
         : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
 
     // Extract provider-specific fields safely
     const dopuResult = useDopu ? (result as DopuOrderResult) : null;
     const digiflazResult = useDigiflaz ? (result as DigiflazOrderResult) : null;
-    const dopuRef = dopuResult?.reffId ?? digiflazResult?.refId ?? "";
+    const dopuRef = dopuResult?.reffId ?? digiflazResult?.refId ?? webhookRefId;
     const dopuPending = (dopuResult && result.success ? (result as any).pending === true : false)
       || (digiflazResult && result.success ? (result as any).pending === true : false);
 
@@ -100,7 +103,7 @@ router.post("/pakasir", async (req, res) => {
       if (bot && topup.chatId) {
         try {
           if (dopuPending) {
-            const circleNote = category === "circle"
+            const circleNote = category === "circle" && !useDigiflaz
               ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
               : "";
             await bot.sendMessage(
@@ -116,7 +119,7 @@ router.post("/pakasir", async (req, res) => {
               { parse_mode: "HTML" }
             );
           } else {
-            const circleNote = category === "circle"
+            const circleNote = category === "circle" && !useDigiflaz
               ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
               : "";
             await bot.sendMessage(
