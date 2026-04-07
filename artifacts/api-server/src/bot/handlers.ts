@@ -62,15 +62,8 @@ function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPack
     return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
   }
   if (category === "akrab1") {
-    // Auto-detect columns: if any label (name + price) is too long for 3 cols, use 2
-    const maxLen = packages.reduce((max, p) => {
-      let label = p.name;
-      if (p.price > 0) label += ` — Rp ${p.price.toLocaleString("id-ID")}`;
-      return Math.max(max, label.length);
-    }, 0);
-    const columns = maxLen > 18 ? 2 : 3;
-    // Always show all on one page (no pagination for DOPU)
-    return { columns, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
+    // 2 columns, all packages on one page, no pagination
+    return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
   }
   if (category === "akrab2") {
     return { showRefreshStock: true };
