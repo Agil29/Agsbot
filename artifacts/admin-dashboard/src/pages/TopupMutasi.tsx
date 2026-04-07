@@ -45,6 +45,7 @@ export function HistoryPenjualan() {
   const [loading, setLoading] = useState(true);
   const [providerFilter, setProviderFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -53,6 +54,16 @@ export function HistoryPenjualan() {
       setOrders(res.data ?? []);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleUpdateStatus(orderId: string, status: string) {
+    setUpdatingOrder(orderId);
+    try {
+      await api.orders.updateStatus(orderId, status);
+      await load();
+    } finally {
+      setUpdatingOrder(null);
     }
   }
 
@@ -149,6 +160,7 @@ export function HistoryPenjualan() {
                   <th className="px-4 py-3 text-left font-medium">Penghasilan</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Tanggal</th>
+                  <th className="px-4 py-3 text-left font-medium">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -177,6 +189,28 @@ export function HistoryPenjualan() {
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${st.color}`}>{st.label}</span>
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(o.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        {(o.status === "processing" || o.status === "pending") ? (
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleUpdateStatus(o.id, "done")}
+                              disabled={updatingOrder === o.id}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50"
+                            >
+                              <Check size={11} /> Selesai
+                            </button>
+                            <button
+                              onClick={() => handleUpdateStatus(o.id, "cancelled")}
+                              disabled={updatingOrder === o.id}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
+                            >
+                              <X size={11} /> Batal
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
