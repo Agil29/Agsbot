@@ -20,25 +20,45 @@ export type DigiflazOrderResult =
   | { success: true; pending: boolean; sn: string; refId: string }
   | { success: false; error: string; refId: string };
 
-export async function getDigiflazPrice(sku: string): Promise<number> {
+let _priceListCache: any[] | null = null;
+let _priceListFetchedAt = 0;
+const PRICE_LIST_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+async function fetchDigiflazPriceList(): Promise<any[]> {
+  const now = Date.now();
+  if (_priceListCache && now - _priceListFetchedAt < PRICE_LIST_TTL_MS) {
+    return _priceListCache;
+  }
   const { username, apiKey } = getCreds();
-  if (!username || !apiKey) return 0;
+  if (!username || !apiKey) return [];
+  const sign = md5(username + apiKey + "pricelist");
+  const res = await axios.post(
+    `${BASE_URL}/price-list`,
+    { cmd: "prepaid", username, sign },
+    { timeout: 15000 }
+  );
+  const raw = res.data;
+  const list: any[] = Array.isArray(raw?.data)
+    ? raw.data
+    : Array.isArray(raw)
+    ? raw
+    : [];
+  if (list.length > 0) {
+    _priceListCache = list;
+    _priceListFetchedAt = now;
+    logger.info({ count: list.length }, "Digiflaz price list cached");
+  } else {
+    logger.warn({ raw: JSON.stringify(raw).slice(0, 200) }, "Digiflaz price list empty or rate-limited");
+  }
+  return list;
+}
+
+export async function getDigiflazPrice(sku: string): Promise<number> {
   try {
-    const sign = md5(username + apiKey + "pricelist");
-    const res = await axios.post(
-      `${BASE_URL}/price-list`,
-      { cmd: "prepaid", username, sign },
-      { timeout: 15000 }
-    );
-    const raw = res.data;
-    const list: any[] = Array.isArray(raw?.data)
-      ? raw.data
-      : Array.isArray(raw)
-      ? raw
-      : [];
+    const list = await fetchDigiflazPriceList();
     const item = list.find((p: any) => p.buyer_sku_code === sku);
     const price = Number(item?.price ?? 0);
-    logger.info({ sku, price, listLength: list.length }, "Fetched Digiflaz price");
+    logger.info({ sku, price }, "Fetched Digiflaz price");
     return price;
   } catch (err) {
     logger.error({ err, sku }, "Failed to fetch Digiflaz price list");
