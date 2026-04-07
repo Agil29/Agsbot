@@ -52,9 +52,30 @@ router.post("/pakasir", async (req, res) => {
   }
 
   const expectedAmount = topup.nominal;
-  if (amount !== undefined && Number(amount) < expectedAmount) {
-    logger.warn({ order_id, amount, expectedAmount }, "Webhook amount mismatch");
-    return res.status(400).json({ ok: false, message: "Amount mismatch" });
+  const paidAmount = amount !== undefined ? Number(amount) : expectedAmount;
+  const surplus = paidAmount - expectedAmount;
+
+  if (amount !== undefined && paidAmount < expectedAmount) {
+    logger.warn({ order_id, amount: paidAmount, expectedAmount }, "Webhook amount underpaid — cancelling order");
+    updateTopupStatus(order_id, "expired");
+    const bot = getBot();
+    if (bot && topup.chatId) {
+      try {
+        await bot.sendMessage(
+          topup.chatId,
+          `❌ <b>PEMBAYARAN KURANG</b>\n\n` +
+          `Nominal yang harus dibayar: <b>Rp ${expectedAmount.toLocaleString("id-ID")}</b>\n` +
+          `Nominal yang diterima: <b>Rp ${paidAmount.toLocaleString("id-ID")}</b>\n\n` +
+          `⚠️ Transaksi dibatalkan karena pembayaran tidak sesuai.\n\n` +
+          `Silakan order ulang dan pastikan nominal QRIS dibayar penuh.\n` +
+          `Untuk refund uang yang sudah ditransfer, hubungi admin.`,
+          { parse_mode: "HTML" }
+        );
+      } catch (err) {
+        logger.error({ err }, "Failed to notify user about underpayment");
+      }
+    }
+    return res.json({ ok: true, message: "Underpayment — order cancelled" });
   }
 
   updateTopupStatus(order_id, "completed");
@@ -141,9 +162,32 @@ router.post("/pakasir", async (req, res) => {
         }
       }
 
-      logger.info({ order_id, sku, sn, pending: dopuPending }, "Order via QRIS completed");
+      // Credit surplus to saldo if user paid more than required
+      if (surplus > 0 && bot && topup.chatId) {
+        try {
+          const surplusUser = await creditSaldoAtomic(topup.userId, surplus, {
+            type: "topup",
+            refId: order_id,
+            note: `Kelebihan bayar QRIS order Rp${surplus.toLocaleString("id-ID")}`,
+          });
+          await bot.sendMessage(
+            topup.chatId,
+            `💰 <b>KELEBIHAN BAYAR DIKEMBALIKAN</b>\n\n` +
+            `Anda membayar <b>Rp ${paidAmount.toLocaleString("id-ID")}</b> untuk order senilai <b>Rp ${expectedAmount.toLocaleString("id-ID")}</b>.\n` +
+            `Selisih <b>Rp ${surplus.toLocaleString("id-ID")}</b> telah ditambahkan ke saldo Anda.\n` +
+            `Saldo sekarang: <b>Rp ${(surplusUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+            { parse_mode: "HTML" }
+          );
+        } catch (err) {
+          logger.error({ err }, "Failed to credit/notify surplus for order");
+        }
+      }
+
+      logger.info({ order_id, sku, sn, pending: dopuPending, surplus }, "Order via QRIS completed");
     } else {
-      const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
+      // Order failed — refund full paidAmount (nominal + any surplus)
+      const totalRefund = topup.nominal + (surplus > 0 ? surplus : 0);
+      const refunded = await creditSaldoAtomic(topup.userId, totalRefund, {
         type: "order_refund",
         refId: order_id,
         note: `Refund order QRIS gagal: ${result.error ?? ""}`,
@@ -156,7 +200,7 @@ router.post("/pakasir", async (req, res) => {
             `❌ <b>ORDER GAGAL</b>\n\n` +
             `⚠️ ${result.error}` +
             (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
-            `\n\n💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
+            `\n\n💰 Rp ${totalRefund.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
             `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }
           );
@@ -171,10 +215,12 @@ router.post("/pakasir", async (req, res) => {
     return res.json({ ok: true, message: "Order payment processed" });
   }
 
-  const updatedUser = await creditSaldoAtomic(topup.userId, topup.nominal, {
+  // Plain topup — credit full paidAmount (includes any surplus)
+  const totalCredit = surplus > 0 ? paidAmount : topup.nominal;
+  const updatedUser = await creditSaldoAtomic(topup.userId, totalCredit, {
     type: "topup",
     refId: order_id,
-    note: `QRIS topup Rp${topup.nominal.toLocaleString("id-ID")} via webhook Pakasir`,
+    note: `QRIS topup Rp${totalCredit.toLocaleString("id-ID")} via webhook Pakasir`,
   });
 
   if (bot && topup.chatId) {
@@ -183,7 +229,10 @@ router.post("/pakasir", async (req, res) => {
         topup.chatId,
         `✅ <b>TOPUP BERHASIL!</b>\n\n` +
         `• Order ID: <code>${topup.id}</code>\n` +
-        `• Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+        `• Nominal dibayar: <b>Rp ${paidAmount.toLocaleString("id-ID")}</b>\n` +
+        (surplus > 0
+          ? `• Termasuk kelebihan: <b>Rp ${surplus.toLocaleString("id-ID")}</b>\n`
+          : "") +
         (updatedUser
           ? `• Saldo sekarang: <b>Rp ${updatedUser.saldo.toLocaleString("id-ID")}</b>`
           : ""),
@@ -194,7 +243,7 @@ router.post("/pakasir", async (req, res) => {
     }
   }
 
-  logger.info({ order_id, userId: topup.userId }, "Topup completed via webhook");
+  logger.info({ order_id, userId: topup.userId, totalCredit, surplus }, "Topup completed via webhook");
   return res.json({ ok: true, message: "Topup processed" });
 });
 
