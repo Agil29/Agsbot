@@ -64,8 +64,9 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        target: "https://agilbot.my.id",
         changeOrigin: true,
+        secure: true,
       },
     },
     fs: {
