@@ -12,6 +12,20 @@ export function clearStoredKey() {
   localStorage.removeItem(ADMIN_KEY_STORAGE);
 }
 
+export async function apiLogin(username: string, password: string): Promise<{ token: string }> {
+  const res = await fetch(`/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error ?? "Login gagal");
+  }
+  return res.json();
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const key = getStoredKey();
   const res = await fetch(`/api/admin${path}`, {

@@ -1,25 +1,28 @@
 import { useState } from "react";
-import { Bot, Lock } from "lucide-react";
-import { setStoredKey, api } from "@/lib/api";
+import { Bot, Lock, User } from "lucide-react";
+import { setStoredKey, apiLogin } from "@/lib/api";
 
 export function Login({ onLogin }: { onLogin: () => void }) {
-  const [key, setKey] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!key.trim()) return;
+    if (!username.trim() || !password) return;
     setLoading(true);
     setError("");
-    setStoredKey(key.trim());
     try {
-      await api.stats();
+      const { token } = await apiLogin(username.trim(), password);
+      setStoredKey(token);
       onLogin();
     } catch (err: any) {
-      if (err.message === "UNAUTHORIZED") setError("API Key salah. Coba lagi.");
-      else setError("Tidak dapat terhubung ke server.");
-      setStoredKey("");
+      if (err.message === "UNAUTHORIZED" || err.message?.includes("salah")) {
+        setError("Username atau password salah.");
+      } else {
+        setError("Tidak dapat terhubung ke server.");
+      }
     } finally {
       setLoading(false);
     }
@@ -33,18 +36,33 @@ export function Login({ onLogin }: { onLogin: () => void }) {
             <Bot size={28} className="text-white" />
           </div>
           <h1 className="text-xl font-bold text-slate-800">Agsstorebot Admin</h1>
-          <p className="text-slate-500 text-sm mt-1">Masuk dengan API Key admin</p>
+          <p className="text-slate-500 text-sm mt-1">Masuk ke panel admin</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">API Key</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
+            <div className="relative">
+              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Masukkan username..."
+                autoComplete="username"
+                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
             <div className="relative">
               <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="password"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                placeholder="Masukkan API key..."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Masukkan password..."
+                autoComplete="current-password"
                 className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -52,15 +70,12 @@ export function Login({ onLogin }: { onLogin: () => void }) {
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button
             type="submit"
-            disabled={loading || !key.trim()}
+            disabled={loading || !username.trim() || !password}
             className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
           >
             {loading ? "Memeriksa..." : "Masuk"}
           </button>
         </form>
-        <p className="text-xs text-slate-400 text-center mt-4">
-          Gunakan <code className="bg-slate-100 px-1 rounded">ADMIN_API_KEY</code> dari environment
-        </p>
       </div>
     </div>
   );
