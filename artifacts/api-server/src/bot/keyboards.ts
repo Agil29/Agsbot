@@ -65,7 +65,7 @@ export function packageInlineKeyboard(
   const buttons: TelegramBot.InlineKeyboardButton[] = pageItems.map((pkg) => {
     let label: string;
     if (pkg.source === "api2") {
-      const stockText = pkg.stock && pkg.stock > 0 ? `✅ ${pkg.stock}` : "❌";
+      const stockText = pkg.stock && pkg.stock > 0 ? `✅` : "❌";
       label = `${pkg.name} ${stockText}`;
       if (pkg.price > 0) label += ` — Rp ${pkg.price.toLocaleString("id-ID")}`;
     } else if (pkg.source === "dopu") {

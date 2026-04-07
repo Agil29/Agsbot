@@ -102,6 +102,14 @@ function formatKhfyPackage(raw: Record<string, unknown>): PackageItem {
   const kosong = Number(raw.kosong ?? 0);
   const gangguan = Number(raw.gangguan ?? 0);
   const tersedia = kosong === 0 && gangguan === 0;
+
+  // Try to parse actual stock count from common KHFY field names
+  const rawStock = raw.stok ?? raw.stock ?? raw.qty ?? raw.kuantitas ?? raw.jumlah ?? raw.sisa ?? raw.unit;
+  const stockNum = rawStock !== undefined && rawStock !== null ? Number(rawStock) : NaN;
+  const stock = tersedia
+    ? (Number.isFinite(stockNum) && stockNum > 0 ? stockNum : 999)
+    : 0;
+
   return {
     id: `api2_${sku}`,
     name,
@@ -112,7 +120,7 @@ function formatKhfyPackage(raw: Record<string, unknown>): PackageItem {
     active: true,
     source: "api2",
     sku,
-    stock: tersedia ? 1 : 0,
+    stock,
   };
 }
 
