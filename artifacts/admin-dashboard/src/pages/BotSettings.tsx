@@ -77,7 +77,10 @@ export function BotSettings() {
   const [msg, setMsg] = useState({ text: "", type: "success" });
   const [copied, setCopied] = useState(false);
 
-  const webhookUrl = `${window.location.origin.replace(/:\d+$/, "")}/webhook/pakasir`;
+  const webhookBase = `https://agilbot.my.id/webhook/pakasir`;
+  const webhookUrl = config.PAKASIR_WEBHOOK_SECRET && config.PAKASIR_WEBHOOK_SECRET !== "***"
+    ? `${webhookBase}?secret=${config.PAKASIR_WEBHOOK_SECRET}`
+    : webhookBase;
 
   async function load() {
     setLoading(true);

@@ -33,7 +33,7 @@ router.get("/settings", requireAdmin, (_req, res) => {
   if (safe.DOPU_PASSWORD) safe.DOPU_PASSWORD = "***";
   if (safe.API2_KEY) safe.API2_KEY = "***";
   if (safe.PAKASIR_API_KEY) safe.PAKASIR_API_KEY = "***";
-  if (safe.PAKASIR_WEBHOOK_SECRET) safe.PAKASIR_WEBHOOK_SECRET = "***";
+  // PAKASIR_WEBHOOK_SECRET is shown to admin so the full webhook URL can be displayed
   res.json({ success: true, data: safe });
 });
 
