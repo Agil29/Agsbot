@@ -135,6 +135,11 @@ export async function checkDopuOrderStatus(reffId: string, trxId?: string): Prom
     const trimmed = raw.trim();
     const upper = trimmed.toUpperCase();
 
+    // Rate limited — signal caller to back off
+    if (upper.includes("TOO MANY") || upper.includes("RATE LIMIT") || upper.includes("BANYAK PERMINTAAN")) {
+      return { status: "ratelimit" as any };
+    }
+
     // "OK" from DOPU /cek is only an acknowledgment — NOT a status indicator.
     // DOPU returns "OK" for both failed and pending orders, so we ignore it.
     if (upper === "OK") {

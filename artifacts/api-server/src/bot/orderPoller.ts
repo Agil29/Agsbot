@@ -6,7 +6,8 @@ import { checkDopuOrderStatus } from "./dopuApi";
 import { checkDigiflazOrderStatus } from "./digiflazApi";
 
 const MAX_ATTEMPTS = 30;
-const INTERVAL_MS = 60 * 1000;
+const INTERVAL_MS = 90 * 1000;       // 90 seconds base interval
+const RATELIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes on rate limit
 
 /**
  * Start polling for a single DOPU/Digiflaz order.
@@ -125,11 +126,19 @@ export function startOrderPolling(
         return;
       }
 
+      // Rate limited — back off for 5 minutes, don't count as an attempt
+      if ((statusRes as any).status === "ratelimit") {
+        logger.warn({ reffId, provider }, "DOPU rate limited — backing off 5 min");
+        attempt--; // don't count this against max attempts
+        setTimeout(poll, RATELIMIT_BACKOFF_MS);
+        return;
+      }
+
       // Still pending
       if (attempt < MAX_ATTEMPTS) {
         setTimeout(poll, INTERVAL_MS);
       } else {
-        logger.warn({ reffId, nomor, pkgName, provider }, "Order still pending after 30 min");
+        logger.warn({ reffId, nomor, pkgName, provider }, "Order still pending after max attempts");
         activePolls.delete(reffId);
       }
     } catch (err) {
@@ -154,16 +163,18 @@ export function resumeProcessingOrders(bot: TelegramBot) {
   }
   logger.info({ count: processing.length }, "Resuming polling for processing orders after restart");
 
-  for (const order of processing) {
+  for (let i = 0; i < processing.length; i++) {
+    const order = processing[i];
     // Determine provider from category or source
     const provider: "dopu" | "digiflaz" =
       order.category === "akrab2" ? "digiflaz" : "dopu";
 
-    // Start polling immediately (delayMs=5s so server has time to fully boot)
+    // Stagger polls: 10s apart per order to avoid simultaneous API hits
+    const staggerMs = 10000 + i * 15000;
     startOrderPolling(bot, order, {
       provider,
       dopuTrxId: order.sn || undefined,
-      delayMs: 5000,
+      delayMs: staggerMs,
     });
   }
 }
