@@ -21,6 +21,14 @@ export async function startBot() {
     return;
   }
 
+  // Safety guard: only start polling when explicitly enabled.
+  // Set ENABLE_BOT=true on VPS only — prevents Replit dev instance from
+  // competing with production for Telegram updates.
+  if (process.env.ENABLE_BOT !== "true") {
+    logger.warn("ENABLE_BOT is not 'true' — bot polling disabled (HTTP server still runs)");
+    return;
+  }
+
   if (botInstance) {
     logger.info("Bot already running");
     return;
