@@ -714,6 +714,9 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
+      // Answer immediately so button spinner clears, then check Pakasir
+      await bot.answerCallbackQuery(query.id, { text: "🔄 Memeriksa pembayaran..." }).catch(() => {});
+
       // Single instant check — no polling
       const pakasirStatus = await checkPakasirStatus(topupId).catch(() => null);
       logger.info({ topupId, pakasirStatus }, "Pakasir status check after SUDAH BAYAR");
@@ -721,8 +724,6 @@ export function setupHandlers(bot: TelegramBot) {
       const isPaid = pakasirStatus && /paid|completed|settlement|success/i.test(pakasirStatus);
 
       if (isPaid) {
-        // Answer callback with success toast
-        await bot.answerCallbackQuery(query.id, { text: "✅ Pembayaran terdeteksi!" }).catch(() => {});
         updateTopupStatus(topupId, "completed");
         const updatedUser = await creditSaldoAtomic(topup.userId, topup.nominal, {
           type: "topup",
@@ -783,6 +784,7 @@ export function setupHandlers(bot: TelegramBot) {
     }
 
     if (data === "back_category") {
+      try { await bot.answerCallbackQuery(query.id); } catch { }
       setSession(userId, { step: "select_category", category: undefined, packageId: undefined });
       await bot.editMessageText("📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
         chat_id: chatId, message_id: messageId, parse_mode: "HTML",
@@ -792,6 +794,7 @@ export function setupHandlers(bot: TelegramBot) {
     }
 
     if (data === "cancel_order") {
+      try { await bot.answerCallbackQuery(query.id); } catch { }
       clearSession(userId);
       await bot.editMessageText("❌ Order dibatalkan.\n\nKetik /order untuk memulai order baru.", {
         chat_id: chatId, message_id: messageId,
