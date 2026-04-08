@@ -1406,7 +1406,7 @@ export function setupHandlers(bot: TelegramBot) {
       }
 
       const { order, qrisString } = result;
-      const expiryMinutes = 3;
+      const expiryMinutes = 10;
 
       let qrBuffer: Buffer;
       try {
@@ -1424,18 +1424,15 @@ export function setupHandlers(bot: TelegramBot) {
         `• Total: <b>Rp ${order.total.toLocaleString("id-ID")}</b>\n` +
         `• Order ID: <code>${order.id}</code>\n` +
         `• Exp: <b>${expiryMinutes} Menit</b>\n\n` +
-        `📌 <i>Terdapat fee 0.7% + 310, Untuk nominal di atas Rp 105.000 biayanya menjadi 1% + Rp 0.</i>\n\n` +
-        `<i>Scan QR menggunakan GoPay, OVO, Dana, dll.</i>`;
-
-      const qrKeyboard: TelegramBot.InlineKeyboardMarkup = {
-        inline_keyboard: [[{ text: "✅ SUDAH BAYAR", callback_data: `topup_paid_${order.id}` }]],
-      };
+        `📌 <i>Fee: 0.7% + Rp 310. Di atas Rp 105.000: 1% + Rp 0.</i>\n\n` +
+        `<i>Scan QR menggunakan GoPay, OVO, Dana, dll.</i>\n\n` +
+        `✅ <i>Setelah transfer, order akan diproses <b>otomatis</b>. Tidak perlu konfirmasi.</i>`;
 
       try {
         await bot.deleteMessage(chatId, messageId);
       } catch { }
 
-      await bot.sendPhoto(chatId, qrBuffer, { caption, parse_mode: "HTML", reply_markup: qrKeyboard });
+      await bot.sendPhoto(chatId, qrBuffer, { caption, parse_mode: "HTML" });
 
       setTimeout(async () => {
         const t = getTopupById(order.id);
