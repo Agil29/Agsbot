@@ -48,7 +48,9 @@ function rowToTopup(row: any): TopupOrder {
     status: row.status as TopupStatus,
     createdAt: new Date(row.created_at),
     expiresAt: new Date(row.expires_at),
-    orderPayload: row.order_payload ?? undefined,
+    orderPayload: row.order_payload
+      ? (typeof row.order_payload === "string" ? JSON.parse(row.order_payload) : row.order_payload)
+      : undefined,
   };
 }
 

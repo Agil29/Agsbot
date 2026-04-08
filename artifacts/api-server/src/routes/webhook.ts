@@ -86,6 +86,53 @@ router.post("/pakasir", async (req, res) => {
 
     logger.info({ order_id, sku, nomorTujuan, category, source }, "Processing order payment via QRIS webhook");
 
+    // Manual packages (no SKU) — record the order and notify admin to process manually
+    if (!sku || source === "manual") {
+      const adminIds = (process.env.ADMIN_TELEGRAM_IDS ?? "")
+        .split(",").map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n));
+      createOrder({
+        userId: topup.userId,
+        userName: topup.userName,
+        category: category as any,
+        packageId,
+        packageName,
+        price: topup.nominal,
+        baseprice: topup.nominal,
+        quota,
+        validity,
+        nomorTujuan,
+        reffId: order_id,
+        paymentMethod: "qris",
+      });
+      if (bot) {
+        for (const adminId of adminIds) {
+          bot.sendMessage(
+            adminId,
+            `🔔 <b>ORDER MANUAL MASUK (QRIS)</b>\n\n` +
+            `👤 User: <code>${topup.userId}</code>\n` +
+            `📦 Paket: <b>${packageName}</b>\n` +
+            `📱 Nomor: <code>${nomorTujuan}</code>\n` +
+            `💰 Bayar: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+            `🔖 Order ID: <code>${order_id}</code>\n\n` +
+            `⚠️ Proses order ini secara manual.`,
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+        }
+        if (topup.chatId) {
+          bot.sendMessage(
+            topup.chatId,
+            `✅ <b>PEMBAYARAN DITERIMA</b>\n\n` +
+            `Pembayaran untuk paket <b>${packageName}</b> ke nomor <code>${nomorTujuan}</code> telah diterima.\n\n` +
+            `⏳ Admin akan memproses order Anda segera. Mohon tunggu konfirmasi.\n\n` +
+            `💬 Hubungi @${process.env.SUPPORT_USERNAME ?? "admin"} jika ada pertanyaan.`,
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+        }
+      }
+      logger.info({ order_id, packageName, nomorTujuan }, "Manual QRIS order received — notified admin");
+      return res.json({ ok: true, message: "Manual order — admin notified" });
+    }
+
     const useDigiflaz = source === "digiflaz";
     const useDopu = !useDigiflaz && (category === "akrab1" || category === "circle");
     // Generate a stable refId for traceability (especially for Digiflaz/DOPU)
