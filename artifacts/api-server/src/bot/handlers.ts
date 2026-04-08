@@ -1030,8 +1030,10 @@ export function setupHandlers(bot: TelegramBot) {
       const price = session.selectedPackagePrice ?? 0;
       const nomor = session.selectedNomorTujuan ?? "";
       const sku = session.selectedSku ?? "";
+      const sessionSource = session.selectedSource ?? "";
+      const isManualSource = sessionSource === "manual" || (!sku && !sessionSource);
 
-      if (!nomor || !sku) {
+      if (!nomor || (!sku && !isManualSource)) {
         await bot.sendMessage(chatId, "❌ Sesi tidak valid. Silakan order ulang.", { parse_mode: "HTML" });
         clearSession(userId);
         return;
@@ -1076,8 +1078,9 @@ export function setupHandlers(bot: TelegramBot) {
 
       const selectedCat = session.selectedCategory ?? "akrab2";
       const selectedSource = session.selectedSource ?? "";
-      const useDigiflaz = selectedSource === "digiflaz";
-      const useDopu = !useDigiflaz && (selectedSource === "dopu" || selectedCat === "akrab1" || selectedCat === "circle");
+      const useManual = isManualSource;
+      const useDigiflaz = !useManual && selectedSource === "digiflaz";
+      const useDopu = !useManual && !useDigiflaz && (selectedSource === "dopu" || selectedCat === "akrab1" || selectedCat === "circle");
 
       // Pre-generate reffId for DOPU/Digiflaz so it can be stored before the API call
       const preReffId = randomUUID().replace(/-/g, "").slice(0, 20);
@@ -1108,11 +1111,13 @@ export function setupHandlers(bot: TelegramBot) {
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
 
-      const result = useDigiflaz
-        ? await placeDigiflazOrder({ sku, tujuan: nomor, refId: preReffId })
-        : useDopu
-          ? await placeDopuOrder({ sku, tujuan: nomor, reffId: preReffId })
-          : await placeKhfyOrder({ sku, tujuan: nomor });
+      const result = useManual
+        ? { success: true as const, sn: undefined, pending: false, message: "manual" }
+        : useDigiflaz
+          ? await placeDigiflazOrder({ sku, tujuan: nomor, refId: preReffId })
+          : useDopu
+            ? await placeDopuOrder({ sku, tujuan: nomor, reffId: preReffId })
+            : await placeKhfyOrder({ sku, tujuan: nomor });
       const updatedUser = getUser(userId);
 
       // Extract provider-specific fields safely
@@ -1294,8 +1299,10 @@ export function setupHandlers(bot: TelegramBot) {
       const price = session.selectedPackagePrice ?? 0;
       const nomor = session.selectedNomorTujuan ?? "";
       const sku = session.selectedSku ?? "";
+      const qrisSource = session.selectedSource ?? "";
+      const isQrisManual = qrisSource === "manual" || (!sku && !qrisSource);
 
-      if (!nomor || !sku) {
+      if (!nomor || (!sku && !isQrisManual)) {
         await bot.sendMessage(chatId, "❌ Sesi tidak valid. Silakan order ulang.", { parse_mode: "HTML" });
         clearSession(userId);
         return;
