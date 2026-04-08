@@ -82,17 +82,33 @@ export async function createPakasirTopup(data: {
 
   const orderId = `TOPUP${Date.now()}${data.userId}`;
 
-  try {
-    const res = await axios.post(
+  async function attemptCreate(): Promise<any> {
+    return axios.post(
       `${PAKASIR_BASE}/transactioncreate/qris`,
       { project, order_id: orderId, amount: data.nominal, api_key: apiKey },
       { headers: { "Content-Type": "application/json" }, timeout: 15000 }
     );
+  }
+
+  try {
+    let res: any;
+    try {
+      res = await attemptCreate();
+    } catch (firstErr: any) {
+      const isTimeout = firstErr?.code === "ECONNABORTED" || /timeout/i.test(firstErr?.message ?? "");
+      if (isTimeout) {
+        logger.warn({ orderId }, "Pakasir timeout on first attempt, retrying...");
+        await new Promise(r => setTimeout(r, 2000));
+        res = await attemptCreate();
+      } else {
+        throw firstErr;
+      }
+    }
 
     const payment = res.data?.payment;
     if (!payment || !payment.payment_number) {
       logger.error({ data: res.data }, "Pakasir: unexpected response");
-      return { error: "Gagal mendapatkan QRIS dari Pakasir. Coba lagi." };
+      return { error: "Gagal mendapatkan QRIS dari Pakasir. Silakan coba lagi." };
     }
 
     const now = new Date();
@@ -127,8 +143,12 @@ export async function createPakasirTopup(data: {
     return { order, qrisString: payment.payment_number };
   } catch (err: any) {
     logger.error({ err: err?.response?.data ?? err }, "Pakasir API error");
-    const msg = err?.response?.data?.message ?? err?.message ?? "Error";
-    return { error: `Gagal membuat transaksi: ${msg}` };
+    const isTimeout = err?.code === "ECONNABORTED" || /timeout/i.test(err?.message ?? "");
+    if (isTimeout) {
+      return { error: "Server QRIS sedang sibuk. Silakan coba lagi dalam beberapa detik." };
+    }
+    const msg = err?.response?.data?.message ?? err?.message ?? "Error tidak diketahui";
+    return { error: `Gagal membuat QRIS: ${msg}` };
   }
 }
 
