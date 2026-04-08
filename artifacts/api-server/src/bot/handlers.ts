@@ -1406,7 +1406,7 @@ export function setupHandlers(bot: TelegramBot) {
       }
 
       const { order, qrisString } = result;
-      const expiryMinutes = 10;
+      const expiryMinutes = 3;
 
       let qrBuffer: Buffer;
       try {

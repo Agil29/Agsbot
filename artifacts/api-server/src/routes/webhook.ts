@@ -51,12 +51,13 @@ router.post("/pakasir", async (req, res) => {
     return res.json({ ok: true, message: "Already processed" });
   }
 
-  const expectedAmount = topup.nominal;
+  // Compare against total (nominal + fee) — Pakasir sends total paid amount
+  const expectedAmount = topup.total ?? topup.nominal;
   const paidAmount = amount !== undefined ? Number(amount) : expectedAmount;
 
-  if (amount !== undefined && paidAmount !== expectedAmount) {
-    const isUnder = paidAmount < expectedAmount;
-    logger.warn({ order_id, paidAmount, expectedAmount, type: isUnder ? "underpaid" : "overpaid" }, "Webhook amount mismatch — cancelling order");
+  // Allow ±10 tolerance for rounding differences
+  if (amount !== undefined && Math.abs(paidAmount - expectedAmount) > 10) {
+    logger.warn({ order_id, paidAmount, expectedAmount }, "Webhook amount mismatch — cancelling order");
     updateTopupStatus(order_id, "expired");
     const bot = getBot();
     if (bot && topup.chatId) {
@@ -66,9 +67,8 @@ router.post("/pakasir", async (req, res) => {
           `❌ <b>PEMBAYARAN TIDAK SESUAI</b>\n\n` +
           `Nominal yang harus dibayar: <b>Rp ${expectedAmount.toLocaleString("id-ID")}</b>\n` +
           `Nominal yang diterima: <b>Rp ${paidAmount.toLocaleString("id-ID")}</b>\n\n` +
-          `⚠️ Transaksi dibatalkan karena nominal tidak sesuai.\n\n` +
-          `Silakan order ulang dan scan ulang QRIS dengan nominal yang benar.\n` +
-          `Untuk refund uang yang sudah ditransfer, hubungi admin.`,
+          `⚠️ Transaksi dibatalkan karena nominal tidak sesuai.\n` +
+          `Hubungi admin untuk refund.`,
           { parse_mode: "HTML" }
         );
       } catch (err) {
@@ -85,6 +85,17 @@ router.post("/pakasir", async (req, res) => {
     const { sku, nomorTujuan, packageName, category, packageId, quota, validity, source } = topup.orderPayload;
 
     logger.info({ order_id, sku, nomorTujuan, category, source }, "Processing order payment via QRIS webhook");
+
+    // Immediately notify user that payment is confirmed and order is being processed
+    if (bot && topup.chatId) {
+      bot.sendMessage(
+        topup.chatId,
+        `⏳ <b>Pembayaran diterima!</b>\n\n` +
+        `📦 Paket <b>${packageName}</b> ke <code>${nomorTujuan}</code> sedang diproses...\n\n` +
+        `Harap tunggu konfirmasi selesai.`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+    }
 
     // Manual packages (no SKU) — record the order and notify admin to process manually
     if (!sku || source === "manual") {
