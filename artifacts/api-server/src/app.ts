@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import dopuCallbackRouter from "./routes/dopuCallback";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -45,6 +46,9 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Mount DOPU callback at root level so https://agilbot.my.id/webhook/dopu works
+// (DOPU portal sends callbacks without /api prefix)
+app.use(dopuCallbackRouter);
 app.use("/api", router);
 
 export default app;
