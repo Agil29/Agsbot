@@ -278,17 +278,19 @@ export function setupHandlers(bot: TelegramBot) {
     const prevSession = getSession(from.id);
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
+    // Fire admin notifications in background — do NOT await so user gets instant response
     if (prevSession.step === "chat_admin") {
       const userName = `${user.firstName}${user.lastName ? " " + user.lastName : ""}`;
       const adminIds = getAdminIds();
       for (const adminId of adminIds) {
-        await bot.sendMessage(
+        bot.sendMessage(
           adminId,
           `ℹ️ <b>${userName}</b> (<code>${from.id}</code>) telah mengakhiri sesi chat.`,
           { parse_mode: "HTML" }
         ).catch(() => {});
       }
     }
+    bot.sendChatAction(msg.chat.id, "typing").catch(() => {});
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
       reply_markup: mainMenuKeyboard({ isAdmin: isAdmin(from.id) }),
