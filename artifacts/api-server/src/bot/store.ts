@@ -62,7 +62,7 @@ export async function loadStoreFromDb(): Promise<void> {
         quota: row.quota,
         validity: row.validity,
         active: row.active,
-        source: "manual",
+        source: (row.source ?? "manual") as PackageItem["source"],
         sku: row.sku ?? undefined,
         stock: row.stock ?? undefined,
       });
@@ -103,19 +103,22 @@ export function getAllManualPackages(): Record<Category, PackageItem[]> {
 
 // ─── Manual packages CRUD ──────────────────────────────────────────────────
 
-export function addManualPackage(category: Category, pkg: Omit<PackageItem, "id" | "source">): PackageItem {
+export function addManualPackage(
+  category: Category,
+  pkg: Omit<PackageItem, "id"> & { source?: PackageItem["source"] }
+): PackageItem {
   const newPkg: PackageItem = {
     ...pkg,
     id: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    source: "manual",
+    source: pkg.source ?? "manual",
   };
   manualPackages[category].push(newPkg);
 
   run(
-    `INSERT INTO manual_packages (id, category, name, description, price, quota, validity, active, sku, stock)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    `INSERT INTO manual_packages (id, category, name, description, price, quota, validity, active, sku, stock, source)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [newPkg.id, category, newPkg.name, newPkg.description, newPkg.price, newPkg.quota,
-     newPkg.validity, newPkg.active, newPkg.sku ?? null, newPkg.stock ?? null]
+     newPkg.validity, newPkg.active, newPkg.sku ?? null, newPkg.stock ?? null, newPkg.source]
   ).catch((err) => logger.error({ err }, "DB insert manual package failed"));
 
   return newPkg;
@@ -124,7 +127,7 @@ export function addManualPackage(category: Category, pkg: Omit<PackageItem, "id"
 export function updateManualPackage(
   category: Category,
   id: string,
-  updates: Partial<Omit<PackageItem, "id" | "source">>
+  updates: Partial<Omit<PackageItem, "id">>
 ): PackageItem | null {
   const idx = manualPackages[category].findIndex((p) => p.id === id);
   if (idx === -1) return null;
@@ -133,9 +136,9 @@ export function updateManualPackage(
 
   run(
     `UPDATE manual_packages SET name=$1, description=$2, price=$3, quota=$4, validity=$5,
-     active=$6, sku=$7, stock=$8 WHERE id=$9`,
+     active=$6, sku=$7, stock=$8, source=$9 WHERE id=$10`,
     [pkg.name, pkg.description, pkg.price, pkg.quota, pkg.validity,
-     pkg.active, pkg.sku ?? null, pkg.stock ?? null, id]
+     pkg.active, pkg.sku ?? null, pkg.stock ?? null, pkg.source ?? "manual", id]
   ).catch((err) => logger.error({ err }, "DB update manual package failed"));
 
   return pkg;
@@ -144,7 +147,7 @@ export function updateManualPackage(
 export function updateAnyPackage(
   category: Category,
   id: string,
-  updates: Partial<Omit<PackageItem, "id" | "source">>
+  updates: Partial<Omit<PackageItem, "id">>
 ): PackageItem | null {
   const manualIdx = manualPackages[category].findIndex((p) => p.id === id);
   if (manualIdx !== -1) {

@@ -75,9 +75,13 @@ export async function initDb(): Promise<void> {
         validity    TEXT DEFAULT '',
         active      BOOLEAN DEFAULT true,
         sku         TEXT,
-        stock       INTEGER
+        stock       INTEGER,
+        source      TEXT DEFAULT 'manual'
       )
     `);
+
+    // Add source column to existing manual_packages tables (safe migration)
+    await run(`ALTER TABLE manual_packages ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual'`);
 
     await run(`
       CREATE TABLE IF NOT EXISTS package_overrides (

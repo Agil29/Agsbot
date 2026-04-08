@@ -10,6 +10,8 @@ type Product = {
   active: boolean;
   source: string;
   sku?: string;
+  quota?: string;
+  validity?: string;
 };
 
 type ProductMarkup = {
@@ -25,7 +27,14 @@ const CATEGORY_LABELS: Record<string, string> = {
   circle: "CIRCLE",
 };
 
-const EMPTY_FORM = { name: "", description: "", price: "", active: true };
+const EMPTY_FORM = { name: "", description: "", price: "", active: true, source: "manual", sku: "", quota: "", validity: "" };
+
+const SOURCE_LABELS: Record<string, string> = {
+  manual: "Manual (tanpa API)",
+  dopu: "DOPU",
+  api2: "KHFY",
+  digiflaz: "Digiflaz",
+};
 
 function MarkupPanel({ category }: { category: string }) {
   const [markup, setMarkup] = useState<{ type: string; amount: number } | null>(null);
@@ -345,7 +354,16 @@ export function DaftarProduk({ category }: { category: string }) {
 
   function startEdit(p: Product) {
     setEditId(p.id);
-    setForm({ name: p.name, description: p.description, price: String(p.price), active: p.active });
+    setForm({
+      name: p.name,
+      description: p.description,
+      price: String(p.price),
+      active: p.active,
+      source: p.source ?? "manual",
+      sku: p.sku ?? "",
+      quota: p.quota ?? "",
+      validity: p.validity ?? "",
+    });
     setShowForm(true);
     window.scrollTo(0, 0);
   }
@@ -436,6 +454,48 @@ export function DaftarProduk({ category }: { category: string }) {
                 <option value="0">Nonaktif</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Provider</label>
+              <select
+                value={form.source}
+                onChange={(e) => setForm({ ...form, source: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Object.entries(SOURCE_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                SKU {form.source !== "manual" ? <span className="text-red-500">*</span> : <span className="text-slate-400">(opsional)</span>}
+              </label>
+              <input
+                value={form.sku}
+                onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Contoh: XDA13"
+                required={form.source !== "manual"}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Kuota</label>
+              <input
+                value={form.quota}
+                onChange={(e) => setForm({ ...form, quota: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Contoh: 10GB"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Masa Aktif</label>
+              <input
+                value={form.validity}
+                onChange={(e) => setForm({ ...form, validity: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Contoh: 30 hari"
+              />
+            </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-slate-600 mb-1">Deskripsi</label>
               <textarea
@@ -446,6 +506,11 @@ export function DaftarProduk({ category }: { category: string }) {
                 placeholder="Deskripsi paket (opsional)"
               />
             </div>
+            {form.source !== "manual" && (
+              <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-xs text-blue-700">
+                <strong>Provider {SOURCE_LABELS[form.source] ?? form.source}:</strong> pastikan SKU sesuai dengan SKU di dashboard provider. Bot akan memanggil API {SOURCE_LABELS[form.source] ?? form.source} saat ada order masuk.
+              </div>
+            )}
             <div className="col-span-2 flex gap-3 justify-end">
               <button
                 type="button"
@@ -515,17 +580,22 @@ export function DaftarProduk({ category }: { category: string }) {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          p.source === "manual"
-                            ? "bg-purple-100 text-purple-700"
-                            : p.source === "dopu"
-                            ? "bg-orange-100 text-orange-700"
-                            : p.source === "digiflaz"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-blue-100 text-blue-700"
-                        }`}>
-                          {p.source === "manual" ? "Manual" : p.source === "dopu" ? "DOPU" : p.source === "digiflaz" ? "Digiflaz" : "KHFY"}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                            p.source === "manual"
+                              ? "bg-purple-100 text-purple-700"
+                              : p.source === "dopu"
+                              ? "bg-orange-100 text-orange-700"
+                              : p.source === "digiflaz"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}>
+                            {SOURCE_LABELS[p.source] ?? p.source}
+                          </span>
+                          {p.sku && (
+                            <span className="text-xs text-slate-400 font-mono">{p.sku}</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -542,7 +612,7 @@ export function DaftarProduk({ category }: { category: string }) {
                           >
                             <Edit2 size={11} /> Edit
                           </button>
-                          {p.source === "manual" && (
+                          {p.id.startsWith("manual_") && (
                             <button
                               onClick={() => handleDelete(p.id)}
                               className="px-3 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600 flex items-center gap-1"

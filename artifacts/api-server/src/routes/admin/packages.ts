@@ -57,18 +57,23 @@ router.post("/packages/:category", requireAdmin, (req, res) => {
     return res.status(400).json({ error: "Invalid category" });
   }
 
-  const { name, description, price, quota, validity, active } = req.body;
-  if (!name || price === undefined || !quota || !validity) {
-    return res.status(400).json({ error: "name, price, quota, validity are required" });
+  const { name, description, price, quota, validity, active, source, sku } = req.body;
+  if (!name || price === undefined) {
+    return res.status(400).json({ error: "name dan price wajib diisi" });
   }
+
+  const VALID_SOURCES = ["manual", "dopu", "api2", "digiflaz"];
+  const resolvedSource = VALID_SOURCES.includes(source) ? source : "manual";
 
   const pkg = addManualPackage(category, {
     name: String(name),
     description: String(description ?? ""),
     price: Number(price),
-    quota: String(quota),
-    validity: String(validity),
+    quota: String(quota ?? ""),
+    validity: String(validity ?? ""),
     active: active !== false,
+    source: resolvedSource,
+    sku: sku ? String(sku) : undefined,
   });
 
   res.status(201).json({ success: true, data: pkg });
@@ -80,7 +85,8 @@ router.put("/packages/:category/:id", requireAdmin, (req, res) => {
     return res.status(400).json({ error: "Invalid category" });
   }
 
-  const { name, description, price, quota, validity, active } = req.body;
+  const { name, description, price, quota, validity, active, source, sku } = req.body;
+  const VALID_SOURCES = ["manual", "dopu", "api2", "digiflaz"];
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = String(name);
   if (description !== undefined) updates.description = String(description);
@@ -88,6 +94,8 @@ router.put("/packages/:category/:id", requireAdmin, (req, res) => {
   if (quota !== undefined) updates.quota = String(quota);
   if (validity !== undefined) updates.validity = String(validity);
   if (active !== undefined) updates.active = Boolean(active);
+  if (source !== undefined && VALID_SOURCES.includes(source)) updates.source = String(source);
+  if (sku !== undefined) updates.sku = sku ? String(sku) : null;
 
   const updated = updateAnyPackage(category, id, updates as any);
   if (!updated) {
