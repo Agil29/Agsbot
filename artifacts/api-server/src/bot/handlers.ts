@@ -79,15 +79,14 @@ function buildProfileText(user: ReturnType<typeof getUser>): string {
     `• Nama: <b>${user.firstName}${user.lastName ? " " + user.lastName : ""}</b>\n` +
     `• ID: <code>${user.telegramId}</code>\n` +
     (user.username ? `• User: @${user.username}\n` : "") +
-    (user.whatsapp ? `• WA: <code>${user.whatsapp}</code>\n` : "") +
+    (user.whatsapp ? `• Wa: <code>${user.whatsapp}</code>\n` : "") +
     `• UID: <b>${user.uid}</b>\n` +
     `• Tgl: <b>${formatRegDate(user.regDate)}</b>\n\n` +
     `<b>Saldo: Rp ${user.saldo.toLocaleString("id-ID")}</b>\n` +
     `━━━━━━━━━━━━━━━━━━━\n` +
     `Ada kendala? Hubungi @${SUPPORT_USERNAME}\n` +
     `━━━━━━━━━━━━━━━━━━━\n` +
-    `Topup game dan paket data all operator langsung ke : @Agsstorebot\n\n` +
-    `📦 Sila Pilih Menu di bawah:`
+    `Topup game dan paket data all operator langsung ke : @Agsstorebot`
   );
 }
 
