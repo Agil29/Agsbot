@@ -66,7 +66,7 @@ function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPack
     return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
   }
   if (category === "akrab2") {
-    return { showRefreshStock: true };
+    return { columns: 2, pageSize: packages.length || undefined, showRefreshStock: true, cekStokUrl: "https://xlstock.serversaya.site/" };
   }
   return {};
 }
