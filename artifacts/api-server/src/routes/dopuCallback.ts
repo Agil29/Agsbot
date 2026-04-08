@@ -8,17 +8,17 @@ const router = Router();
 
 const DOPU_SECRET = process.env.DOPU_CALLBACK_SECRET ?? "";
 
-// Store last 20 raw callback payloads for debugging
-const recentCallbacks: Array<{ ts: string; method: string; query: any; body: any }> = [];
+// Store last 20 raw callback payloads for debugging (exported for /api/dopu-debug)
+export const recentDopuCallbacks: Array<{ ts: string; method: string; query: any; body: any }> = [];
 
 function storeDebugPayload(method: string, query: any, body: any) {
-  recentCallbacks.unshift({
+  recentDopuCallbacks.unshift({
     ts: new Date().toISOString(),
     method,
     query,
     body,
   });
-  if (recentCallbacks.length > 20) recentCallbacks.length = 20;
+  if (recentDopuCallbacks.length > 20) recentDopuCallbacks.length = 20;
 }
 
 function verifyDopuSecret(req: any, res: any): boolean {
@@ -172,11 +172,6 @@ async function handleDopuCallback(data: Record<string, any>) {
 
   logger.info({ reffId, dopuTrxId, rawStatus, message }, "DOPU callback: status unclear — still pending");
 }
-
-// Debug endpoint: see last 20 received callback payloads (no auth for ease of debugging)
-router.get("/webhook/dopu/debug", (_req, res) => {
-  res.json({ count: recentCallbacks.length, callbacks: recentCallbacks });
-});
 
 // Support both path variants:
 // /dopu/callback (legacy root)
