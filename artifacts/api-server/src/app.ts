@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import dopuCallbackRouter from "./routes/dopuCallback";
+import webhookRouter from "./routes/webhook";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -46,11 +47,12 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Mount DOPU callback at both root and /api so any portal URL works:
-// - https://agilbot.my.id/webhook/dopu (root, legacy)
-// - https://agilbot.my.id/api/webhook/dopu (under /api, current portal setting)
+// Mount webhooks at both root and /api so any portal URL works:
+// - https://agilbot.my.id/webhook/dopu  OR  /api/webhook/dopu
+// - https://agilbot.my.id/webhook/pakasir  OR  /api/webhook/pakasir
 app.use(dopuCallbackRouter);
 app.use("/api", dopuCallbackRouter);
+app.use("/webhook", webhookRouter);
 app.use("/api", router);
 
 export default app;
