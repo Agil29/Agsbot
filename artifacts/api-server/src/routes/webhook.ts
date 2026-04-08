@@ -35,7 +35,7 @@ router.post("/pakasir", async (req, res) => {
     return res.status(400).json({ ok: false, message: "Missing fields" });
   }
 
-  const isPaid = /paid|completed|settlement|success/i.test(status);
+  const isPaid = /paid|completed|settlement|success|sukses|lunas|berhasil|^1$/i.test(status);
   if (!isPaid) {
     logger.info({ order_id, status }, "Pakasir webhook — ignoring non-paid status");
     return res.json({ ok: true, message: "Ignored non-paid status" });
@@ -182,7 +182,7 @@ router.post("/pakasir", async (req, res) => {
             `❌ <b>ORDER GAGAL</b>\n\n` +
             `⚠️ ${result.error}` +
             (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
-            `\n\n💰 Rp ${totalRefund.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
+            `\n\n💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
             `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }
           );

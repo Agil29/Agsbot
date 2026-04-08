@@ -702,15 +702,16 @@ export function setupHandlers(bot: TelegramBot) {
       const topup = getTopupById(topupId);
 
       if (!topup) {
-        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.answerCallbackQuery(query.id, { text: "⚠️ Order tidak ditemukan.", show_alert: true }).catch(() => {});
         return;
       }
       if (topup.status === "expired") {
         await bot.answerCallbackQuery(query.id, { text: "⏰ Order sudah kadaluarsa.", show_alert: true }).catch(() => {});
         return;
       }
+      // Already completed (e.g. webhook already fired)
       if (topup.status === "completed" || topup.status === "done") {
-        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.answerCallbackQuery(query.id, { text: "✅ Saldo sudah ditambahkan!", show_alert: true }).catch(() => {});
         return;
       }
 
@@ -721,7 +722,8 @@ export function setupHandlers(bot: TelegramBot) {
       const pakasirStatus = await checkPakasirStatus(topupId).catch(() => null);
       logger.info({ topupId, pakasirStatus }, "Pakasir status check after SUDAH BAYAR");
 
-      const isPaid = pakasirStatus && /paid|completed|settlement|success/i.test(pakasirStatus);
+      // Match common Pakasir status values including Indonesian terms
+      const isPaid = pakasirStatus != null && /paid|completed|settlement|success|sukses|lunas|berhasil|^1$/i.test(String(pakasirStatus));
 
       if (isPaid) {
         updateTopupStatus(topupId, "completed");
@@ -747,11 +749,15 @@ export function setupHandlers(bot: TelegramBot) {
           );
         });
       } else {
-        // Answer with alert popup — shows as a modal dialog on the user's screen
-        await bot.answerCallbackQuery(query.id, {
-          text: "❌ Pembayaran belum terdeteksi. Silakan selesaikan pembayaran terlebih dahulu.",
-          show_alert: true,
-        }).catch(() => {});
+        // Second answerCallbackQuery won't work (already answered above), so send a message instead
+        await bot.sendMessage(
+          chatId,
+          `❌ <b>Pembayaran belum terdeteksi</b>\n\n` +
+          `Status: <code>${pakasirStatus ?? "tidak diketahui"}</code>\n\n` +
+          `Jika sudah bayar, silakan tunggu beberapa saat dan coba tekan tombol lagi.\n` +
+          `Atau hubungi admin: @${SUPPORT_USERNAME}`,
+          { parse_mode: "HTML" }
+        ).catch(() => {});
       }
       return;
     }
