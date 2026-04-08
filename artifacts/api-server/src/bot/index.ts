@@ -56,7 +56,9 @@ export async function startBot() {
     await bot.deleteWebhook({ drop_pending_updates: true });
   } catch { }
 
-  bot.startPolling();
+  // interval:0 = immediately re-poll after each batch (no artificial 300ms wait)
+  // timeout:30 = long-poll 30s so the server holds the connection until an update arrives
+  bot.startPolling({ interval: 0, params: { timeout: 30 } });
 
   setupHandlers(bot);
   startPackageRefreshScheduler(5 * 60 * 1000);
