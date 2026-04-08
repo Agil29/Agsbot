@@ -727,6 +727,138 @@ export function setupHandlers(bot: TelegramBot) {
 
       if (isPaid) {
         updateTopupStatus(topupId, "completed");
+
+        // --- ORDER payment via QRIS (has orderPayload) ---
+        if (topup.orderPayload) {
+          const { sku, nomorTujuan, packageName, category, packageId, quota, validity, source } = topup.orderPayload;
+
+          // Manual package (no SKU) — notify admin to process manually
+          if (!sku || source === "manual") {
+            const adminIds = (process.env.ADMIN_TELEGRAM_IDS ?? "")
+              .split(",").map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n));
+            createOrder({
+              userId: topup.userId,
+              userName: topup.userName ?? "",
+              category: category as any,
+              packageId,
+              packageName,
+              price: topup.nominal,
+              baseprice: topup.nominal,
+              quota,
+              validity,
+              nomorTujuan,
+              reffId: topupId,
+              paymentMethod: "qris",
+            });
+            for (const adminId of adminIds) {
+              bot.sendMessage(
+                adminId,
+                `🔔 <b>ORDER MANUAL MASUK (QRIS)</b>\n\n` +
+                `👤 User: <code>${topup.userId}</code>\n` +
+                `📦 Paket: <b>${packageName}</b>\n` +
+                `📱 Nomor: <code>${nomorTujuan}</code>\n` +
+                `💰 Bayar: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+                `🔖 Order ID: <code>${topupId}</code>\n\n` +
+                `⚠️ Proses order ini secara manual.`,
+                { parse_mode: "HTML" }
+              ).catch(() => {});
+            }
+            await bot.editMessageCaption(
+              `✅ <b>PEMBAYARAN DITERIMA</b>\n\n` +
+              `Pembayaran untuk paket <b>${packageName}</b> ke nomor <code>${nomorTujuan}</code> telah diterima.\n\n` +
+              `⏳ Admin akan memproses order Anda segera. Mohon tunggu konfirmasi.\n\n` +
+              `💬 Hubungi @${SUPPORT_USERNAME} jika ada pertanyaan.`,
+              { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+            ).catch(async () => {
+              await bot.sendMessage(
+                chatId,
+                `✅ <b>PEMBAYARAN DITERIMA</b>\n\nPaket <b>${packageName}</b> → <code>${nomorTujuan}</code>\n\nAdmin akan proses segera.`,
+                { parse_mode: "HTML" }
+              );
+            });
+            return;
+          }
+
+          // Auto-process via provider API
+          const { randomUUID } = await import("crypto");
+          const refId = randomUUID().replace(/-/g, "").slice(0, 20);
+          const useDigiflaz = source === "digiflaz";
+          const useDopu = !useDigiflaz && (category === "akrab1" || category === "circle");
+
+          await bot.editMessageCaption(
+            `⏳ <b>Memproses order...</b>\n\n📦 <b>${packageName}</b>\n📱 <code>${nomorTujuan}</code>`,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          ).catch(() => {});
+
+          const result = useDigiflaz
+            ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan, refId })
+            : useDopu
+              ? await placeDopuOrder({ sku, tujuan: nomorTujuan, reffId: refId })
+              : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
+
+          const dopuResult = useDopu ? (result as DopuOrderResult) : null;
+          const dopuRef = dopuResult?.reffId ?? refId;
+
+          if (result.success) {
+            const sn = result.sn;
+            const newOrder = createOrder({
+              userId: topup.userId,
+              userName: topup.userName ?? "",
+              category: category as any,
+              packageId,
+              packageName,
+              price: topup.nominal,
+              baseprice: topup.nominal,
+              quota,
+              validity,
+              nomorTujuan,
+              sn,
+              reffId: dopuRef,
+              paymentMethod: "qris",
+            });
+
+            const _tgl = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+            const _jam = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+            await bot.editMessageCaption(
+              `━━━━━━━━━━━━━━━━━━━\n` +
+              `✅ <b>ORDER BERHASIL!</b>\n` +
+              `━━━━━━━━━━━━━━━━━━━\n` +
+              `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
+              `📦 Produk : <b>${packageName}</b>\n` +
+              `📱 Target : <code>${nomorTujuan}</code>\n` +
+              `💰 Harga : <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+              `📅 Date  : ${_tgl}\n\nJam Sukses : ${_jam} WIB\n\nTerimakasih sudah berbelanja ☺️☺️`,
+              { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+            ).catch(async () => {
+              await bot.sendMessage(
+                chatId,
+                `✅ <b>ORDER BERHASIL!</b>\n\n📦 <b>${packageName}</b>\n📱 <code>${nomorTujuan}</code>`,
+                { parse_mode: "HTML" }
+              );
+            });
+          } else {
+            const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
+              type: "order_refund",
+              refId: topupId,
+              note: `Refund order QRIS gagal: ${result.error ?? ""}`,
+            });
+            await bot.editMessageCaption(
+              `❌ <b>ORDER GAGAL</b>\n\n⚠️ ${result.error}\n\n` +
+              `💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dikembalikan ke saldo.\n` +
+              `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+              { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+            ).catch(async () => {
+              await bot.sendMessage(
+                chatId,
+                `❌ <b>ORDER GAGAL</b>\n\n${result.error}\n\n💰 Saldo Rp ${topup.nominal.toLocaleString("id-ID")} dikembalikan.`,
+                { parse_mode: "HTML" }
+              );
+            });
+          }
+          return;
+        }
+
+        // --- Regular saldo topup ---
         const updatedUser = await creditSaldoAtomic(topup.userId, topup.nominal, {
           type: "topup",
           refId: topupId,
