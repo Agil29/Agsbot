@@ -67,21 +67,24 @@ async function handleDopuCallback(data: Record<string, any>) {
     logger.info({ reffId, orderId: order.id, finalSn }, "DOPU callback: order done");
 
     if (bot) {
-      const finalUser = getUser(order.userId);
       const circleNote = order.category === "circle"
         ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
         : "";
+      const now = new Date();
+      const tgl = now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+      const jam = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
       try {
         await bot.sendMessage(
           chatId,
-          `✅ <b>ORDER BERHASIL!</b>\n` +
-          `━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `📦 Produk: <b>${order.packageName}</b>\n` +
-          `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n` +
-          `💰 Harga: <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n` +
-          (finalSn ? `🔑 SN: <code>${finalSn}</code>\n` : "") +
-          `🔖 Ref: <code>${reffId}</code>\n` +
-          (finalUser ? `\n• Saldo tersisa: <b>Rp ${finalUser.saldo.toLocaleString("id-ID")}</b>` : "") +
+          `✅ <b>ORDER BERHASIL !</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━\n` +
+          `🔖 Order ID  : <code>${order.id}</code>\n` +
+          `📦 Produk : <b>${order.packageName}</b>\n` +
+          `📱 Target : <code>${order.nomorTujuan ?? "-"}</code>\n` +
+          `💰 Harga : <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n` +
+          `📅 Date  : ${tgl}\n\n` +
+          `Jam Sukses : ${jam} WIB\n\n` +
+          `Terimakasih sudah berbelanja ☺️☺️` +
           circleNote,
           { parse_mode: "HTML" }
         );

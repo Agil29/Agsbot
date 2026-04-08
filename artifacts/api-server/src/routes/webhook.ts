@@ -106,7 +106,7 @@ router.post("/pakasir", async (req, res) => {
 
     if (result.success) {
       const sn = result.sn;
-      createOrder({
+      const newOrder = createOrder({
         userId: topup.userId,
         userName: topup.userName,
         category,
@@ -123,6 +123,9 @@ router.post("/pakasir", async (req, res) => {
 
       if (bot && topup.chatId) {
         try {
+          const _now = new Date();
+          const _tgl = _now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+          const _jam = _now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
           if (dopuPending) {
             const circleNote = category === "circle" && !useDigiflaz
               ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
@@ -131,6 +134,7 @@ router.post("/pakasir", async (req, res) => {
               topup.chatId,
               `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
               `━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
               `📦 Produk: <b>${packageName}</b>\n` +
               `📱 Nomor: <code>${nomorTujuan}</code>\n` +
               `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
@@ -145,14 +149,15 @@ router.post("/pakasir", async (req, res) => {
               : "";
             await bot.sendMessage(
               topup.chatId,
-              `✅ <b>ORDER BERHASIL!</b>\n` +
-              `━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `📦 Produk: <b>${packageName}</b>\n` +
-              `📱 Nomor: <code>${nomorTujuan}</code>\n` +
-              `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-              (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
-              (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
-              `\n<i>Pembayaran via QRIS telah dikonfirmasi.</i>` +
+              `✅ <b>ORDER BERHASIL !</b>\n` +
+              `━━━━━━━━━━━━━━━━━━━\n` +
+              `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
+              `📦 Produk : <b>${packageName}</b>\n` +
+              `📱 Target : <code>${nomorTujuan}</code>\n` +
+              `💰 Harga : <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+              `📅 Date  : ${_tgl}\n\n` +
+              `Jam Sukses : ${_jam} WIB\n\n` +
+              `Terimakasih sudah berbelanja ☺️☺️` +
               circleNote,
               { parse_mode: "HTML" }
             );

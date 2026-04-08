@@ -1133,6 +1133,7 @@ export function setupHandlers(bot: TelegramBot) {
           await bot.editMessageText(
             `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
             `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
             `📱 Nomor: <code>${nomor}</code>\n` +
             `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
@@ -1178,16 +1179,20 @@ export function setupHandlers(bot: TelegramBot) {
                   const circleSuccessNote = selectedCat === "circle" && !useDigiflaz
                     ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle.`
                     : "";
+                  const _now1 = new Date();
+                  const _tgl1 = _now1.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+                  const _jam1 = _now1.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
                   await bot.sendMessage(
                     chatId,
-                    `✅ <b>ORDER BERHASIL!</b>\n` +
-                    `━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `📦 Produk: <b>${pkgName}</b>\n` +
-                    `📱 Nomor: <code>${nomor}</code>\n` +
-                    `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
-                    (statusRes.sn ? `🔑 SN: <code>${statusRes.sn}</code>\n` : "") +
-                    `🔖 Ref: <code>${dopuRef}</code>\n` +
-                    `\n• Saldo tersisa: <b>Rp ${(finalUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
+                    `✅ <b>ORDER BERHASIL !</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━\n` +
+                    `🔖 Order ID  : <code>${ord.id}</code>\n` +
+                    `📦 Produk : <b>${pkgName}</b>\n` +
+                    `📱 Target : <code>${nomor}</code>\n` +
+                    `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+                    `📅 Date  : ${_tgl1}\n\n` +
+                    `Jam Sukses : ${_jam1} WIB\n\n` +
+                    `Terimakasih sudah berbelanja ☺️☺️` +
                     circleSuccessNote,
                     { parse_mode: "HTML" }
                   );
@@ -1240,15 +1245,19 @@ export function setupHandlers(bot: TelegramBot) {
           const circleNote = selectedCat === "circle" && !useDigiflaz
             ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
             : "";
+          const _now2 = new Date();
+          const _tgl2 = _now2.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+          const _jam2 = _now2.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
           await bot.editMessageText(
-            `✅ <b>ORDER BERHASIL!</b>\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n\n` +
-            `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
-            `📱 Nomor: <code>${nomor}</code>\n` +
-            `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
-            (sn ? `🔑 SN: <code>${sn}</code>\n` : "") +
-            (dopuRef ? `🔖 Ref: <code>${dopuRef}</code>\n` : "") +
-            `\n\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>` +
+            `✅ <b>ORDER BERHASIL !</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━\n` +
+            `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
+            `📦 Produk : <b>${session.selectedPackageName ?? sku}</b>\n` +
+            `📱 Target : <code>${nomor}</code>\n` +
+            `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+            `📅 Date  : ${_tgl2}\n\n` +
+            `Jam Sukses : ${_jam2} WIB\n\n` +
+            `Terimakasih sudah berbelanja ☺️☺️` +
             circleNote,
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );
