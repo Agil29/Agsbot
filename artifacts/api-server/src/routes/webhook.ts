@@ -29,9 +29,10 @@ router.post("/pakasir", async (req, res) => {
     project?: string;
   };
 
-  logger.info({ order_id, amount, status, project }, "Pakasir webhook received");
+  logger.info({ order_id, amount, status, project, body: req.body }, "Pakasir webhook received");
 
   if (!order_id || !status) {
+    logger.warn({ body: req.body }, "Pakasir webhook: missing order_id or status");
     return res.status(400).json({ ok: false, message: "Missing fields" });
   }
 
