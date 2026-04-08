@@ -1,18 +1,37 @@
 import { Router } from "express";
 import { logger } from "../lib/logger";
-import { getOrderByReffId, updateOrderStatus } from "../bot/orders";
-import { creditSaldoAtomic, getUser } from "../bot/users";
+import { getOrderByReffId, getOrderByDopuTrxId, updateOrderStatus } from "../bot/orders";
+import { creditSaldoAtomic } from "../bot/users";
 import { getBot } from "../bot/index";
 
 const router = Router();
 
 const DOPU_SECRET = process.env.DOPU_CALLBACK_SECRET ?? "";
 
+// Store last 20 raw callback payloads for debugging
+const recentCallbacks: Array<{ ts: string; method: string; query: any; body: any }> = [];
+
+function storeDebugPayload(method: string, query: any, body: any) {
+  recentCallbacks.unshift({
+    ts: new Date().toISOString(),
+    method,
+    query,
+    body,
+  });
+  if (recentCallbacks.length > 20) recentCallbacks.length = 20;
+}
+
 function verifyDopuSecret(req: any, res: any): boolean {
   if (!DOPU_SECRET) return true;
-  const token = (req.query.secret as string) ?? req.headers["x-dopu-secret"] ?? "";
+  const token =
+    (req.query.secret as string) ??
+    (req.query.pin as string) ??
+    (req.query.password as string) ??
+    req.headers["x-dopu-secret"] ??
+    req.body?.secret ??
+    "";
   if (token !== DOPU_SECRET) {
-    logger.warn({ ip: req.ip }, "DOPU callback: invalid secret");
+    logger.warn({ ip: req.ip, token }, "DOPU callback: invalid secret");
     res.status(401).json({ status: "unauthorized" });
     return false;
   }
@@ -20,29 +39,45 @@ function verifyDopuSecret(req: any, res: any): boolean {
 }
 
 async function handleDopuCallback(data: Record<string, any>) {
-  logger.info({ data }, "DOPU callback received");
+  // Log full raw payload so we can see exactly what DOPU sends
+  logger.info({ data }, "DOPU callback received — raw payload");
 
+  // Extract refID — try every known field name DOPU might use
   const reffId = String(
-    data.refID ?? data.reffid ?? data.ref_id ?? data.refid ?? data.reffId ?? ""
+    data.refID ?? data.reffid ?? data.ref_id ?? data.refid ?? data.reffId ?? data.referenceID ?? data.reference ?? ""
   ).trim();
+
+  // DOPU's own transaction ID (#trx number)
+  const dopuTrxId = String(
+    data.trxID ?? data.trxid ?? data.trx_id ?? data.trx ?? data.id ?? ""
+  ).trim();
+
   const rawStatus = String(data.status ?? "").trim();
-  const message = String(data.message ?? data.pesan ?? "").trim();
-  const sn = String(data.sn ?? data.serialnumber ?? data.serial ?? data.trxID ?? "").trim();
+  const message = String(data.message ?? data.pesan ?? data.keterangan ?? "").trim();
+  const sn = String(data.sn ?? data.serialnumber ?? data.serial ?? "").trim();
   const msgUpper = message.toUpperCase();
 
-  if (!reffId) {
-    logger.warn({ data }, "DOPU callback missing refID — ignoring");
+  if (!reffId && !dopuTrxId) {
+    logger.warn({ data }, "DOPU callback: no refID or trxID in payload — ignoring");
     return;
   }
 
-  const order = getOrderByReffId(reffId);
+  // Try lookup by our refID first, then fallback to DOPU's trxID
+  let order = reffId ? getOrderByReffId(reffId) : undefined;
+  if (!order && dopuTrxId) {
+    order = getOrderByDopuTrxId(dopuTrxId);
+    if (order) {
+      logger.info({ dopuTrxId, orderId: order.id }, "DOPU callback: found order via trxID fallback");
+    }
+  }
+
   if (!order) {
-    logger.warn({ reffId }, "DOPU callback: no matching order");
+    logger.warn({ reffId, dopuTrxId }, "DOPU callback: no matching order found");
     return;
   }
 
   if (order.status === "done" || order.status === "cancelled") {
-    logger.info({ reffId, orderId: order.id, status: order.status }, "DOPU callback: already finalized");
+    logger.info({ reffId, dopuTrxId, orderId: order.id, status: order.status }, "DOPU callback: already finalized");
     return;
   }
 
@@ -62,30 +97,40 @@ async function handleDopuCallback(data: Record<string, any>) {
   const chatId = order.userId;
 
   if (isSuccess) {
-    const finalSn = sn || order.sn || reffId;
+    const finalSn = sn || dopuTrxId || order.sn || reffId;
     updateOrderStatus(order.id, "done", finalSn || undefined);
-    logger.info({ reffId, orderId: order.id, finalSn }, "DOPU callback: order done");
+    logger.info({ reffId, dopuTrxId, orderId: order.id, finalSn }, "DOPU callback: order done");
 
     if (bot) {
-      const circleNote = order.category === "circle"
-        ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
-        : "";
+      const circleNote =
+        order.category === "circle"
+          ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
+          : "";
       const now = new Date();
-      const tgl = now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
-      const jam = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+      const tgl = now.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        timeZone: "Asia/Jakarta",
+      });
+      const jam = now.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Jakarta",
+      });
       try {
         await bot.sendMessage(
           chatId,
           `✅ <b>ORDER BERHASIL !</b>\n` +
-          `━━━━━━━━━━━━━━━━━━━\n` +
-          `🔖 Order ID  : <code>${order.id}</code>\n` +
-          `📦 Produk : <b>${order.packageName}</b>\n` +
-          `📱 Target : <code>${order.nomorTujuan ?? "-"}</code>\n` +
-          `💰 Harga : <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n` +
-          `📅 Date  : ${tgl}\n\n` +
-          `Jam Sukses : ${jam} WIB\n\n` +
-          `Terimakasih sudah berbelanja ☺️☺️` +
-          circleNote,
+            `━━━━━━━━━━━━━━━━━━━\n` +
+            `🔖 Order ID  : <code>${order.id}</code>\n` +
+            `📦 Produk : <b>${order.packageName}</b>\n` +
+            `📱 Target : <code>${order.nomorTujuan ?? "-"}</code>\n` +
+            `💰 Harga : <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n` +
+            `📅 Date  : ${tgl}\n\n` +
+            `Jam Sukses : ${jam} WIB\n\n` +
+            `Terimakasih sudah berbelanja ☺️☺️` +
+            circleNote,
           { parse_mode: "HTML" }
         );
       } catch (err) {
@@ -102,7 +147,7 @@ async function handleDopuCallback(data: Record<string, any>) {
       refId: order.id,
       note: `Refund DOPU callback gagal: ${message.slice(0, 100)}`,
     });
-    logger.info({ reffId, orderId: order.id }, "DOPU callback: order cancelled — saldo refunded");
+    logger.info({ reffId, dopuTrxId, orderId: order.id }, "DOPU callback: order cancelled — saldo refunded");
 
     if (bot) {
       const errMsg = message.length > 0 ? message.slice(0, 120) : "Transaksi gagal";
@@ -110,12 +155,12 @@ async function handleDopuCallback(data: Record<string, any>) {
         await bot.sendMessage(
           chatId,
           `❌ <b>ORDER GAGAL</b>\n\n` +
-          `📦 Produk: <b>${order.packageName}</b>\n` +
-          `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n\n` +
-          `⚠️ ${errMsg}\n` +
-          `🔖 Ref: <code>${reffId}</code>\n\n` +
-          `💰 Saldo <b>Rp ${order.price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
-          `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+            `📦 Produk: <b>${order.packageName}</b>\n` +
+            `📱 Nomor: <code>${order.nomorTujuan ?? "-"}</code>\n\n` +
+            `⚠️ ${errMsg}\n` +
+            `🔖 Ref: <code>${reffId || dopuTrxId}</code>\n\n` +
+            `💰 Saldo <b>Rp ${order.price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+            `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
           { parse_mode: "HTML" }
         );
       } catch (err) {
@@ -125,23 +170,33 @@ async function handleDopuCallback(data: Record<string, any>) {
     return;
   }
 
-  logger.info({ reffId, rawStatus, message }, "DOPU callback: status unclear — still pending");
+  logger.info({ reffId, dopuTrxId, rawStatus, message }, "DOPU callback: status unclear — still pending");
 }
 
-// Support both path variants: /dopu/callback (legacy) and /webhook/dopu (canonical)
+// Debug endpoint: see last 20 received callback payloads (no auth for ease of debugging)
+router.get("/webhook/dopu/debug", (_req, res) => {
+  res.json({ count: recentCallbacks.length, callbacks: recentCallbacks });
+});
+
+// Support both path variants:
+// /dopu/callback (legacy root)
+// /webhook/dopu  (canonical — also accessible at /api/webhook/dopu via app.ts)
 router.all("/dopu/callback", async (req, res) => {
+  storeDebugPayload(req.method, req.query, req.body);
   if (!verifyDopuSecret(req, res)) return;
   res.status(200).json({ status: "ok" });
   await handleDopuCallback({ ...req.query, ...req.body });
 });
 
 router.post("/webhook/dopu", async (req, res) => {
+  storeDebugPayload(req.method, req.query, req.body);
   if (!verifyDopuSecret(req, res)) return;
   res.status(200).json({ status: "ok" });
   await handleDopuCallback({ ...req.query, ...req.body });
 });
 
 router.get("/webhook/dopu", async (req, res) => {
+  storeDebugPayload(req.method, req.query, req.body);
   if (!verifyDopuSecret(req, res)) return;
   res.status(200).json({ status: "ok" });
   await handleDopuCallback(req.query as Record<string, any>);

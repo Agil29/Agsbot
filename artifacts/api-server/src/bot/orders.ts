@@ -100,6 +100,12 @@ export function getOrderByReffId(reffId: string): Order | undefined {
   return orders.find((o) => o.reffId === reffId);
 }
 
+/** Lookup by DOPU's own trxID (stored as sn field after initial response) */
+export function getOrderByDopuTrxId(trxId: string): Order | undefined {
+  if (!trxId) return undefined;
+  return orders.find((o) => o.sn === trxId && (o.status === "processing" || o.status === "paid" || o.status === "pending"));
+}
+
 export function updateOrderStatus(orderId: string, status: OrderStatus, sn?: string): Order | null {
   const order = orders.find((o) => o.id === orderId);
   if (!order) return null;
