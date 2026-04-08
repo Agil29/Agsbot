@@ -11,6 +11,7 @@ import { loadStoreFromDb } from "./store";
 import { loadMarkupFromDb } from "./markup";
 import { loadProductMarkupsFromDb } from "./productMarkup";
 import { loadBlacklistFromDb } from "./blacklist";
+import { resumeProcessingOrders } from "./orderPoller";
 
 let botInstance: TelegramBot | null = null;
 
@@ -63,6 +64,7 @@ export async function startBot() {
   setupHandlers(bot);
   startPackageRefreshScheduler(5 * 60 * 1000);
   startTopupExpiryChecker(bot);
+  resumeProcessingOrders(bot);
 
   // Register bot commands visible to all users
   const defaultCommands = [

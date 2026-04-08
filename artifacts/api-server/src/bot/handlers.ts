@@ -10,6 +10,7 @@ import { getMarkup, applyMarkup } from "./markup";
 import { getProductMarkup } from "./productMarkup";
 import { isBlacklisted } from "./blacklist";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
+import { startOrderPolling } from "./orderPoller";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
 import { recordAndCheck, isBlocked } from "./rateLimit";
 import { placeKhfyOrder } from "./khfyApi";
@@ -1151,102 +1152,14 @@ export function setupHandlers(bot: TelegramBot) {
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );
 
-          // Auto-poll status: check every 1 minute for up to 30 minutes (30 attempts)
+          // Auto-poll status via orderPoller (shared with resume-on-restart logic)
           if (dopuRef) {
-            const pkgName = session.selectedPackageName ?? sku;
-            const dopuTrxId = sn || undefined; // DOPU's own #trx number (e.g. "403619")
-            const MAX_ATTEMPTS = 30;
-            const INTERVAL_MS = 60 * 1000;
-            let attempt = 0;
-
-            const poll = async () => {
-              attempt++;
-              try {
-                // Guard: if callback already finalized this order, stop polling
-                const currentOrd = getOrderByReffId(dopuRef);
-                if (currentOrd && (currentOrd.status === "done" || currentOrd.status === "cancelled")) {
-                  logger.info({ dopuRef, status: currentOrd.status }, "Poll: order already finalized by callback — stopping");
-                  return;
-                }
-
-                // Use the right status check based on provider
-                const statusRes = useDigiflaz
-                  ? await checkDigiflazOrderStatus(dopuRef)
-                  : await checkDopuOrderStatus(dopuRef, dopuTrxId);
-                logger.info({ dopuRef, attempt, status: statusRes.status, provider: useDigiflaz ? "digiflaz" : "dopu" }, "Pending poll result");
-
-                if (statusRes.status === "success") {
-                  const ord = getOrderByReffId(dopuRef);
-                  if (!ord || ord.status === "done" || ord.status === "cancelled") {
-                    logger.info({ dopuRef }, "Poll: success ignored — order already finalized");
-                    return;
-                  }
-                  updateOrderStatus(ord.id, "done", statusRes.sn);
-                  const finalUser = getUser(userId);
-                  const circleSuccessNote = selectedCat === "circle" && !useDigiflaz
-                    ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle.`
-                    : "";
-                  const _now1 = new Date();
-                  const _tgl1 = _now1.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
-                  const _jam1 = _now1.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-                  await bot.sendMessage(
-                    chatId,
-                    `✅ <b>ORDER BERHASIL !</b>\n` +
-                    `━━━━━━━━━━━━━━━━━━━\n` +
-                    `🔖 Order ID  : <code>${ord.id}</code>\n` +
-                    `📦 Produk : <b>${pkgName}</b>\n` +
-                    `📱 Target : <code>${nomor}</code>\n` +
-                    `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
-                    `📅 Date  : ${_tgl1}\n\n` +
-                    `Jam Sukses : ${_jam1} WIB\n\n` +
-                    `Terimakasih sudah berbelanja ☺️☺️` +
-                    circleSuccessNote,
-                    { parse_mode: "HTML" }
-                  );
-                  return;
-                }
-
-                if (statusRes.status === "failed") {
-                  const ord = getOrderByReffId(dopuRef);
-                  if (!ord || ord.status === "cancelled" || ord.status === "done") {
-                    logger.info({ dopuRef }, "Poll: failed ignored — order already finalized");
-                    return;
-                  }
-                  const providerName = useDigiflaz ? "Digiflaz" : "DOPU";
-                  await creditSaldoAtomic(userId, price, {
-                    type: "order_refund",
-                    refId: ord.id,
-                    note: `Refund order ${providerName} gagal: ${(statusRes as any).error ?? ""}`,
-                  });
-                  updateOrderStatus(ord.id, "cancelled");
-                  const refundedUser = getUser(userId);
-                  await bot.sendMessage(
-                    chatId,
-                    `❌ <b>ORDER GAGAL</b>\n\n` +
-                    `📦 Produk: <b>${pkgName}</b>\n` +
-                    `📱 Nomor: <code>${nomor}</code>\n\n` +
-                    `⚠️ ${(statusRes as any).error}\n` +
-                    `🔖 Ref: <code>${dopuRef}</code>\n\n` +
-                    `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
-                    `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
-                    { parse_mode: "HTML" }
-                  );
-                  return;
-                }
-
-                // Still pending — schedule next check if attempts remain
-                if (attempt < MAX_ATTEMPTS) {
-                  setTimeout(poll, INTERVAL_MS);
-                } else {
-                  logger.warn({ dopuRef, nomor, pkgName, provider: useDigiflaz ? "digiflaz" : "dopu" }, "Order still pending after 30 min");
-                }
-              } catch (err) {
-                logger.error({ err, dopuRef, attempt }, "Error during order status poll");
-                if (attempt < MAX_ATTEMPTS) setTimeout(poll, INTERVAL_MS);
-              }
-            };
-
-            setTimeout(poll, INTERVAL_MS);
+            const dopuTrxId = sn || undefined;
+            startOrderPolling(bot, pendingOrder, {
+              provider: useDigiflaz ? "digiflaz" : "dopu",
+              dopuTrxId,
+              delayMs: 60 * 1000,
+            });
           }
         } else {
           const circleNote = selectedCat === "circle" && !useDigiflaz
