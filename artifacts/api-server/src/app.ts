@@ -46,9 +46,11 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Mount DOPU callback at root level so https://agilbot.my.id/webhook/dopu works
-// (DOPU portal sends callbacks without /api prefix)
+// Mount DOPU callback at both root and /api so any portal URL works:
+// - https://agilbot.my.id/webhook/dopu (root, legacy)
+// - https://agilbot.my.id/api/webhook/dopu (under /api, current portal setting)
 app.use(dopuCallbackRouter);
+app.use("/api", dopuCallbackRouter);
 app.use("/api", router);
 
 export default app;

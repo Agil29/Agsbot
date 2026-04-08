@@ -222,7 +222,7 @@ export async function placeDopuOrder(params: {
   // Build callback URL for real-time DOPU notification
   const serverHost = process.env.SERVER_URL
     ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
-  const callbackUrl = serverHost ? `${serverHost}/webhook/dopu` : undefined;
+  const callbackUrl = serverHost ? `${serverHost}/api/webhook/dopu` : undefined;
 
   try {
     const res = await axios.get(`${baseUrl}/trx`, {
