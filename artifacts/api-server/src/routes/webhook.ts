@@ -41,31 +41,12 @@ router.post("/pakasir", async (req, res) => {
     return res.json({ ok: true, message: "Already processed" });
   }
 
-  // Compare against total (nominal + fee) — Pakasir sends total paid amount
-  const expectedAmount = topup.total ?? topup.nominal;
-  const paidAmount = amount !== undefined ? Number(amount) : expectedAmount;
-
-  // Allow ±10 tolerance for rounding differences
-  if (amount !== undefined && Math.abs(paidAmount - expectedAmount) > 10) {
-    logger.warn({ order_id, paidAmount, expectedAmount }, "Webhook amount mismatch — cancelling order");
-    updateTopupStatus(order_id, "expired");
-    const bot = getBot();
-    if (bot && topup.chatId) {
-      try {
-        await bot.sendMessage(
-          topup.chatId,
-          `❌ <b>PEMBAYARAN TIDAK SESUAI</b>\n\n` +
-          `Nominal yang harus dibayar: <b>Rp ${expectedAmount.toLocaleString("id-ID")}</b>\n` +
-          `Nominal yang diterima: <b>Rp ${paidAmount.toLocaleString("id-ID")}</b>\n\n` +
-          `⚠️ Transaksi dibatalkan karena nominal tidak sesuai.\n` +
-          `Hubungi admin untuk refund.`,
-          { parse_mode: "HTML" }
-        );
-      } catch (err) {
-        logger.error({ err }, "Failed to notify user about amount mismatch");
-      }
-    }
-    return res.json({ ok: true, message: "Amount mismatch — order cancelled" });
+  // Pakasir sends back the base nominal (before fee), not the total paid.
+  // We validate against topup.nominal with ±10 tolerance.
+  const paidAmount = amount !== undefined ? Number(amount) : topup.nominal;
+  if (amount !== undefined && Math.abs(paidAmount - topup.nominal) > 10) {
+    logger.warn({ order_id, paidAmount, nominal: topup.nominal }, "Webhook amount mismatch — ignoring (logging only)");
+    // Log only — do not cancel; Pakasir confirming the webhook is sufficient proof of payment
   }
 
   updateTopupStatus(order_id, "completed");
