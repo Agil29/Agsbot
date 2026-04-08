@@ -952,7 +952,7 @@ export function setupHandlers(bot: TelegramBot) {
         detailLines.join("\n") + "\n\n" +
         (showDescription && pkg.description ? `${pkg.description}\n\n` : "") +
         `Konfirmasi order paket ini?`,
-        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: confirmOrderKeyboard(pkg.id, isDopu) }
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: confirmOrderKeyboard(pkg.id, isDopu, pkg.source === "api2") }
       );
       return;
     }

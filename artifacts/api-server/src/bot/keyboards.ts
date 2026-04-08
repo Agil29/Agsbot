@@ -124,11 +124,16 @@ export function packageInlineKeyboard(
 export function confirmOrderKeyboard(
   packageId: string,
   showBackToList = false,
+  replaceWithBack = false,
 ): TelegramBot.InlineKeyboardMarkup {
+  const cancelBtn: TelegramBot.InlineKeyboardButton = replaceWithBack
+    ? { text: "🔙 Kembali ke List", callback_data: "back_to_list" }
+    : { text: "❌ Batal", callback_data: "cancel_order" };
+
   const rows: TelegramBot.InlineKeyboardButton[][] = [
     [
       { text: "✅ Konfirmasi Order", callback_data: `confirm_${packageId}` },
-      { text: "❌ Batal", callback_data: "cancel_order" },
+      cancelBtn,
     ],
   ];
   if (showBackToList) {
