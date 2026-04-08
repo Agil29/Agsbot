@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CreditCard, ShoppingBag, RefreshCw, Check, X, Search } from "lucide-react";
+import { CreditCard, ShoppingBag, RefreshCw, Check, X, Search, SendHorizonal } from "lucide-react";
 import { api } from "@/lib/api";
 
 function formatDate(s: string) {
@@ -229,6 +229,12 @@ export function DepositMember() {
   const [msg, setMsg] = useState("");
   const [search, setSearch] = useState("");
 
+  // Transfer saldo form
+  const [tUserId, setTUserId] = useState("");
+  const [tAmount, setTAmount] = useState("");
+  const [tLoading, setTLoading] = useState(false);
+  const [tMsg, setTMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
   async function load() {
     setLoading(true);
     try {
@@ -236,6 +242,27 @@ export function DepositMember() {
       setTopups(res.data ?? []);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleTransfer(e: React.FormEvent) {
+    e.preventDefault();
+    const uid = parseInt(tUserId.trim(), 10);
+    const amt = parseInt(tAmount.trim(), 10);
+    if (isNaN(uid) || uid <= 0) { setTMsg({ text: "User ID tidak valid", ok: false }); return; }
+    if (isNaN(amt) || amt === 0) { setTMsg({ text: "Nominal tidak valid", ok: false }); return; }
+    setTLoading(true);
+    setTMsg(null);
+    try {
+      const res = await api.users.adjustSaldo(uid, amt);
+      const saldoNow = res?.data?.saldo;
+      const label = amt > 0 ? `+Rp ${amt.toLocaleString("id-ID")}` : `-Rp ${Math.abs(amt).toLocaleString("id-ID")}`;
+      setTMsg({ text: `✓ Berhasil transfer ${label} ke ID ${uid}${saldoNow !== undefined ? ` · Saldo sekarang Rp ${Number(saldoNow).toLocaleString("id-ID")}` : ""}`, ok: true });
+      setTUserId(""); setTAmount("");
+    } catch (e: any) {
+      setTMsg({ text: e.message ?? "Gagal transfer", ok: false });
+    } finally {
+      setTLoading(false);
     }
   }
 
@@ -274,6 +301,51 @@ export function DepositMember() {
       </div>
 
       {msg && <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">{msg}</div>}
+
+      {/* Transfer Saldo Manual */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-5">
+        <div className="flex items-center gap-2 mb-3">
+          <SendHorizonal size={16} className="text-emerald-600" />
+          <span className="font-semibold text-slate-800 text-sm">Transfer Saldo ke User</span>
+        </div>
+        <form onSubmit={handleTransfer} className="flex flex-wrap gap-2 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-500">Telegram User ID</label>
+            <input
+              type="number"
+              value={tUserId}
+              onChange={(e) => setTUserId(e.target.value)}
+              placeholder="contoh: 123456789"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-44 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-500">Nominal (- untuk kurangi)</label>
+            <input
+              type="number"
+              value={tAmount}
+              onChange={(e) => setTAmount(e.target.value)}
+              placeholder="contoh: 50000"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-36 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={tLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+          >
+            <SendHorizonal size={14} />
+            {tLoading ? "Memproses..." : "Transfer"}
+          </button>
+        </form>
+        {tMsg && (
+          <div className={`mt-2 px-3 py-2 rounded-lg text-sm ${tMsg.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+            {tMsg.text}
+          </div>
+        )}
+      </div>
 
       {/* Search by Order ID */}
       <div className="mb-4">
