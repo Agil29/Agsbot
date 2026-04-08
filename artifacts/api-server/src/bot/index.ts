@@ -83,7 +83,8 @@ export async function startBot() {
   const adminCommands = [
     ...defaultCommands,
     { command: "broadcast", description: "Broadcast pesan ke semua user" },
-    { command: "cancel", description: "Batalkan broadcast aktif" },
+    { command: "transfersaldo", description: "Transfer saldo ke user by Telegram ID" },
+    { command: "cancel", description: "Batalkan operasi aktif" },
   ];
 
   for (const adminId of adminIds) {

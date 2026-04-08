@@ -11,9 +11,12 @@ export type UserSession = {
     | "waiting_broadcast_message"
     | "broadcast_confirm"
     | "chat_admin"
-    | "waiting_admin_reply";
+    | "waiting_admin_reply"
+    | "waiting_transfer_userid"
+    | "waiting_transfer_amount";
   broadcastMessage?: string;
   replyTargetUserId?: number;
+  transferTargetId?: number;
   category?: string;
   selectedCategory?: string;
   packageId?: string;

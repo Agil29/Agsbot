@@ -5,7 +5,7 @@ import { logger } from "../lib/logger";
 import { getPackages, type Category } from "./store";
 import { refreshAllPackages } from "./apiService";
 import { getSession, setSession, clearSession } from "./sessions";
-import { getOrRegisterUser, getUser, setWhatsapp, formatRegDate, getAllUsers, deductSaldoAtomic, creditSaldoAtomic, withUserLock } from "./users";
+import { getOrRegisterUser, getUser, setWhatsapp, formatRegDate, getAllUsers, deductSaldoAtomic, creditSaldoAtomic, withUserLock, updateSaldo } from "./users";
 import { getMarkup, applyMarkup } from "./markup";
 import { getProductMarkup } from "./productMarkup";
 import { isBlacklisted } from "./blacklist";
@@ -258,6 +258,18 @@ export function setupHandlers(bot: TelegramBot) {
     await startBroadcastFlow(msg.chat.id, userId);
   });
 
+  bot.onText(/\/transfersaldo/, async (msg) => {
+    const userId = msg.from!.id;
+    if (!isAdmin(userId)) return;
+    clearSession(userId);
+    setSession(userId, { step: "waiting_transfer_userid" });
+    await bot.sendMessage(
+      msg.chat.id,
+      `💸 <b>Transfer Saldo ke User</b>\n\nMasukkan <b>Telegram User ID</b> tujuan:\n<i>Ketik /cancel untuk membatalkan</i>`,
+      { parse_mode: "HTML" }
+    );
+  });
+
   bot.onText(/\/cancel/, async (msg) => {
     const userId = msg.from!.id;
     if (!isAdmin(userId)) return;
@@ -268,6 +280,9 @@ export function setupHandlers(bot: TelegramBot) {
     } else if (session.step === "waiting_admin_reply") {
       clearSession(userId);
       await bot.sendMessage(msg.chat.id, "❌ Mode balas dibatalkan.", { parse_mode: "HTML" });
+    } else if (session.step === "waiting_transfer_userid" || session.step === "waiting_transfer_amount") {
+      clearSession(userId);
+      await bot.sendMessage(msg.chat.id, "❌ Transfer saldo dibatalkan.", { parse_mode: "HTML" });
     }
   });
 
@@ -546,6 +561,77 @@ export function setupHandlers(bot: TelegramBot) {
           adminReplyMap.set(forwarded.message_id, msg.chat.id);
         } catch { }
       }
+      return;
+    }
+
+    if (session.step === "waiting_transfer_userid" && isAdmin(from.id)) {
+      const raw = msg.text.trim();
+      const targetId = parseInt(raw, 10);
+      if (isNaN(targetId) || targetId <= 0) {
+        await bot.sendMessage(msg.chat.id, "❌ User ID tidak valid. Masukkan angka Telegram User ID yang benar:", { parse_mode: "HTML" });
+        return;
+      }
+      const targetUser = getUser(targetId);
+      if (!targetUser) {
+        await bot.sendMessage(msg.chat.id, `❌ User dengan ID <code>${targetId}</code> tidak ditemukan di sistem.\nPastikan user sudah pernah membuka bot.`, { parse_mode: "HTML" });
+        return;
+      }
+      setSession(from.id, { step: "waiting_transfer_amount", transferTargetId: targetId });
+      const displayName = [targetUser.firstName, targetUser.lastName].filter(Boolean).join(" ");
+      await bot.sendMessage(
+        msg.chat.id,
+        `👤 User ditemukan: <b>${displayName}</b> (@${targetUser.username ?? "-"})\n` +
+        `💰 Saldo saat ini: <b>Rp ${targetUser.saldo.toLocaleString("id-ID")}</b>\n\n` +
+        `Masukkan nominal saldo:\n• Positif untuk <b>tambah</b> (contoh: <code>50000</code>)\n• Negatif untuk <b>kurangi</b> (contoh: <code>-25000</code>)\n\n<i>Ketik /cancel untuk membatalkan</i>`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    if (session.step === "waiting_transfer_amount" && isAdmin(from.id)) {
+      const targetId = session.transferTargetId;
+      if (!targetId) { clearSession(from.id); return; }
+      const raw = msg.text.trim();
+      const amount = parseInt(raw, 10);
+      if (isNaN(amount) || amount === 0) {
+        await bot.sendMessage(msg.chat.id, "❌ Nominal tidak valid. Masukkan angka (positif atau negatif):", { parse_mode: "HTML" });
+        return;
+      }
+      const targetUser = getUser(targetId);
+      if (!targetUser) {
+        clearSession(from.id);
+        await bot.sendMessage(msg.chat.id, "❌ User tidak ditemukan.", { parse_mode: "HTML" });
+        return;
+      }
+      const saldoBefore = targetUser.saldo;
+      const logType = amount >= 0 ? "admin_credit" : "admin_deduct";
+      const updated = updateSaldo(targetId, amount, { type: logType, note: `Transfer by admin ${from.id}` });
+      clearSession(from.id);
+      if (!updated) {
+        await bot.sendMessage(msg.chat.id, "❌ Gagal memperbarui saldo.", { parse_mode: "HTML" });
+        return;
+      }
+      const label = amount > 0
+        ? `+Rp ${amount.toLocaleString("id-ID")}`
+        : `-Rp ${Math.abs(amount).toLocaleString("id-ID")}`;
+      const displayName = [targetUser.firstName, targetUser.lastName].filter(Boolean).join(" ");
+      await bot.sendMessage(
+        msg.chat.id,
+        `✅ <b>Transfer Berhasil!</b>\n\n` +
+        `👤 User: <b>${displayName}</b> (<code>${targetId}</code>)\n` +
+        `💸 Nominal: <b>${label}</b>\n` +
+        `📊 Saldo sebelum: Rp ${saldoBefore.toLocaleString("id-ID")}\n` +
+        `📊 Saldo sesudah: Rp ${updated.saldo.toLocaleString("id-ID")}`,
+        { parse_mode: "HTML" }
+      );
+      // Notify target user
+      bot.sendMessage(
+        targetId,
+        amount > 0
+          ? `💰 <b>Saldo Ditambahkan!</b>\n\nAdmin menambahkan <b>Rp ${amount.toLocaleString("id-ID")}</b> ke saldo Anda.\nSaldo sekarang: <b>Rp ${updated.saldo.toLocaleString("id-ID")}</b>`
+          : `💰 <b>Saldo Dikurangi</b>\n\nAdmin mengurangi <b>Rp ${Math.abs(amount).toLocaleString("id-ID")}</b> dari saldo Anda.\nSaldo sekarang: <b>Rp ${updated.saldo.toLocaleString("id-ID")}</b>`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
       return;
     }
 
