@@ -361,25 +361,29 @@ export function setupHandlers(bot: TelegramBot) {
     await bot.sendMessage(msg.chat.id, "⏳ Mengecek koneksi ke semua provider...", { parse_mode: "HTML" });
 
     // Test DOPU
-    let dopuStatus = "⏳ Mengecek...";
+    let dopuStatus = "";
     try {
-      const bal = await getDopuBalance();
-      dopuStatus = bal !== null
-        ? `✅ OK — Saldo: <b>Rp ${bal.toLocaleString("id-ID")}</b>`
-        : `⚠️ Terhubung tapi format saldo tidak dikenali`;
+      const res = await getDopuBalance();
+      if (res.balance !== null) {
+        dopuStatus = `✅ OK — Saldo: <b>Rp ${res.balance.toLocaleString("id-ID")}</b>`;
+      } else {
+        dopuStatus = `⚠️ Terhubung, format tidak dikenali\n<code>${res.raw}</code>`;
+      }
     } catch (e: any) {
-      dopuStatus = `❌ Error: ${String(e?.message ?? e).slice(0, 80)}`;
+      dopuStatus = `❌ Tidak terhubung: ${String(e?.message ?? e).slice(0, 80)}`;
     }
 
     // Test KHFY
-    let khfyStatus = "⏳ Mengecek...";
+    let khfyStatus = "";
     try {
-      const bal = await getKhfyBalance();
-      khfyStatus = bal !== null
-        ? `✅ OK — Saldo: <b>Rp ${bal.toLocaleString("id-ID")}</b>`
-        : `⚠️ Terhubung tapi tidak ada saldo endpoint / format tidak dikenali`;
+      const res = await getKhfyBalance();
+      if (res.balance !== null) {
+        khfyStatus = `✅ OK — Saldo: <b>Rp ${res.balance.toLocaleString("id-ID")}</b>`;
+      } else {
+        khfyStatus = `⚠️ Terhubung, format tidak dikenali\n<code>${res.raw}</code>`;
+      }
     } catch (e: any) {
-      khfyStatus = `❌ Error: ${String(e?.message ?? e).slice(0, 80)}`;
+      khfyStatus = `❌ Tidak terhubung: ${String(e?.message ?? e).slice(0, 80)}`;
     }
 
     // Basic env check for Digiflazz
