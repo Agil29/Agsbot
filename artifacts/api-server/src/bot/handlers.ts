@@ -1011,25 +1011,38 @@ export function setupHandlers(bot: TelegramBot) {
                 );
               });
             } else {
-              const _tgl = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
-              const _jam = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+              // KHFY (synchronous) — tampilkan "processing" dulu, lalu kirim "berhasil"
+              const _tgl = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+              const _jam = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+              const circleNoteQ = category === "circle"
+                ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
+                : "";
+
+              // Step 1: Edit QRIS message to processing notification
               await bot.editMessageCaption(
-                `━━━━━━━━━━━━━━━━━━━\n` +
+                `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
+                `📦 Produk: <b>${packageName}</b>\n` +
+                `📱 Nomor: <code>${nomorTujuan}</code>\n` +
+                `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+                `\n⏳ <i>Paket sedang diproses...</i>`,
+                { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+              ).catch(() => {});
+
+              // Step 2: Send new success message
+              await bot.sendMessage(
+                chatId,
                 `✅ <b>ORDER BERHASIL!</b>\n` +
                 `━━━━━━━━━━━━━━━━━━━\n` +
                 `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
                 `📦 Produk : <b>${packageName}</b>\n` +
                 `📱 Target : <code>${nomorTujuan}</code>\n` +
                 `💰 Harga : <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-                `📅 Date  : ${_tgl}\n\nJam Sukses : ${_jam} WIB\n\nTerimakasih sudah berbelanja ☺️☺️`,
-                { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-              ).catch(async () => {
-                await bot.sendMessage(
-                  chatId,
-                  `✅ <b>ORDER BERHASIL!</b>\n\n📦 <b>${packageName}</b>\n📱 <code>${nomorTujuan}</code>`,
-                  { parse_mode: "HTML" }
-                );
-              });
+                `📅 Date  : ${_tgl}\n\nJam Sukses : ${_jam} WIB\n\nTerimakasih sudah berbelanja ☺️☺️` +
+                circleNoteQ,
+                { parse_mode: "HTML" }
+              );
             }
           } else {
             const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
@@ -1471,7 +1484,7 @@ export function setupHandlers(bot: TelegramBot) {
         updateOrderStatus(pendingOrder.id, dopuPending ? "processing" : "done", sn || undefined);
 
         if (dopuPending) {
-          // DOPU async — order accepted but not yet confirmed
+          // DOPU/Digiflaz async — order accepted but not yet confirmed
           const circleNote = selectedCat === "circle" && !useDigiflaz
             ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
             : "";
@@ -1499,24 +1512,41 @@ export function setupHandlers(bot: TelegramBot) {
             });
           }
         } else {
-          const circleNote = selectedCat === "circle" && !useDigiflaz
+          // KHFY (synchronous) — tampilkan "processing" dulu, lalu kirim "berhasil"
+          const circleNote = selectedCat === "circle"
             ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
             : "";
           const _now2 = new Date();
           const _tgl2 = _now2.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
           const _jam2 = _now2.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+
+          // Step 1: Edit message to processing notification
           await bot.editMessageText(
+            `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
+            `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
+            `📱 Nomor: <code>${nomor}</code>\n` +
+            `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+            `\n⏳ <i>Paket sedang diproses...</i>`,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          ).catch(() => {});
+
+          // Step 2: Send new success message
+          await bot.sendMessage(
+            chatId,
             `✅ <b>ORDER BERHASIL !</b>\n` +
             `━━━━━━━━━━━━━━━━━━━\n` +
             `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
             `📦 Produk : <b>${session.selectedPackageName ?? sku}</b>\n` +
             `📱 Target : <code>${nomor}</code>\n` +
             `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+            `• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>\n` +
             `📅 Date  : ${_tgl2}\n\n` +
             `Jam Sukses : ${_jam2} WIB\n\n` +
             `Terimakasih sudah berbelanja ☺️☺️` +
             circleNote,
-            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+            { parse_mode: "HTML" }
           );
         }
       } else {
