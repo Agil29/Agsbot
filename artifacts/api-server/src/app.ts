@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import dopuCallbackRouter from "./routes/dopuCallback";
+import digiflazCallbackRouter from "./routes/digiflazCallback";
 import webhookRouter from "./routes/webhook";
 import { logger } from "./lib/logger";
 
@@ -52,6 +53,8 @@ app.use(express.urlencoded({ extended: true }));
 // - https://agilbot.my.id/webhook/pakasir  OR  /api/webhook/pakasir
 app.use(dopuCallbackRouter);
 app.use("/api", dopuCallbackRouter);
+app.use(digiflazCallbackRouter);
+app.use("/api", digiflazCallbackRouter);
 app.use("/webhook", webhookRouter);
 app.use("/api", router);
 

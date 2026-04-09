@@ -80,6 +80,7 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
     const res = await axios.post(
       `${BASE_URL}/transaction`,
       {
+        commands: "inq-pasca",
         username,
         ref_id: refId,
         sign,
@@ -87,28 +88,46 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
       { timeout: 15000 }
     );
 
-    const data = res.data?.data;
-    const status = String(data?.status ?? "").toLowerCase();
-    const sn = String(data?.sn ?? "");
+    // Try both response shapes: { data: { ... } } and { ... }
+    const data = res.data?.data ?? res.data;
+    const status = String(data?.status ?? data?.message ?? "").toLowerCase();
+    const sn = String(data?.sn ?? data?.serial_number ?? "");
 
-    logger.info({ refId, status, sn }, "Digiflaz status check result");
+    logger.info({ refId, status, sn, raw: JSON.stringify(res.data).slice(0, 300) }, "Digiflaz status check result");
 
     if (status === "sukses" || status === "success") {
       return { status: "success", sn };
-    } else if (status === "pending") {
+    } else if (
+      status === "pending" ||
+      status === "" ||
+      status.includes("pending") ||
+      status.includes("antri") ||
+      status.includes("proses")
+    ) {
       return { status: "pending" };
-    } else {
-      const error = String(data?.message ?? data?.rc ?? "Transaksi gagal");
+    } else if (
+      status === "gagal" ||
+      status === "failed" ||
+      status === "failure" ||
+      status.includes("gagal") ||
+      status.includes("failed")
+    ) {
+      const error = String(data?.message ?? data?.rc ?? "Transaksi gagal di Digiflaz");
       return { status: "failed", error };
+    } else {
+      // Unknown status — treat as pending so polling continues
+      logger.warn({ refId, status, data: JSON.stringify(data).slice(0, 200) }, "Digiflaz unknown status — treating as pending");
+      return { status: "pending" };
     }
   } catch (err: any) {
-    const errMsg =
-      err?.response?.data?.data?.message ??
-      err?.response?.data?.message ??
-      err?.message ??
-      "Kesalahan koneksi ke Digiflaz";
-    logger.error({ err: errMsg, refId }, "Digiflaz status check error");
-    return { status: "pending" }; // treat network error as still pending
+    // Extract error body from HTTP error response if available
+    const responseData = err?.response?.data;
+    const errBody = responseData?.data?.message ?? responseData?.message ?? "";
+    const errMsg = errBody || err?.message || "Kesalahan koneksi ke Digiflaz";
+    const httpStatus = err?.response?.status;
+    logger.error({ err: errMsg, httpStatus, refId }, "Digiflaz status check error");
+    // Treat connection/server errors as still pending
+    return { status: "pending" };
   }
 }
 
