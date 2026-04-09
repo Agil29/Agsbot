@@ -87,17 +87,23 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
       { timeout: 15000 }
     );
 
-    // Try both response shapes: { data: { ... } } and { ... }
-    const data = res.data?.data ?? res.data;
+    const raw = res.data;
+    const rc = String(raw?.rc ?? raw?.data?.rc ?? "");
+
+    // Try both response shapes: { rc, data: {...} } and { data: { status, ... } }
+    const data = (raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) && raw.data !== null)
+      ? raw.data
+      : raw;
+
     const rawStatus = String(data?.status ?? "");
     const status = rawStatus.toLowerCase();
     const sn = String(data?.sn ?? data?.serial_number ?? "");
 
-    // Also check the "message" field as fallback (Digiflaz sometimes uses message instead of status)
-    const msgRaw = String(data?.message ?? "");
+    // Also check the "message" field as fallback
+    const msgRaw = String(data?.message ?? raw?.message ?? "");
     const msg = msgRaw.toLowerCase();
 
-    logger.info({ refId, status, sn, msg, raw: JSON.stringify(res.data).slice(0, 400) }, "Digiflaz status check result");
+    logger.info({ refId, rc, status, sn, msg, raw: JSON.stringify(raw).slice(0, 400) }, "Digiflaz status check result");
 
     const isSuccess =
       status === "sukses" || status === "success" ||
@@ -109,7 +115,7 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
       msg.includes("gagal") || msg.includes("failed");
 
     const isPendingStatus =
-      status === "pending" || status === "" ||
+      status === "pending" ||
       status.includes("pending") || status.includes("antri") || status.includes("proses") ||
       msg.includes("pending") || msg.includes("antri") || msg.includes("proses");
 
@@ -121,8 +127,8 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
     } else if (isPendingStatus) {
       return { status: "pending" };
     } else {
-      // Unknown status — log and treat as pending so polling continues
-      logger.warn({ refId, status, msg, data: JSON.stringify(data).slice(0, 300) }, "Digiflaz unknown status — treating as pending");
+      // Unknown status or API error (e.g. rc != "00") — keep retrying, do not mark failed
+      logger.warn({ refId, rc, status, msg, data: JSON.stringify(data).slice(0, 300) }, "Digiflaz inquiry: unknown/error response — retrying");
       return { status: "pending" };
     }
   } catch (err: any) {
