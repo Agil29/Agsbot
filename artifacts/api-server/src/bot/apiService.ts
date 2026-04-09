@@ -99,16 +99,43 @@ function formatKhfyPackage(raw: Record<string, unknown>): PackageItem {
   const name = String(raw.nama_produk ?? raw.nama ?? raw.name ?? sku);
   const price = Number(raw.harga_final ?? raw.harga ?? raw.price ?? 0);
   const desc = String(raw.deskripsi ?? raw.keterangan ?? raw.description ?? "");
+
+  // Determine availability — KHFY may use different field combinations:
+  // 1. kosong/gangguan flags (1 = problem, 0 = OK)
   const kosong = Number(raw.kosong ?? 0);
   const gangguan = Number(raw.gangguan ?? 0);
-  const tersedia = kosong === 0 && gangguan === 0;
+  const kosongOk = kosong === 0 && gangguan === 0;
 
-  // Try to parse actual stock count from common KHFY field names
+  // 2. status field: "ACTIVE"/"TERSEDIA"/"READY" = OK; "KOSONG"/"INACTIVE"/"GANGGUAN" = not OK
+  const statusRaw = String(raw.status ?? raw.tersedia ?? raw.available ?? raw.ready ?? "").toUpperCase();
+  const statusOk = statusRaw === ""          // not present → don't penalize
+    || statusRaw === "ACTIVE"
+    || statusRaw === "TERSEDIA"
+    || statusRaw === "READY"
+    || statusRaw === "1"
+    || statusRaw === "TRUE"
+    || statusRaw === "YES";
+  const statusBad = statusRaw === "KOSONG"
+    || statusRaw === "INACTIVE"
+    || statusRaw === "GANGGUAN"
+    || statusRaw === "0"
+    || statusRaw === "FALSE"
+    || statusRaw === "NO"
+    || statusRaw === "NONAKTIF";
+
+  // 3. ready/qty numeric field: 0 means out of stock
   const rawStock = raw.stok ?? raw.stock ?? raw.qty ?? raw.kuantitas ?? raw.jumlah ?? raw.sisa ?? raw.unit;
   const stockNum = rawStock !== undefined && rawStock !== null ? Number(rawStock) : NaN;
+  const stockFieldEmpty = Number.isFinite(stockNum) && stockNum <= 0;
+
+  // Combine all signals: out-of-stock if ANY signal says so
+  const tersedia = kosongOk && !statusBad && !stockFieldEmpty;
+
   const stock = tersedia
     ? (Number.isFinite(stockNum) && stockNum > 0 ? stockNum : 999)
     : 0;
+
+  logger.debug({ sku, kosong, gangguan, statusRaw, stockNum, tersedia }, "KHFY product availability");
 
   return {
     id: `api2_${sku}`,
@@ -143,8 +170,16 @@ export async function fetchAkrab2Packages(): Promise<PackageItem[]> {
       return AKRAB2_ALLOWED_SKUS.includes(kode);
     });
 
+    // Log first product's raw fields so we can confirm which field KHFY uses for stock status
+    if (filtered.length > 0) {
+      logger.info({ sample: filtered[0] }, "KHFY list_product sample (first matching SKU)");
+    }
+
     const packages = filtered.map(formatKhfyPackage);
-    logger.info({ count: packages.length, skus: packages.map((p) => p.sku) }, "Fetched AKRAB 2 packages from KHFY");
+    logger.info(
+      { count: packages.length, stocks: packages.map((p) => ({ sku: p.sku, stock: p.stock })) },
+      "Fetched AKRAB 2 packages from KHFY"
+    );
     return packages;
   } catch (err) {
     logger.error({ err }, "Failed to fetch akrab2 packages from KHFY API");
