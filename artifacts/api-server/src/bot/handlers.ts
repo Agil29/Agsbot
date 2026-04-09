@@ -918,7 +918,7 @@ export function setupHandlers(bot: TelegramBot) {
               startOrderPolling(bot, newOrder, {
                 provider: useDigiflaz ? "digiflaz" : "dopu",
                 dopuTrxId,
-                delayMs: 60 * 1000,
+                delayMs: useDigiflaz ? 20 * 1000 : 60 * 1000,
               });
             }
 

@@ -5,8 +5,10 @@ import { getUser, creditSaldoAtomic } from "./users";
 import { checkDopuOrderStatus } from "./dopuApi";
 import { checkDigiflazOrderStatus } from "./digiflazApi";
 
-const MAX_ATTEMPTS = 30;
-const INTERVAL_MS = 90 * 1000;       // 90 seconds base interval
+const MAX_ATTEMPTS_DOPU = 30;
+const MAX_ATTEMPTS_DIGIFLAZ = 60;    // check up to 60x (30 minutes at 30s interval)
+const INTERVAL_DOPU_MS = 90 * 1000;         // 90 seconds for DOPU
+const INTERVAL_DIGIFLAZ_MS = 30 * 1000;     // 30 seconds for Digiflaz (no webhook available)
 const RATELIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes on rate limit
 
 /**
@@ -25,7 +27,11 @@ export function startOrderPolling(
     delayMs?: number;
   }
 ) {
-  const { provider, dopuTrxId, initialAttempt = 0, delayMs = INTERVAL_MS } = opts;
+  const { provider, dopuTrxId, initialAttempt = 0 } = opts;
+  const intervalMs = provider === "digiflaz" ? INTERVAL_DIGIFLAZ_MS : INTERVAL_DOPU_MS;
+  const maxAttempts = provider === "digiflaz" ? MAX_ATTEMPTS_DIGIFLAZ : MAX_ATTEMPTS_DOPU;
+  const delayMs = opts.delayMs ?? intervalMs;
+
   const reffId = order.reffId;
   if (!reffId) return;
   if (activePolls.has(reffId)) {
@@ -135,15 +141,15 @@ export function startOrderPolling(
       }
 
       // Still pending
-      if (attempt < MAX_ATTEMPTS) {
-        setTimeout(poll, INTERVAL_MS);
+      if (attempt < maxAttempts) {
+        setTimeout(poll, intervalMs);
       } else {
-        logger.warn({ reffId, nomor, pkgName, provider }, "Order still pending after max attempts");
+        logger.warn({ reffId, nomor, pkgName, provider, attempt }, "Order still pending after max attempts");
         activePolls.delete(reffId);
       }
     } catch (err) {
       logger.error({ err, reffId, attempt }, "Error during order status poll");
-      if (attempt < MAX_ATTEMPTS) setTimeout(poll, INTERVAL_MS);
+      if (attempt < maxAttempts) setTimeout(poll, intervalMs);
       else activePolls.delete(reffId);
     }
   };

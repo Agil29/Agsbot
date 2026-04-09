@@ -161,7 +161,7 @@ router.post("/pakasir", async (req, res) => {
         startOrderPolling(bot, newOrder, {
           provider: useDigiflaz ? "digiflaz" : "dopu",
           dopuTrxId,
-          delayMs: 60 * 1000,
+          delayMs: useDigiflaz ? 20 * 1000 : 60 * 1000,
         });
         logger.info({ order_id, sku, providerRef, provider: useDigiflaz ? "digiflaz" : "dopu" }, "Started polling for pending QRIS order");
       }
