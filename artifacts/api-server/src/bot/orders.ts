@@ -19,6 +19,7 @@ export type Order = {
   sn?: string;
   reffId?: string;
   paymentMethod?: "saldo" | "qris";
+  provider?: "dopu" | "digiflaz" | "khfy";
   status: OrderStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -43,6 +44,7 @@ function rowToOrder(row: any): Order {
     sn: row.sn ?? undefined,
     reffId: row.reff_id ?? undefined,
     paymentMethod: row.payment_method ?? undefined,
+    provider: row.provider ?? undefined,
     status: row.status as OrderStatus,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
@@ -51,6 +53,11 @@ function rowToOrder(row: any): Order {
 
 export async function loadOrdersFromDb(): Promise<void> {
   try {
+    // Auto-migrate: add provider column if missing
+    await run(
+      `ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider VARCHAR(20)`,
+      []
+    ).catch(() => {});
     const rows = await query("SELECT * FROM orders ORDER BY created_at DESC");
     orders.length = 0;
     for (const row of rows) orders.push(rowToOrder(row));
@@ -72,14 +79,14 @@ export function createOrder(data: Omit<Order, "id" | "status" | "createdAt" | "u
 
   run(
     `INSERT INTO orders (id, user_id, user_name, user_username, category, package_id, package_name, price, baseprice, quota, validity,
-      nomor_tujuan, sn, reff_id, payment_method, status, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+      nomor_tujuan, sn, reff_id, payment_method, provider, status, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
     [
       order.id, order.userId, order.userName, order.userUsername ?? null,
       order.category, order.packageId, order.packageName,
       order.price, order.baseprice, order.quota, order.validity,
       order.nomorTujuan ?? null, order.sn ?? null, order.reffId ?? null,
-      order.paymentMethod ?? null, order.status, order.createdAt, order.updatedAt,
+      order.paymentMethod ?? null, order.provider ?? null, order.status, order.createdAt, order.updatedAt,
     ]
   ).catch((err) => logger.error({ err }, "DB insert order failed"));
 
