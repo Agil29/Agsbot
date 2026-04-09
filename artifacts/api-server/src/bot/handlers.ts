@@ -907,6 +907,7 @@ export function setupHandlers(bot: TelegramBot) {
               sn: sn || undefined,
               reffId: (useDopu || useDigiflaz) ? providerRef : undefined,
               paymentMethod: "qris",
+              provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy",
             });
 
             // Update order status: "processing" for async, "done" for sync (KHFY)
@@ -1373,6 +1374,7 @@ export function setupHandlers(bot: TelegramBot) {
         nomorTujuan: nomor,
         reffId: (useDopu || useDigiflaz) ? preReffId : undefined,
         paymentMethod: "saldo",
+        provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy",
       });
       // Override default "pending" → "processing" immediately
       updateOrderStatus(pendingOrder.id, "processing");
