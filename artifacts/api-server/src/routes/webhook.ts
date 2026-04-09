@@ -150,6 +150,7 @@ router.post("/pakasir", async (req, res) => {
         sn: sn || undefined,
         reffId: (useDopu || useDigiflaz) ? providerRef : undefined,
         paymentMethod: "qris",
+        provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy",
       });
 
       // Update order status: "processing" for async providers, "done" for sync (KHFY)
