@@ -366,6 +366,8 @@ export function setupHandlers(bot: TelegramBot) {
       const res = await getDopuBalance();
       if (res.balance !== null) {
         dopuStatus = `✅ OK — Saldo: <b>Rp ${res.balance.toLocaleString("id-ID")}</b>`;
+      } else if (res.raw.includes("diblokir") || res.raw.includes("Too many")) {
+        dopuStatus = `❌ IP diblokir\n<code>${res.raw}</code>`;
       } else {
         dopuStatus = `⚠️ Terhubung, format tidak dikenali\n<code>${res.raw}</code>`;
       }
@@ -379,6 +381,10 @@ export function setupHandlers(bot: TelegramBot) {
       const res = await getKhfyBalance();
       if (res.balance !== null) {
         khfyStatus = `✅ OK — Saldo: <b>Rp ${res.balance.toLocaleString("id-ID")}</b>`;
+      } else if (res.raw.startsWith("✅")) {
+        khfyStatus = res.raw; // pre-formatted success message from ping test
+      } else if (res.raw.startsWith("❌")) {
+        khfyStatus = res.raw; // pre-formatted error from ping test
       } else {
         khfyStatus = `⚠️ Terhubung, format tidak dikenali\n<code>${res.raw}</code>`;
       }
