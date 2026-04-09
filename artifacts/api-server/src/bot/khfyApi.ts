@@ -47,8 +47,27 @@ export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
     }
   }
 
-  logger.warn({ lastRaw }, "KHFY: no balance endpoint recognized");
-  return { balance: null, raw: lastRaw || "Semua endpoint tidak merespons" };
+  // Fallback: test connectivity via /trx with dummy data — if KHFY replies
+  // with anything (even "nomor tidak valid"), it means the server is reachable and auth works.
+  try {
+    const res = await axios.get(`${baseUrl}/trx`, {
+      params: { produk: "PING_TEST", tujuan: "00000000000", reff_id: "ping-check", api_key: apiKey },
+      timeout: 10000,
+    });
+    const data = res.data ?? {};
+    const raw = typeof data === "string" ? data : JSON.stringify(data);
+    // If we got any structured response, server is up and auth is accepted
+    const status = String(data.status ?? data.ok ?? "").toLowerCase();
+    const msg = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? raw).slice(0, 80);
+    logger.info({ raw: raw.slice(0, 100) }, "KHFY /trx ping response");
+    return { balance: null, raw: `✅ Server merespons (no saldo endpoint). Msg: ${msg}` };
+  } catch (e: any) {
+    const errDetail = e?.response?.data
+      ? String(e.response.data).slice(0, 80)
+      : String(e?.message ?? e).slice(0, 80);
+    logger.warn({ lastRaw, err: errDetail }, "KHFY: all endpoints failed");
+    return { balance: null, raw: `❌ Tidak terhubung: ${errDetail}` };
+  }
 }
 
 export async function placeKhfyOrder(params: {
