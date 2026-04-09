@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import axios from "axios";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import adminPackagesRouter from "./admin/packages";
@@ -24,5 +25,38 @@ router.get("/dopu-debug", (_req, res) => {
   res.json({ count: recentDopuCallbacks.length, callbacks: recentDopuCallbacks });
 });
 
+// Debug: fetch raw KHFY product list and show parsed availability
+router.get("/khfy-debug", async (_req, res) => {
+  const baseUrl = process.env.API2_BASE_URL ?? "";
+  const apiKey = process.env.API2_KEY ?? "";
+  if (!baseUrl || !apiKey) {
+    res.json({ error: "API2_BASE_URL or API2_KEY not configured" });
+    return;
+  }
+  try {
+    const url = `${baseUrl}/list_product?api_key=${apiKey}`;
+    const response = await axios.get(url, { timeout: 10000 });
+    const raw: Record<string, unknown>[] = Array.isArray(response.data)
+      ? response.data
+      : (Array.isArray(response.data?.data) ? response.data.data : []);
+
+    const ALLOWED = ["XLA14", "XLA32", "XLA39", "XLA51", "XLA65", "XLA89"];
+    const matched = raw.filter((r) => {
+      const kode = String(r.kode_produk ?? r.kode ?? r.produk ?? r.code ?? r.sku ?? "").toUpperCase();
+      return ALLOWED.includes(kode);
+    });
+
+    res.json({
+      total_from_api: raw.length,
+      matched_count: matched.length,
+      // Show ALL fields of each matched product so we can see stock/status fields
+      matched_raw: matched,
+      // Also show keys present in the first product (any product)
+      first_product_keys: raw[0] ? Object.keys(raw[0]) : [],
+    });
+  } catch (err: any) {
+    res.json({ error: err?.message ?? "Unknown error", response: err?.response?.data });
+  }
+});
 
 export default router;
