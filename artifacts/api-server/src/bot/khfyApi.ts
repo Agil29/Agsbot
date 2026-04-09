@@ -6,34 +6,49 @@ export type KhfyOrderResult =
   | { success: true; sn: string; message: string; reffId: string }
   | { success: false; error: string; reffId: string };
 
-export async function getKhfyBalance(): Promise<number | null> {
+export type KhfyBalanceResult = { balance: number; raw: string } | { balance: null; raw: string };
+
+export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
   const apiKey = process.env.API2_KEY ?? "";
   const baseUrl = process.env.API2_BASE_URL ?? "";
-  if (!apiKey || !baseUrl) return null;
+  if (!apiKey || !baseUrl) return { balance: null, raw: "Env API2_KEY / API2_BASE_URL tidak tersedia" };
 
-  // Try known KHFY balance endpoints
   const endpoints = [
     { url: `${baseUrl}/saldo`, params: { api_key: apiKey } },
     { url: `${baseUrl}/balance`, params: { api_key: apiKey } },
     { url: `${baseUrl}/profile`, params: { api_key: apiKey } },
     { url: `${baseUrl}/member`, params: { api_key: apiKey } },
+    { url: `${baseUrl}/cek-saldo`, params: { api_key: apiKey } },
   ];
 
+  let lastRaw = "";
   for (const ep of endpoints) {
     try {
       const res = await axios.get(ep.url, { params: ep.params, timeout: 8000 });
       const data = res.data ?? {};
+      const raw = typeof data === "string" ? data : JSON.stringify(data);
+      lastRaw = raw.slice(0, 100);
+
       if (typeof data === "object" && data !== null) {
-        const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit ?? data.deposit ?? data.wallet;
-        if (val !== undefined && !isNaN(Number(val))) return Number(val);
+        const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit ?? data.deposit ?? data.wallet
+          ?? data.data?.saldo ?? data.data?.balance ?? data.data?.kredit;
+        if (val !== undefined && !isNaN(Number(String(val).replace(/\./g, "").replace(/,/g, "")))) {
+          return { balance: Number(String(val).replace(/\./g, "").replace(/,/g, "")), raw };
+        }
+      }
+      if (typeof data === "string") {
+        const matchNum = data.match(/\b([0-9]{3,}(?:[.,][0-9]+)*)\b/);
+        if (matchNum) {
+          return { balance: Number(matchNum[1].replace(/\./g, "").replace(/,/g, "")), raw };
+        }
       }
     } catch {
       // Try next endpoint
     }
   }
 
-  logger.warn("KHFY: no balance endpoint available");
-  return null;
+  logger.warn({ lastRaw }, "KHFY: no balance endpoint recognized");
+  return { balance: null, raw: lastRaw || "Semua endpoint tidak merespons" };
 }
 
 export async function placeKhfyOrder(params: {
