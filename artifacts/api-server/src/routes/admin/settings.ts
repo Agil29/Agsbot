@@ -113,10 +113,12 @@ router.get("/analytics", requireAdmin, async (_req, res) => {
   const totalSpent12m = orders12m.filter((o: any) => o.status === "done").reduce((s: number, o: any) => s + o.price, 0);
 
   // Fetch API balances
-  const [dopuBal, khfyBal] = await Promise.all([
+  const [dopuBalResult, khfyBalResult] = await Promise.all([
     getDopuBalance().catch(() => null),
     getKhfyBalance().catch(() => null),
   ]);
+  const dopuBal = dopuBalResult?.balance ?? null;
+  const khfyBal = khfyBalResult?.balance ?? null;
 
   // Build daily user registration for last 30 days
   const days: { date: string; users: number; orders: number; topups: number }[] = [];
