@@ -80,7 +80,6 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
     const res = await axios.post(
       `${BASE_URL}/transaction`,
       {
-        commands: "inq-pasca",
         username,
         ref_id: refId,
         sign,
@@ -90,33 +89,40 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
 
     // Try both response shapes: { data: { ... } } and { ... }
     const data = res.data?.data ?? res.data;
-    const status = String(data?.status ?? data?.message ?? "").toLowerCase();
+    const rawStatus = String(data?.status ?? "");
+    const status = rawStatus.toLowerCase();
     const sn = String(data?.sn ?? data?.serial_number ?? "");
 
-    logger.info({ refId, status, sn, raw: JSON.stringify(res.data).slice(0, 300) }, "Digiflaz status check result");
+    // Also check the "message" field as fallback (Digiflaz sometimes uses message instead of status)
+    const msgRaw = String(data?.message ?? "");
+    const msg = msgRaw.toLowerCase();
 
-    if (status === "sukses" || status === "success") {
+    logger.info({ refId, status, sn, msg, raw: JSON.stringify(res.data).slice(0, 400) }, "Digiflaz status check result");
+
+    const isSuccess =
+      status === "sukses" || status === "success" ||
+      msg === "sukses" || msg === "success";
+
+    const isFailed =
+      status === "gagal" || status === "failed" || status === "failure" ||
+      status.includes("gagal") || status.includes("failed") ||
+      msg.includes("gagal") || msg.includes("failed");
+
+    const isPendingStatus =
+      status === "pending" || status === "" ||
+      status.includes("pending") || status.includes("antri") || status.includes("proses") ||
+      msg.includes("pending") || msg.includes("antri") || msg.includes("proses");
+
+    if (isSuccess) {
       return { status: "success", sn };
-    } else if (
-      status === "pending" ||
-      status === "" ||
-      status.includes("pending") ||
-      status.includes("antri") ||
-      status.includes("proses")
-    ) {
-      return { status: "pending" };
-    } else if (
-      status === "gagal" ||
-      status === "failed" ||
-      status === "failure" ||
-      status.includes("gagal") ||
-      status.includes("failed")
-    ) {
-      const error = String(data?.message ?? data?.rc ?? "Transaksi gagal di Digiflaz");
+    } else if (isFailed) {
+      const error = msgRaw || rawStatus || "Transaksi gagal di Digiflaz";
       return { status: "failed", error };
+    } else if (isPendingStatus) {
+      return { status: "pending" };
     } else {
-      // Unknown status — treat as pending so polling continues
-      logger.warn({ refId, status, data: JSON.stringify(data).slice(0, 200) }, "Digiflaz unknown status — treating as pending");
+      // Unknown status — log and treat as pending so polling continues
+      logger.warn({ refId, status, msg, data: JSON.stringify(data).slice(0, 300) }, "Digiflaz unknown status — treating as pending");
       return { status: "pending" };
     }
   } catch (err: any) {

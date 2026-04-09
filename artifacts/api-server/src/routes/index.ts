@@ -6,6 +6,7 @@ import adminSettingsRouter from "./admin/settings";
 import adminBroadcastRouter from "./admin/broadcast";
 import webhookRouter from "./webhook";
 import dopuCallbackRouter, { recentDopuCallbacks } from "./dopuCallback";
+import digiflazCallbackRouter, { recentDigiflazCallbacks } from "./digiflazCallback";
 
 const router: IRouter = Router();
 
@@ -16,10 +17,16 @@ router.use("/admin", adminSettingsRouter);
 router.use("/admin", adminBroadcastRouter);
 router.use("/webhook", webhookRouter);
 router.use(dopuCallbackRouter);
+router.use(digiflazCallbackRouter);
 
 // Debug: see last 20 raw DOPU callback payloads
 router.get("/dopu-debug", (_req, res) => {
   res.json({ count: recentDopuCallbacks.length, callbacks: recentDopuCallbacks });
+});
+
+// Debug: see last 20 raw Digiflaz callback payloads
+router.get("/digiflaz-debug", (_req, res) => {
+  res.json({ count: recentDigiflazCallbacks.length, callbacks: recentDigiflazCallbacks });
 });
 
 export default router;
