@@ -112,6 +112,11 @@ export async function getDopuBalance(): Promise<DopuBalanceResult> {
     const data = res.data;
     const raw = typeof data === "string" ? data : JSON.stringify(data);
 
+    // Detect IP block / rate limit before attempting parse
+    if (typeof data === "string" && /too many requests/i.test(data)) {
+      return { balance: null, raw: "❌ IP diblokir DOPU (Too many requests)" };
+    }
+
     if (typeof data === "string") {
       // Format 1: "Saldo : Rp 354.867" or "Saldo: 354867" or "saldo=354867"
       const matchSaldo = data.match(/saldo[^0-9]*([0-9][0-9.,]*)/i);
