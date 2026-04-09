@@ -2,10 +2,11 @@ import { Router } from "express";
 import { logger } from "../lib/logger";
 import { getTopupById, updateTopupStatus } from "../bot/topup";
 import { creditSaldoAtomic } from "../bot/users";
-import { createOrder } from "../bot/orders";
+import { createOrder, updateOrderStatus } from "../bot/orders";
 import { placeKhfyOrder } from "../bot/khfyApi";
 import { placeDopuOrder, type DopuOrderResult } from "../bot/dopuApi";
 import { placeDigiflazOrder, type DigiflazOrderResult } from "../bot/digiflazApi";
+import { startOrderPolling } from "../bot/orderPoller";
 import { getBot } from "../bot";
 
 const router = Router();
@@ -129,8 +130,8 @@ router.post("/pakasir", async (req, res) => {
     // Extract provider-specific fields safely
     const dopuResult = useDopu ? (result as DopuOrderResult) : null;
     const digiflazResult = useDigiflaz ? (result as DigiflazOrderResult) : null;
-    const dopuRef = dopuResult?.reffId ?? digiflazResult?.refId ?? webhookRefId;
-    const dopuPending = (dopuResult && result.success ? (result as any).pending === true : false)
+    const providerRef = dopuResult?.reffId ?? digiflazResult?.refId ?? webhookRefId;
+    const isPending = (dopuResult && result.success ? (result as any).pending === true : false)
       || (digiflazResult && result.success ? (result as any).pending === true : false);
 
     if (result.success) {
@@ -142,20 +143,35 @@ router.post("/pakasir", async (req, res) => {
         packageId,
         packageName,
         price: topup.nominal,
+        baseprice: topup.nominal,
         quota,
         validity,
         nomorTujuan,
-        sn,
-        reffId: dopuRef || undefined,
+        sn: sn || undefined,
+        reffId: (useDopu || useDigiflaz) ? providerRef : undefined,
         paymentMethod: "qris",
       });
+
+      // Update order status: "processing" for async providers, "done" for sync (KHFY)
+      updateOrderStatus(newOrder.id, isPending ? "processing" : "done", sn || undefined);
+
+      // Start polling for async pending orders (DOPU / Digiflaz)
+      if (isPending && (useDopu || useDigiflaz) && providerRef && bot) {
+        const dopuTrxId = useDopu ? (sn || undefined) : undefined;
+        startOrderPolling(bot, newOrder, {
+          provider: useDigiflaz ? "digiflaz" : "dopu",
+          dopuTrxId,
+          delayMs: 60 * 1000,
+        });
+        logger.info({ order_id, sku, providerRef, provider: useDigiflaz ? "digiflaz" : "dopu" }, "Started polling for pending QRIS order");
+      }
 
       if (bot && topup.chatId) {
         try {
           const _now = new Date();
           const _tgl = _now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
           const _jam = _now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-          if (dopuPending) {
+          if (isPending) {
             const circleNote = category === "circle" && !useDigiflaz
               ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
               : "";
@@ -196,7 +212,7 @@ router.post("/pakasir", async (req, res) => {
         }
       }
 
-      logger.info({ order_id, sku, sn, pending: dopuPending }, "Order via QRIS completed");
+      logger.info({ order_id, sku, sn, pending: isPending }, "Order via QRIS webhook completed");
     } else {
       const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
         type: "order_refund",
@@ -210,7 +226,7 @@ router.post("/pakasir", async (req, res) => {
             topup.chatId,
             `❌ <b>ORDER GAGAL</b>\n\n` +
             `⚠️ ${result.error}` +
-            (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
+            (providerRef ? `\n🔖 Ref: <code>${providerRef}</code>` : "") +
             `\n\n💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
             `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }

@@ -796,8 +796,11 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
       // Already completed (e.g. webhook already fired)
-      if (topup.status === "completed" || topup.status === "done") {
-        await bot.answerCallbackQuery(query.id, { text: "✅ Saldo sudah ditambahkan!", show_alert: true }).catch(() => {});
+      if (topup.status === "completed") {
+        const alreadyMsg = topup.orderPayload
+          ? "✅ Order sudah diproses!"
+          : "✅ Saldo sudah ditambahkan!";
+        await bot.answerCallbackQuery(query.id, { text: alreadyMsg, show_alert: true }).catch(() => {});
         return;
       }
 
@@ -883,7 +886,10 @@ export function setupHandlers(bot: TelegramBot) {
               : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
 
           const dopuResult = useDopu ? (result as DopuOrderResult) : null;
-          const dopuRef = dopuResult?.reffId ?? refId;
+          const digiflazResultQ = useDigiflaz ? (result as DigiflazOrderResult) : null;
+          const providerRef = dopuResult?.reffId ?? digiflazResultQ?.refId ?? refId;
+          const isPending = (dopuResult && result.success ? (result as any).pending === true : false)
+            || (digiflazResultQ && result.success ? (result as any).pending === true : false);
 
           if (result.success) {
             const sn = result.sn;
@@ -898,30 +904,67 @@ export function setupHandlers(bot: TelegramBot) {
               quota,
               validity,
               nomorTujuan,
-              sn,
-              reffId: dopuRef,
+              sn: sn || undefined,
+              reffId: (useDopu || useDigiflaz) ? providerRef : undefined,
               paymentMethod: "qris",
             });
 
-            const _tgl = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
-            const _jam = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-            await bot.editMessageCaption(
-              `━━━━━━━━━━━━━━━━━━━\n` +
-              `✅ <b>ORDER BERHASIL!</b>\n` +
-              `━━━━━━━━━━━━━━━━━━━\n` +
-              `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
-              `📦 Produk : <b>${packageName}</b>\n` +
-              `📱 Target : <code>${nomorTujuan}</code>\n` +
-              `💰 Harga : <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-              `📅 Date  : ${_tgl}\n\nJam Sukses : ${_jam} WIB\n\nTerimakasih sudah berbelanja ☺️☺️`,
-              { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-            ).catch(async () => {
-              await bot.sendMessage(
-                chatId,
-                `✅ <b>ORDER BERHASIL!</b>\n\n📦 <b>${packageName}</b>\n📱 <code>${nomorTujuan}</code>`,
-                { parse_mode: "HTML" }
-              );
-            });
+            // Update order status: "processing" for async, "done" for sync (KHFY)
+            updateOrderStatus(newOrder.id, isPending ? "processing" : "done", sn || undefined);
+
+            // Start polling for async pending orders (DOPU / Digiflaz)
+            if (isPending && (useDopu || useDigiflaz) && providerRef) {
+              const dopuTrxId = useDopu ? (sn || undefined) : undefined;
+              startOrderPolling(bot, newOrder, {
+                provider: useDigiflaz ? "digiflaz" : "dopu",
+                dopuTrxId,
+                delayMs: 60 * 1000,
+              });
+            }
+
+            if (isPending) {
+              const circleNote = category === "circle" && !useDigiflaz
+                ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
+                : "";
+              await bot.editMessageCaption(
+                `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
+                `📦 Produk: <b>${packageName}</b>\n` +
+                `📱 Nomor: <code>${nomorTujuan}</code>\n` +
+                `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+                (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
+                `\n⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` +
+                circleNote,
+                { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+              ).catch(async () => {
+                await bot.sendMessage(
+                  chatId,
+                  `⚙️ <b>ORDER SEDANG DIPROSES</b>\n\n📦 <b>${packageName}</b>\n📱 <code>${nomorTujuan}</code>\n\n⏳ Paket sedang diproses. Hubungi admin jika dalam 30 menit belum masuk.`,
+                  { parse_mode: "HTML" }
+                );
+              });
+            } else {
+              const _tgl = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+              const _jam = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+              await bot.editMessageCaption(
+                `━━━━━━━━━━━━━━━━━━━\n` +
+                `✅ <b>ORDER BERHASIL!</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━\n` +
+                `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
+                `📦 Produk : <b>${packageName}</b>\n` +
+                `📱 Target : <code>${nomorTujuan}</code>\n` +
+                `💰 Harga : <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
+                `📅 Date  : ${_tgl}\n\nJam Sukses : ${_jam} WIB\n\nTerimakasih sudah berbelanja ☺️☺️`,
+                { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+              ).catch(async () => {
+                await bot.sendMessage(
+                  chatId,
+                  `✅ <b>ORDER BERHASIL!</b>\n\n📦 <b>${packageName}</b>\n📱 <code>${nomorTujuan}</code>`,
+                  { parse_mode: "HTML" }
+                );
+              });
+            }
           } else {
             const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
               type: "order_refund",

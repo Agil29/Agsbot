@@ -165,9 +165,17 @@ export function resumeProcessingOrders(bot: TelegramBot) {
 
   for (let i = 0; i < processing.length; i++) {
     const order = processing[i];
-    // Determine provider from category or source
+
+    // Determine provider from category:
+    // - akrab1 and circle use DOPU
+    // - akrab2 uses KHFY (synchronous — should never be "processing"; skip)
+    // - others (digiflaz products) use Digiflaz
+    if (order.category === "akrab2") {
+      logger.warn({ orderId: order.id, category: order.category }, "Skipping resume poll for akrab2/KHFY — provider is synchronous");
+      continue;
+    }
     const provider: "dopu" | "digiflaz" =
-      order.category === "akrab2" ? "digiflaz" : "dopu";
+      order.category === "akrab1" || order.category === "circle" ? "dopu" : "digiflaz";
 
     // Stagger polls: 10s apart per order to avoid simultaneous API hits
     const staggerMs = 10000 + i * 15000;
