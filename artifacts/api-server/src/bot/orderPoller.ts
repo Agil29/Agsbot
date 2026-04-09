@@ -12,6 +12,21 @@ const INTERVAL_DIGIFLAZ_MS = 30 * 1000;     // 30 seconds for Digiflaz (no webho
 const RATELIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes on rate limit
 
 /**
+ * Global DOPU rate limit: when ANY DOPU order gets rate-limited, ALL DOPU polls pause until this timestamp.
+ * This prevents simultaneous polling from multiple orders all hitting DOPU at once.
+ */
+let dopuGlobalRateLimitUntil = 0;
+
+function isDopuGloballyRateLimited(): boolean {
+  return Date.now() < dopuGlobalRateLimitUntil;
+}
+
+function setDopuGlobalRateLimit() {
+  dopuGlobalRateLimitUntil = Date.now() + RATELIMIT_BACKOFF_MS;
+  logger.warn({ until: new Date(dopuGlobalRateLimitUntil).toISOString() }, "DOPU global rate limit set — all DOPU polls paused for 5 min");
+}
+
+/**
  * Start polling for a single DOPU/Digiflaz order.
  * Safe to call multiple times — uses a per-reffId lock to prevent duplicate polls.
  */
@@ -55,6 +70,15 @@ export function startOrderPolling(
       if (!currentOrd || currentOrd.status === "done" || currentOrd.status === "cancelled") {
         logger.info({ reffId, status: currentOrd?.status }, "Poll: order already finalized — stopping");
         activePolls.delete(reffId);
+        return;
+      }
+
+      // If DOPU is globally rate limited, skip this attempt and retry after backoff
+      if (provider === "dopu" && isDopuGloballyRateLimited()) {
+        const waitMs = dopuGlobalRateLimitUntil - Date.now();
+        logger.info({ reffId, waitMs }, "DOPU globally rate limited — skipping poll, scheduling retry");
+        attempt--; // don't count against max attempts
+        setTimeout(poll, waitMs + 5000);
         return;
       }
 
@@ -132,11 +156,12 @@ export function startOrderPolling(
         return;
       }
 
-      // Rate limited — back off for 5 minutes, don't count as an attempt
+      // Rate limited — set GLOBAL backoff so all DOPU polls pause, not just this one
       if ((statusRes as any).status === "ratelimit") {
-        logger.warn({ reffId, provider }, "DOPU rate limited — backing off 5 min");
+        setDopuGlobalRateLimit();
         attempt--; // don't count this against max attempts
-        setTimeout(poll, RATELIMIT_BACKOFF_MS);
+        const waitMs = dopuGlobalRateLimitUntil - Date.now() + 5000;
+        setTimeout(poll, waitMs);
         return;
       }
 
@@ -172,19 +197,25 @@ export function resumeProcessingOrders(bot: TelegramBot) {
   for (let i = 0; i < processing.length; i++) {
     const order = processing[i];
 
-    // Determine provider from category:
-    // - akrab1 and circle use DOPU
-    // - akrab2 uses KHFY (synchronous — should never be "processing"; skip)
-    // - others (digiflaz products) use Digiflaz
-    if (order.category === "akrab2") {
-      logger.warn({ orderId: order.id, category: order.category }, "Skipping resume poll for akrab2/KHFY — provider is synchronous");
+    // Determine provider:
+    // 1. Use stored provider field if available (most reliable)
+    // 2. Fall back to category-based heuristic (akrab1/circle → dopu, others → digiflaz)
+    // 3. Skip akrab2/KHFY — synchronous, should never be "processing"
+    if (order.provider === "khfy" || order.category === "akrab2") {
+      logger.warn({ orderId: order.id, category: order.category }, "Skipping resume poll for KHFY — synchronous");
       continue;
     }
-    const provider: "dopu" | "digiflaz" =
-      order.category === "akrab1" || order.category === "circle" ? "dopu" : "digiflaz";
 
-    // Stagger polls: 10s apart per order to avoid simultaneous API hits
-    const staggerMs = 10000 + i * 15000;
+    const provider: "dopu" | "digiflaz" = order.provider === "digiflaz"
+      ? "digiflaz"
+      : order.provider === "dopu"
+        ? "dopu"
+        : (order.category === "akrab1" || order.category === "circle" ? "dopu" : "digiflaz");
+
+    logger.info({ orderId: order.id, provider, source: order.provider ?? "inferred" }, "Resuming poll");
+
+    // Stagger polls: 30s apart per order to avoid rate limits on startup
+    const staggerMs = 30000 + i * 30000;
     startOrderPolling(bot, order, {
       provider,
       dopuTrxId: order.sn || undefined,
