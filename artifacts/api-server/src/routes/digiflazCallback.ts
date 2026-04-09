@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { logger } from "../lib/logger";
-import { getOrderByReffId, updateOrderStatus } from "../bot/orders";
+import { getOrderByReffId, updateOrderStatus, getAllOrders } from "../bot/orders";
 import { creditSaldoAtomic } from "../bot/users";
 import { getBot } from "../bot/index";
 
@@ -140,6 +140,36 @@ router.get("/webhook/digiflaz", async (req, res) => {
   storeDebugPayload(req.query);
   res.status(200).json({ status: "ok" });
   await handleDigiflazCallback(req.query as Record<string, any>);
+});
+
+router.get("/digiflaz-debug", (_req, res) => {
+  res.json({ count: recentDigiflazCallbacks.length, callbacks: recentDigiflazCallbacks });
+});
+
+router.get("/orders-debug", (_req, res) => {
+  const all = getAllOrders();
+  const processing = all.filter((o) => o.status === "processing" || o.status === "pending");
+  const recent = all.slice(0, 20);
+  res.json({
+    processing_count: processing.length,
+    processing: processing.map((o) => ({
+      id: o.id,
+      status: o.status,
+      reffId: o.reffId,
+      packageName: o.packageName,
+      nomorTujuan: o.nomorTujuan,
+      paymentMethod: o.paymentMethod,
+      createdAt: o.createdAt,
+    })),
+    recent_20: recent.map((o) => ({
+      id: o.id,
+      status: o.status,
+      reffId: o.reffId,
+      packageName: o.packageName,
+      paymentMethod: o.paymentMethod,
+      createdAt: o.createdAt,
+    })),
+  });
 });
 
 export default router;
