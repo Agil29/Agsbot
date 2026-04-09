@@ -372,7 +372,6 @@ export function setupHandlers(bot: TelegramBot) {
         ).catch(() => {});
       }
     }
-    bot.sendChatAction(msg.chat.id, "typing").catch(() => {});
     await bot.sendMessage(msg.chat.id, buildProfileText(user), {
       parse_mode: "HTML",
       reply_markup: mainMenuKeyboard({ isAdmin: isAdmin(from.id) }),
