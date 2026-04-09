@@ -13,8 +13,8 @@ import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByR
 import { startOrderPolling } from "./orderPoller";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
 import { recordAndCheck, isBlocked } from "./rateLimit";
-import { placeKhfyOrder } from "./khfyApi";
-import { placeDopuOrder, checkDopuOrderStatus, type DopuOrderResult } from "./dopuApi";
+import { placeKhfyOrder, getKhfyBalance } from "./khfyApi";
+import { placeDopuOrder, checkDopuOrderStatus, getDopuBalance, type DopuOrderResult } from "./dopuApi";
 import { placeDigiflazOrder, checkDigiflazOrderStatus, type DigiflazOrderResult } from "./digiflazApi";
 import {
   mainMenuKeyboard,
@@ -348,6 +348,52 @@ export function setupHandlers(bot: TelegramBot) {
       msg.chat.id,
       `⚙️ <b>Order Processing (${processingOrders.length})</b>\n\n${lines}\n\n` +
       `Kirim <code>/fixorders cancel all</code> untuk membatalkan semua dan refund saldo.`,
+      { parse_mode: "HTML" }
+    );
+  });
+
+  // ── Admin: /cekapi — test connectivity to all providers ─────────────────
+
+  bot.onText(/\/cekapi/, async (msg) => {
+    const userId = msg.from!.id;
+    if (!isAdmin(userId)) return;
+
+    await bot.sendMessage(msg.chat.id, "⏳ Mengecek koneksi ke semua provider...", { parse_mode: "HTML" });
+
+    // Test DOPU
+    let dopuStatus = "⏳ Mengecek...";
+    try {
+      const bal = await getDopuBalance();
+      dopuStatus = bal !== null
+        ? `✅ OK — Saldo: <b>Rp ${bal.toLocaleString("id-ID")}</b>`
+        : `⚠️ Terhubung tapi format saldo tidak dikenali`;
+    } catch (e: any) {
+      dopuStatus = `❌ Error: ${String(e?.message ?? e).slice(0, 80)}`;
+    }
+
+    // Test KHFY
+    let khfyStatus = "⏳ Mengecek...";
+    try {
+      const bal = await getKhfyBalance();
+      khfyStatus = bal !== null
+        ? `✅ OK — Saldo: <b>Rp ${bal.toLocaleString("id-ID")}</b>`
+        : `⚠️ Terhubung tapi tidak ada saldo endpoint / format tidak dikenali`;
+    } catch (e: any) {
+      khfyStatus = `❌ Error: ${String(e?.message ?? e).slice(0, 80)}`;
+    }
+
+    // Basic env check for Digiflazz
+    const digiflazConfigured = !!(process.env.DIGIFLAZ_USERNAME && process.env.DIGIFLAZ_API_KEY);
+    const digiflazStatus = digiflazConfigured
+      ? `✅ Dikonfigurasi (username & API key tersedia)`
+      : `⚠️ Belum dikonfigurasi (env var tidak ada)`;
+
+    await bot.sendMessage(
+      msg.chat.id,
+      `🔌 <b>Status Koneksi Provider</b>\n\n` +
+      `📡 <b>DOPU (Akrab V1 / Circle):</b>\n${dopuStatus}\n\n` +
+      `📡 <b>KHFY (Akrab V2):</b>\n${khfyStatus}\n\n` +
+      `📡 <b>Digiflazz:</b>\n${digiflazStatus}`,
       { parse_mode: "HTML" }
     );
   });
