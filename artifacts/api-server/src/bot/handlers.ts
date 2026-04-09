@@ -9,7 +9,7 @@ import { getOrRegisterUser, getUser, setWhatsapp, formatRegDate, getAllUsers, de
 import { getMarkup, applyMarkup } from "./markup";
 import { getProductMarkup } from "./productMarkup";
 import { isBlacklisted } from "./blacklist";
-import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus } from "./orders";
+import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus, getAllOrders, getOrderById } from "./orders";
 import { startOrderPolling } from "./orderPoller";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
 import { recordAndCheck, isBlocked } from "./rateLimit";
@@ -284,6 +284,72 @@ export function setupHandlers(bot: TelegramBot) {
       clearSession(userId);
       await bot.sendMessage(msg.chat.id, "❌ Transfer saldo dibatalkan.", { parse_mode: "HTML" });
     }
+  });
+
+  // ── Admin: /fixorders — list & cancel stuck processing orders ────────────
+
+  bot.onText(/\/fixorders(?:\s+(.+))?/, async (msg, match) => {
+    const userId = msg.from!.id;
+    if (!isAdmin(userId)) return;
+
+    const subCmd = (match?.[1] ?? "").trim().toLowerCase();
+    const processingOrders = getAllOrders().filter((o) => o.status === "processing" || o.status === "paid" || o.status === "pending");
+
+    if (subCmd === "cancel all" || subCmd === "cancelall") {
+      if (processingOrders.length === 0) {
+        await bot.sendMessage(msg.chat.id, "✅ Tidak ada order yang sedang diproses.", { parse_mode: "HTML" });
+        return;
+      }
+      let cancelled = 0;
+      let refunded = 0;
+      for (const order of processingOrders) {
+        updateOrderStatus(order.id, "cancelled");
+        try {
+          const updatedUser = await creditSaldoAtomic(order.userId, order.price, {
+            type: "order_refund",
+            refId: order.id,
+            note: `Refund manual admin - order stuck: ${order.reffId}`,
+          });
+          refunded += order.price;
+          const newSaldo = updatedUser?.saldo ?? (getUser(order.userId)?.saldo ?? 0);
+          await bot.sendMessage(
+            order.userId,
+            `❌ <b>ORDER DIBATALKAN</b>\n\n` +
+            `Paket: ${order.packageName}\n` +
+            `Ref: <code>${order.reffId}</code>\n\n` +
+            `💰 Saldo Rp ${order.price.toLocaleString("id-ID")} telah dikembalikan.\n` +
+            `Saldo sekarang: <b>Rp ${newSaldo.toLocaleString("id-ID")}</b>`,
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+        } catch (e) {
+          logger.error({ err: e, orderId: order.id }, "fixorders: refund failed");
+        }
+        cancelled++;
+      }
+      await bot.sendMessage(
+        msg.chat.id,
+        `✅ <b>Selesai!</b>\n\n${cancelled} order dibatalkan, total refund: Rp ${refunded.toLocaleString("id-ID")}`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    if (processingOrders.length === 0) {
+      await bot.sendMessage(msg.chat.id, "✅ Tidak ada order yang sedang diproses.", { parse_mode: "HTML" });
+      return;
+    }
+
+    const lines = processingOrders.map((o, i) => {
+      const elapsed = Math.round((Date.now() - o.createdAt.getTime()) / 60000);
+      return `${i + 1}. <code>${o.reffId}</code>\n   📦 ${o.packageName} | ${o.provider ?? "?"} | Rp ${o.price.toLocaleString("id-ID")}\n   ⏱ ${elapsed} menit lalu | status: ${o.status}`;
+    }).join("\n\n");
+
+    await bot.sendMessage(
+      msg.chat.id,
+      `⚙️ <b>Order Processing (${processingOrders.length})</b>\n\n${lines}\n\n` +
+      `Kirim <code>/fixorders cancel all</code> untuk membatalkan semua dan refund saldo.`,
+      { parse_mode: "HTML" }
+    );
   });
 
   // ── 🏠 Menu ──────────────────────────────────────────────────────────────
