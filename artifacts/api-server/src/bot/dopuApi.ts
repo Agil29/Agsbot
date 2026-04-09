@@ -18,8 +18,14 @@ function parseDopuResponse(raw: string): {
   pending: boolean;
   sn: string;
   errorMsg: string;
+  rateLimit?: boolean;
 } {
   const upper = raw.toUpperCase();
+
+  // Rate limit — signal caller to handle separately
+  if (upper.includes("TOO MANY") || upper.includes("RATE LIMIT") || upper.includes("BANYAK PERMINTAAN")) {
+    return { success: false, pending: false, sn: "", errorMsg: "Server DOPU sedang sibuk. Coba beberapa menit lagi.", rateLimit: true };
+  }
 
   // --- Format 1: query-string (status=0 / status=1) ---
   if (/status=\d/i.test(raw)) {
@@ -29,6 +35,11 @@ function parseDopuResponse(raw: string): {
       const message = params.get("message") ?? raw;
       const msgUpper = message.toUpperCase();
 
+      // Rate limit inside query-string response
+      if (msgUpper.includes("TOO MANY") || msgUpper.includes("RATE LIMIT")) {
+        return { success: false, pending: false, sn: "", errorMsg: "Server DOPU sedang sibuk. Coba beberapa menit lagi.", rateLimit: true };
+      }
+
       if (status === "1") {
         // DOPU accepted the order for async processing — PENDING, not final
         const trxMatch = message.match(/#trx[:\s]*(\d+)/i) ?? message.match(/\btrx[:\s]*(\d+)/i);
@@ -37,7 +48,7 @@ function parseDopuResponse(raw: string): {
       }
 
       // status != 1 → synchronous failure
-      let errorMsg = "Transaksi gagal";
+      let errorMsg = message.trim().slice(0, 120) || "Transaksi gagal";
       if (msgUpper.includes("IP") || msgUpper.includes("ALAMAT")) {
         errorMsg = "IP server belum terdaftar. Hubungi admin.";
       } else if (msgUpper.includes("SALDO")) {
@@ -46,8 +57,6 @@ function parseDopuResponse(raw: string): {
         errorMsg = "Stok sedang kosong/ditutup";
       } else if (msgUpper.includes("NOMOR")) {
         errorMsg = "Nomor tujuan tidak valid";
-      } else if (message.trim().length > 0) {
-        errorMsg = message.trim().slice(0, 120);
       }
       return { success: false, pending: false, sn: "", errorMsg };
     } catch {
@@ -65,7 +74,12 @@ function parseDopuResponse(raw: string): {
     return { success: true, pending: false, sn: snMatch?.[1] ?? "", errorMsg: "" };
   }
 
-  let errorMsg = "Transaksi gagal";
+  // DOPU "PENDING" / antrian responses
+  if (upper.includes("ANTRI") || upper.includes("PENDING") || upper.includes("PROSES") || upper.includes("MENUNGGU")) {
+    return { success: true, pending: true, sn: "", errorMsg: "" };
+  }
+
+  let errorMsg = raw.trim().slice(0, 120) || "Transaksi gagal";
   if (upper.includes("IP") || upper.includes("ALAMAT")) {
     errorMsg = "IP server belum terdaftar. Hubungi admin.";
   } else if (upper.includes("SALDO")) {
@@ -245,13 +259,19 @@ export async function placeDopuOrder(params: {
     });
 
     const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-    logger.info({ sku: params.sku, tujuan: params.tujuan, reffId, raw }, "DOPU trx response");
+    logger.info({ sku: params.sku, tujuan: params.tujuan, reffId, raw: raw.slice(0, 300) }, "DOPU trx response");
 
     const parsed = parseDopuResponse(raw);
+
+    if (parsed.rateLimit) {
+      logger.warn({ sku: params.sku, reffId }, "DOPU /trx rate limited — order not placed");
+      return { success: false, error: parsed.errorMsg, reffId };
+    }
 
     if (parsed.success) {
       return { success: true, pending: parsed.pending, sn: parsed.sn || reffId, reffId };
     }
+    logger.warn({ sku: params.sku, reffId, raw: raw.slice(0, 300), errorMsg: parsed.errorMsg }, "DOPU /trx returned failure");
     return { success: false, error: parsed.errorMsg, reffId };
 
   } catch (err: any) {
