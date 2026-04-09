@@ -8,64 +8,71 @@ export type KhfyOrderResult =
 
 export type KhfyBalanceResult = { balance: number; raw: string } | { balance: null; raw: string };
 
+function parseBalanceFromData(data: unknown): number | null {
+  if (typeof data === "object" && data !== null) {
+    const d = data as Record<string, unknown>;
+    const val = d.saldo ?? d.balance ?? d.kredit ?? d.credit ?? d.deposit ?? d.wallet
+      ?? (d.data as any)?.saldo ?? (d.data as any)?.balance ?? (d.data as any)?.kredit;
+    if (val !== undefined) {
+      const n = Number(String(val).replace(/\./g, "").replace(/,/g, ""));
+      return isNaN(n) ? null : n;
+    }
+  }
+  if (typeof data === "string") {
+    const matchSaldo = data.match(/saldo[^0-9]*([0-9][0-9.,]*)/i);
+    if (matchSaldo) return Number(matchSaldo[1].replace(/\./g, "").replace(/,/g, ""));
+    const matchNum = data.match(/\b([0-9]{4,})\b/);
+    if (matchNum) return Number(matchNum[1]);
+  }
+  return null;
+}
+
 export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
   const apiKey = process.env.API2_KEY ?? "";
   const baseUrl = process.env.API2_BASE_URL ?? "";
   if (!apiKey || !baseUrl) return { balance: null, raw: "Env API2_KEY / API2_BASE_URL tidak tersedia" };
 
-  const endpoints = [
-    { url: `${baseUrl}/saldo`, params: { api_key: apiKey } },
-    { url: `${baseUrl}/balance`, params: { api_key: apiKey } },
-    { url: `${baseUrl}/profile`, params: { api_key: apiKey } },
-    { url: `${baseUrl}/member`, params: { api_key: apiKey } },
-    { url: `${baseUrl}/cek-saldo`, params: { api_key: apiKey } },
+  // Per official docs: panel.khfy-store.com/api_v2/saldo?api_key=...
+  const balEndpoints = [
+    `${baseUrl}/saldo`,
+    `${baseUrl}/balance`,
+    `${baseUrl}/profile`,
   ];
 
-  let lastRaw = "";
-  for (const ep of endpoints) {
+  for (const url of balEndpoints) {
     try {
-      const res = await axios.get(ep.url, { params: ep.params, timeout: 8000 });
+      const res = await axios.get(url, { params: { api_key: apiKey }, timeout: 8000 });
       const data = res.data ?? {};
       const raw = typeof data === "string" ? data : JSON.stringify(data);
-      lastRaw = raw.slice(0, 100);
-
-      if (typeof data === "object" && data !== null) {
-        const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit ?? data.deposit ?? data.wallet
-          ?? data.data?.saldo ?? data.data?.balance ?? data.data?.kredit;
-        if (val !== undefined && !isNaN(Number(String(val).replace(/\./g, "").replace(/,/g, "")))) {
-          return { balance: Number(String(val).replace(/\./g, "").replace(/,/g, "")), raw };
-        }
-      }
-      if (typeof data === "string") {
-        const matchNum = data.match(/\b([0-9]{3,}(?:[.,][0-9]+)*)\b/);
-        if (matchNum) {
-          return { balance: Number(matchNum[1].replace(/\./g, "").replace(/,/g, "")), raw };
-        }
-      }
+      const bal = parseBalanceFromData(data);
+      if (bal !== null) return { balance: bal, raw };
+      logger.info({ url, raw: raw.slice(0, 80) }, "KHFY balance endpoint: no parseable saldo");
     } catch {
-      // Try next endpoint
+      // Try next
     }
   }
 
-  // Fallback: test connectivity via /trx with dummy data — if KHFY replies
-  // with anything (even "nomor tidak valid"), it means the server is reachable and auth works.
+  // Fallback: connectivity test via /history (read-only, won't place any order)
   try {
-    const res = await axios.get(`${baseUrl}/trx`, {
-      params: { produk: "PING_TEST", tujuan: "00000000000", reff_id: "ping-check", api_key: apiKey },
+    const res = await axios.get(`${baseUrl}/history`, {
+      params: { api_key: apiKey, refid: "connectivity-check" },
       timeout: 10000,
     });
     const data = res.data ?? {};
     const raw = typeof data === "string" ? data : JSON.stringify(data);
-    // If we got any structured response, server is up and auth is accepted
-    const status = String(data.status ?? data.ok ?? "").toLowerCase();
-    const msg = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? raw).slice(0, 80);
-    logger.info({ raw: raw.slice(0, 100) }, "KHFY /trx ping response");
-    return { balance: null, raw: `✅ Server merespons (no saldo endpoint). Msg: ${msg}` };
+    // Check for auth errors
+    const rawLower = raw.toLowerCase();
+    if (rawLower.includes("invalid") && rawLower.includes("key")) {
+      logger.warn({ raw: raw.slice(0, 80) }, "KHFY /history: invalid API key");
+      return { balance: null, raw: "❌ API key tidak valid" };
+    }
+    logger.info({ raw: raw.slice(0, 80) }, "KHFY /history ping response");
+    return { balance: null, raw: `✅ Server merespons, saldo tidak tersedia via API` };
   } catch (e: any) {
-    const errDetail = e?.response?.data
-      ? String(e.response.data).slice(0, 80)
-      : String(e?.message ?? e).slice(0, 80);
-    logger.warn({ lastRaw, err: errDetail }, "KHFY: all endpoints failed");
+    const errDetail = e?.response?.status
+      ? `HTTP ${e.response.status}`
+      : String(e?.message ?? e).slice(0, 60);
+    logger.warn({ err: errDetail }, "KHFY: all endpoints failed");
     return { balance: null, raw: `❌ Tidak terhubung: ${errDetail}` };
   }
 }
