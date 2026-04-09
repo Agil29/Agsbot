@@ -150,6 +150,11 @@ export async function placeDigiflazOrder(opts: {
   const refId = opts.refId ?? randomUUID().replace(/-/g, "").slice(0, 20);
   const sign = md5(username + apiKey + refId);
 
+  // cb_url: Digiflazz will POST callback here when transaction completes
+  // Uses SERVER_URL env var (VPS domain), falls back to agilbot.my.id
+  const serverUrl = (process.env.SERVER_URL ?? "https://agilbot.my.id").replace(/\/$/, "");
+  const cbUrl = `${serverUrl}/webhook/digiflaz`;
+
   try {
     const res = await axios.post(
       `${BASE_URL}/transaction`,
@@ -160,6 +165,7 @@ export async function placeDigiflazOrder(opts: {
         ref_id: refId,
         sign,
         commands: "buy",
+        cb_url: cbUrl,
       },
       { timeout: 30000 }
     );
