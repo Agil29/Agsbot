@@ -1,6 +1,6 @@
-const WINDOW_MS = 5_000;      // 5-second rolling window
-const MAX_MESSAGES = 5;        // max messages per window before cooldown
-const COOLDOWN_MS = 30_000;    // 30-second cooldown
+const WINDOW_MS = 8_000;      // 8-second rolling window
+const MAX_MESSAGES = 12;       // max actions per window before cooldown
+const COOLDOWN_MS = 15_000;   // 15-second cooldown
 
 type UserData = {
   timestamps: number[];
@@ -49,4 +49,12 @@ export function recordAndCheck(userId: number): { status: "ok" | "warn" | "block
 export function isBlocked(userId: number): boolean {
   const d = getData(userId);
   return d.blockedUntil > Date.now();
+}
+
+/** Returns secondsLeft if blocked, 0 otherwise. */
+export function secondsBlocked(userId: number): number {
+  const d = getData(userId);
+  const now = Date.now();
+  if (d.blockedUntil > now) return Math.ceil((d.blockedUntil - now) / 1000);
+  return 0;
 }
