@@ -24,7 +24,7 @@ function parseDopuResponse(raw: string): {
 
   // Rate limit — signal caller to handle separately
   if (upper.includes("TOO MANY") || upper.includes("RATE LIMIT") || upper.includes("BANYAK PERMINTAAN")) {
-    return { success: false, pending: false, sn: "", errorMsg: "Server DOPU sedang sibuk. Coba beberapa menit lagi.", rateLimit: true };
+    return { success: false, pending: false, sn: "", errorMsg: "Server sedang sibuk. Coba beberapa menit lagi.", rateLimit: true };
   }
 
   // --- Format 1: query-string (status=0 / status=1) ---
@@ -37,7 +37,7 @@ function parseDopuResponse(raw: string): {
 
       // Rate limit inside query-string response
       if (msgUpper.includes("TOO MANY") || msgUpper.includes("RATE LIMIT")) {
-        return { success: false, pending: false, sn: "", errorMsg: "Server DOPU sedang sibuk. Coba beberapa menit lagi.", rateLimit: true };
+        return { success: false, pending: false, sn: "", errorMsg: "Server sedang sibuk. Coba beberapa menit lagi.", rateLimit: true };
       }
 
       if (status === "1") {
@@ -293,7 +293,7 @@ export async function placeDopuOrder(params: {
     logger.error({ err, sku: params.sku }, "DOPU API request failed");
     const errMsg = err?.response?.data
       ? String(err.response.data).slice(0, 100)
-      : "Koneksi ke server DOPU gagal";
+      : "Koneksi ke server gagal. Coba lagi.";
     return { success: false, error: errMsg, reffId };
   }
 }
