@@ -190,6 +190,8 @@ export function setupHandlers(bot: TelegramBot) {
       return;
     }
     if (isAdmin(msg.from.id)) return; // admins are exempt from rate limiting
+    // Navigation buttons are not spam — don't count them against the rate limit
+    if (msg.text && /^(🏠|💰|📦|📋|💳|📱|📢|💬)/.test(msg.text)) return;
     const { status, secondsLeft } = recordAndCheck(msg.from.id);
     if (status === "warn") {
       await bot.sendMessage(
@@ -882,7 +884,10 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
       if (rl.status === "blocked") {
-        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.answerCallbackQuery(query.id, {
+          text: `⏳ Tunggu ${rl.secondsLeft} detik sebelum melanjutkan.`,
+          show_alert: false,
+        }).catch(() => {});
         return;
       }
     }
