@@ -73,7 +73,7 @@ export type DigiflazStatusResult =
 
 export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazStatusResult> {
   const { username, apiKey } = getCreds();
-  if (!username || !apiKey) return { status: "failed", error: "Digiflaz belum dikonfigurasi" };
+  if (!username || !apiKey) return { status: "failed", error: "Layanan belum dikonfigurasi. Hubungi admin." };
 
   try {
     const sign = md5(username + apiKey + refId);
@@ -122,7 +122,7 @@ export async function checkDigiflazOrderStatus(refId: string): Promise<DigiflazS
     if (isSuccess) {
       return { status: "success", sn };
     } else if (isFailed) {
-      const error = msgRaw || rawStatus || "Transaksi gagal di Digiflaz";
+      const error = msgRaw || rawStatus || "Transaksi gagal. Hubungi admin.";
       return { status: "failed", error };
     } else if (isPendingStatus) {
       return { status: "pending" };
@@ -150,7 +150,7 @@ export async function placeDigiflazOrder(opts: {
 }): Promise<DigiflazOrderResult> {
   const { username, apiKey } = getCreds();
   if (!username || !apiKey) {
-    return { success: false, error: "Digiflaz belum dikonfigurasi", refId: opts.refId ?? "" };
+    return { success: false, error: "Layanan belum dikonfigurasi. Hubungi admin.", refId: opts.refId ?? "" };
   }
 
   const refId = opts.refId ?? randomUUID().replace(/-/g, "").slice(0, 20);
@@ -178,7 +178,7 @@ export async function placeDigiflazOrder(opts: {
 
     const data = res.data?.data;
     if (!data) {
-      return { success: false, error: "Response tidak valid dari Digiflaz", refId };
+      return { success: false, error: "Response tidak valid. Hubungi admin.", refId };
     }
 
     const status = String(data.status ?? "").toLowerCase();
@@ -192,14 +192,14 @@ export async function placeDigiflazOrder(opts: {
     } else if (status === "pending") {
       return { success: true, pending: true, sn, refId };
     } else {
-      return { success: false, error: message || "Transaksi gagal di Digiflaz", refId };
+      return { success: false, error: message || "Transaksi gagal. Hubungi admin.", refId };
     }
   } catch (err: any) {
     const errMsg =
       err?.response?.data?.data?.message ??
       err?.response?.data?.message ??
       err?.message ??
-      "Kesalahan koneksi ke Digiflaz";
+      "Koneksi ke server gagal. Coba lagi.";
     logger.error({ err: errMsg, sku: opts.sku, refId }, "Digiflaz order error");
     return { success: false, error: errMsg, refId };
   }
