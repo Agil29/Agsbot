@@ -6,14 +6,64 @@ import { checkDopuOrderStatus } from "./dopuApi";
 import { checkDigiflazOrderStatus } from "./digiflazApi";
 
 const MAX_ATTEMPTS_DOPU = 30;
-const MAX_ATTEMPTS_DIGIFLAZ = 60;    // check up to 60x (30 minutes at 30s interval)
-const INTERVAL_DOPU_MS = 90 * 1000;         // 90 seconds for DOPU
-const INTERVAL_DIGIFLAZ_MS = 30 * 1000;     // 30 seconds for Digiflaz (no webhook available)
-const RATELIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes on rate limit
+const MAX_ATTEMPTS_DIGIFLAZ = 60;
+const INTERVAL_DOPU_MS = 2 * 60 * 1000;     // 2 minutes between each DOPU poll attempt
+const INTERVAL_DIGIFLAZ_MS = 45 * 1000;     // 45 seconds for Digiflaz
+const RATELIMIT_BACKOFF_MS = 10 * 60 * 1000; // 10 minutes on rate limit
+
+/**
+ * Per-provider sequential request queue.
+ * Ensures only ONE request goes to each provider at a time,
+ * with a minimum gap between consecutive requests.
+ * This prevents rate-limit blocks even with many concurrent orders.
+ */
+class ProviderQueue {
+  private queue: Array<() => Promise<unknown>> = [];
+  private running = false;
+  private lastRequestAt = 0;
+
+  constructor(private minGapMs: number, private name: string) {}
+
+  /** Enqueue a function — it will run after the previous one finishes + minGap */
+  enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try { resolve(await fn()); }
+        catch (e) { reject(e); }
+      });
+      if (!this.running) this.drain();
+    });
+  }
+
+  private async drain() {
+    this.running = true;
+    while (this.queue.length > 0) {
+      const gap = this.minGapMs - (Date.now() - this.lastRequestAt);
+      if (gap > 0) await new Promise(r => setTimeout(r, gap));
+      const fn = this.queue.shift();
+      if (fn) {
+        this.lastRequestAt = Date.now();
+        await fn();
+      }
+    }
+    this.running = false;
+    logger.debug({ provider: this.name }, "Provider queue drained");
+  }
+}
+
+// One queue per provider — minimum 15s between consecutive DOPU requests, 10s for Digiflaz
+const dopuQueue = new ProviderQueue(15_000, "dopu");
+const digiflazQueue = new ProviderQueue(10_000, "digiflaz");
+
+function queuedCheckStatus(provider: "dopu" | "digiflaz", reffId: string, dopuTrxId?: string) {
+  if (provider === "dopu") {
+    return dopuQueue.enqueue(() => checkDopuOrderStatus(reffId, dopuTrxId));
+  }
+  return digiflazQueue.enqueue(() => checkDigiflazOrderStatus(reffId));
+}
 
 /**
  * Global DOPU rate limit: when ANY DOPU order gets rate-limited, ALL DOPU polls pause until this timestamp.
- * This prevents simultaneous polling from multiple orders all hitting DOPU at once.
  */
 let dopuGlobalRateLimitUntil = 0;
 
@@ -23,7 +73,7 @@ function isDopuGloballyRateLimited(): boolean {
 
 function setDopuGlobalRateLimit() {
   dopuGlobalRateLimitUntil = Date.now() + RATELIMIT_BACKOFF_MS;
-  logger.warn({ until: new Date(dopuGlobalRateLimitUntil).toISOString() }, "DOPU global rate limit set — all DOPU polls paused for 5 min");
+  logger.warn({ until: new Date(dopuGlobalRateLimitUntil).toISOString() }, "DOPU global rate limit — all DOPU polls paused for 10 min");
 }
 
 /**
@@ -82,10 +132,7 @@ export function startOrderPolling(
         return;
       }
 
-      const statusRes =
-        provider === "digiflaz"
-          ? await checkDigiflazOrderStatus(reffId)
-          : await checkDopuOrderStatus(reffId, dopuTrxId);
+      const statusRes = await queuedCheckStatus(provider, reffId, dopuTrxId);
 
       logger.info({ reffId, orderId, attempt, status: statusRes.status, provider }, "Pending poll result");
 
@@ -214,8 +261,8 @@ export function resumeProcessingOrders(bot: TelegramBot) {
 
     logger.info({ orderId: order.id, provider, source: order.provider ?? "inferred" }, "Resuming poll");
 
-    // Stagger polls: 30s apart per order to avoid rate limits on startup
-    const staggerMs = 30000 + i * 30000;
+    // Stagger polls: 60s apart per order on startup — queue handles serialization thereafter
+    const staggerMs = 60000 + i * 60000;
     startOrderPolling(bot, order, {
       provider,
       dopuTrxId: order.sn || undefined,
