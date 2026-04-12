@@ -99,7 +99,7 @@ function parseDopuResponse(raw: string): {
 export type DopuBalanceResult = { balance: number; raw: string } | { balance: null; raw: string };
 
 export async function getDopuBalance(): Promise<DopuBalanceResult> {
-  const baseUrl = process.env.DOPU_BASE_URL ?? "http://141.11.190.108:8182";
+  const baseUrl = process.env.DOPU_BASE_URL ?? "https://delicate-tooth-a814.rifkiagil9.workers.dev";
   const memberId = process.env.DOPU_MEMBER_ID ?? "";
   const pin = process.env.DOPU_PIN ?? "";
   const password = process.env.DOPU_PASSWORD ?? "";
@@ -154,7 +154,7 @@ export type DopuStatusResult =
  * Returns: success (delivered), pending (still processing), or failed.
  */
 export async function checkDopuOrderStatus(reffId: string, trxId?: string): Promise<DopuStatusResult> {
-  const baseUrl = process.env.DOPU_BASE_URL ?? "http://141.11.190.108:8182";
+  const baseUrl = process.env.DOPU_BASE_URL ?? "https://delicate-tooth-a814.rifkiagil9.workers.dev";
   const memberId = process.env.DOPU_MEMBER_ID ?? "";
   const pin = process.env.DOPU_PIN ?? "";
 
@@ -243,7 +243,7 @@ export async function placeDopuOrder(params: {
   tujuan: string;
   reffId?: string;
 }): Promise<DopuOrderResult> {
-  const baseUrl = process.env.DOPU_BASE_URL ?? "http://141.11.190.108:8182";
+  const baseUrl = process.env.DOPU_BASE_URL ?? "https://delicate-tooth-a814.rifkiagil9.workers.dev";
   const memberId = process.env.DOPU_MEMBER_ID ?? "";
   const pin = process.env.DOPU_PIN ?? "";
   const password = process.env.DOPU_PASSWORD ?? "";
