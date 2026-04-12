@@ -368,6 +368,8 @@ export function setupHandlers(bot: TelegramBot) {
       const res = await getDopuBalance();
       if (res.balance !== null) {
         dopuStatus = `✅ OK — Saldo: <b>Rp ${res.balance.toLocaleString("id-ID")}</b>`;
+      } else if (res.raw.startsWith("✅")) {
+        dopuStatus = res.raw;
       } else if (res.raw.includes("diblokir") || res.raw.includes("Too many")) {
         dopuStatus = `❌ IP diblokir\n<code>${res.raw}</code>`;
       } else {
