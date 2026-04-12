@@ -114,45 +114,39 @@ export async function getDopuBalance(): Promise<DopuBalanceResult> {
   const password = process.env.DOPU_PASSWORD ?? "";
   if (!memberId || !pin) return { balance: null, raw: "Env DOPU_MEMBER_ID / DOPU_PIN tidak tersedia" };
   try {
-    // Step 1: GET /saldo to obtain the one-time salt from DOPU's form response
-    const saltRes = await axios.get(`${baseUrl}/saldo`, {
-      params: { memberID: memberId },
+    const res = await axios.get(`${baseUrl}/saldo`, {
+      params: { memberID: memberId, pin, password },
       timeout: 10000,
     });
-    const saltHtml = typeof saltRes.data === "string" ? saltRes.data : JSON.stringify(saltRes.data);
+    const data = res.data;
+    const raw = typeof data === "string" ? data : JSON.stringify(data);
 
-    if (/too many requests/i.test(saltHtml)) {
+    if (/too many requests/i.test(raw)) {
       return { balance: null, raw: "❌ IP diblokir DOPU (Too many requests)" };
     }
 
-    // Parse salt value from hidden input: name='salt' value='...'
-    const saltMatch = saltHtml.match(/name=['"]salt['"]\s+value=['"]([^'"]+)['"]/i)
-      ?? saltHtml.match(/value=['"]([^'"]+)['"]\s+name=['"]salt['"]/i);
-    if (!saltMatch) {
-      // No form/salt — server returned something else directly
-      return await parseDopuSaldoResponse(saltHtml);
+    // Balance returned successfully
+    const matchSaldo = raw.match(/saldo[^0-9]*([0-9][0-9.,]*)/i);
+    if (matchSaldo) {
+      return { balance: Number(matchSaldo[1].replace(/\./g, "").replace(/,/g, "")), raw };
     }
-    const salt = saltMatch[1];
+    try {
+      const obj = JSON.parse(raw);
+      const val = obj.saldo ?? obj.balance ?? obj.kredit ?? obj.credit ?? obj.deposit;
+      if (val !== undefined) return { balance: Number(String(val).replace(/\./g, "").replace(/,/g, "")), raw };
+    } catch { /* not JSON */ }
+    const matchNum = raw.match(/\b([0-9]{5,}(?:[.,][0-9]+)*)\b/);
+    if (matchNum) {
+      return { balance: Number(matchNum[1].replace(/\./g, "").replace(/,/g, "")), raw };
+    }
 
-    // Step 2: Hash credentials the same way DOPU's form does (base64-sha1, url-safe)
-    const hashedPin = dopuHashCredential(salt, pin);
-    const hashedPassword = dopuHashCredential(salt, password);
+    // /saldo returned error (IP check or wrong creds for web panel) — fall back to connectivity test
+    if (/ip.*sesuai|sesuai.*ip|invalid.*pin|pin.*invalid|password/i.test(raw)) {
+      return await dopuConnectivityCheck(baseUrl, memberId, pin, raw);
+    }
 
-    // Step 3: POST with form-urlencoded hashed credentials
-    const postBody = new URLSearchParams({
-      memberID: memberId,
-      salt,
-      pin: hashedPin,
-      password: hashedPassword,
-    }).toString();
-
-    const postRes = await axios.post(`${baseUrl}/saldo`, postBody, {
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      timeout: 10000,
-    });
-    const data = postRes.data;
-    const raw = typeof data === "string" ? data : JSON.stringify(data);
-    return await parseDopuSaldoResponse(raw);
+    logger.warn({ raw: raw.slice(0, 200) }, "DOPU /saldo: unexpected format");
+    return { balance: null, raw: raw.slice(0, 100) };
   } catch (err: any) {
     const errMsg = err?.response?.data ? String(err.response.data).slice(0, 80) : String(err?.message ?? err).slice(0, 80);
     logger.warn({ err: errMsg }, "DOPU /saldo request failed");
@@ -160,30 +154,32 @@ export async function getDopuBalance(): Promise<DopuBalanceResult> {
   }
 }
 
-function parseDopuSaldoResponse(raw: string): DopuBalanceResult {
-  if (/too many requests/i.test(raw)) {
-    return { balance: null, raw: "❌ IP diblokir DOPU (Too many requests)" };
-  }
-  // Format 1: "Saldo : Rp 354.867" or "Saldo: 354867" or "saldo=354867"
-  const matchSaldo = raw.match(/saldo[^0-9]*([0-9][0-9.,]*)/i);
-  if (matchSaldo) {
-    return { balance: Number(matchSaldo[1].replace(/\./g, "").replace(/,/g, "")), raw };
-  }
-  // Format 2: JSON-like
+/**
+ * Fallback: verify DOPU connectivity via /cek endpoint (used for order status checks).
+ * Returns a green status if the server is reachable and API credentials are valid.
+ */
+async function dopuConnectivityCheck(
+  baseUrl: string,
+  memberId: string,
+  pin: string,
+  saldoRaw: string,
+): Promise<DopuBalanceResult> {
   try {
-    const obj = JSON.parse(raw);
-    const val = obj.saldo ?? obj.balance ?? obj.kredit ?? obj.credit ?? obj.deposit;
-    if (val !== undefined) return { balance: Number(String(val).replace(/\./g, "").replace(/,/g, "")), raw };
+    const res = await axios.get(`${baseUrl}/cek`, {
+      params: { memberID: memberId, pin, trxID: "connectivity-test" },
+      timeout: 8000,
+    });
+    const text = typeof res.data === "string" ? res.data.trim() : JSON.stringify(res.data);
+    if (/^ok$/i.test(text) || /sukses|berhasil|trx.*not.*found|not.*found/i.test(text)) {
+      return { balance: null, raw: "✅ Server OK — saldo tidak tersedia via endpoint ini" };
+    }
+    if (/too many|rate limit/i.test(text)) {
+      return { balance: null, raw: "❌ IP diblokir DOPU (Too many requests)" };
+    }
+    return { balance: null, raw: `⚠️ Server merespons — ${saldoRaw.slice(0, 60)}` };
   } catch {
-    // not JSON
+    return { balance: null, raw: `⚠️ Saldo tidak tersedia — ${saldoRaw.slice(0, 60)}` };
   }
-  // Format 3: any standalone 3+ digit number (e.g. "354867")
-  const matchNum = raw.match(/\b([0-9]{3,}(?:[.,][0-9]+)*)\b/);
-  if (matchNum) {
-    return { balance: Number(matchNum[1].replace(/\./g, "").replace(/,/g, "")), raw };
-  }
-  logger.warn({ raw: raw.slice(0, 200) }, "DOPU /saldo: unexpected format");
-  return { balance: null, raw: raw.slice(0, 100) };
 }
 
 export type DopuStatusResult =
