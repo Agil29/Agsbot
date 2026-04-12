@@ -4,7 +4,7 @@ import { logger } from "./logger";
 const ADMIN_KEY = process.env.ADMIN_API_KEY;
 
 if (!ADMIN_KEY) {
-  throw new Error("ADMIN_API_KEY environment variable is not set. Set it to a strong random key.");
+  logger.warn("ADMIN_API_KEY environment variable is not set. Admin API will reject all requests.");
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
