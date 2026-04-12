@@ -1,6 +1,15 @@
 import axios from "axios";
 import { logger } from "../lib/logger";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
+
+function dopuHashCredential(salt: string, value: string): string {
+  return createHash("sha1")
+    .update(salt + value)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
 export type DopuOrderResult =
   | { success: true; pending: boolean; sn: string; reffId: string }
@@ -105,42 +114,76 @@ export async function getDopuBalance(): Promise<DopuBalanceResult> {
   const password = process.env.DOPU_PASSWORD ?? "";
   if (!memberId || !pin) return { balance: null, raw: "Env DOPU_MEMBER_ID / DOPU_PIN tidak tersedia" };
   try {
-    const res = await axios.get(`${baseUrl}/saldo`, {
-      params: { memberID: memberId, pin, password },
+    // Step 1: GET /saldo to obtain the one-time salt from DOPU's form response
+    const saltRes = await axios.get(`${baseUrl}/saldo`, {
+      params: { memberID: memberId },
       timeout: 10000,
     });
-    const data = res.data;
-    const raw = typeof data === "string" ? data : JSON.stringify(data);
+    const saltHtml = typeof saltRes.data === "string" ? saltRes.data : JSON.stringify(saltRes.data);
 
-    // Detect IP block / rate limit before attempting parse
-    if (typeof data === "string" && /too many requests/i.test(data)) {
+    if (/too many requests/i.test(saltHtml)) {
       return { balance: null, raw: "❌ IP diblokir DOPU (Too many requests)" };
     }
 
-    if (typeof data === "string") {
-      // Format 1: "Saldo : Rp 354.867" or "Saldo: 354867" or "saldo=354867"
-      const matchSaldo = data.match(/saldo[^0-9]*([0-9][0-9.,]*)/i);
-      if (matchSaldo) {
-        return { balance: Number(matchSaldo[1].replace(/\./g, "").replace(/,/g, "")), raw };
-      }
-      // Format 2: any standalone number (first large number in string)
-      const matchNum = data.match(/\b([0-9]{3,}(?:[.,][0-9]+)*)\b/);
-      if (matchNum) {
-        return { balance: Number(matchNum[1].replace(/\./g, "").replace(/,/g, "")), raw };
-      }
+    // Parse salt value from hidden input: name='salt' value='...'
+    const saltMatch = saltHtml.match(/name=['"]salt['"]\s+value=['"]([^'"]+)['"]/i)
+      ?? saltHtml.match(/value=['"]([^'"]+)['"]\s+name=['"]salt['"]/i);
+    if (!saltMatch) {
+      // No form/salt — server returned something else directly
+      return await parseDopuSaldoResponse(saltHtml);
     }
-    if (typeof data === "object" && data !== null) {
-      const val = data.saldo ?? data.balance ?? data.kredit ?? data.credit ?? data.deposit;
-      if (val !== undefined) return { balance: Number(String(val).replace(/\./g, "").replace(/,/g, "")), raw };
-    }
+    const salt = saltMatch[1];
 
-    logger.warn({ raw: raw.slice(0, 200) }, "DOPU /saldo: unexpected format");
-    return { balance: null, raw: raw.slice(0, 100) };
+    // Step 2: Hash credentials the same way DOPU's form does (base64-sha1, url-safe)
+    const hashedPin = dopuHashCredential(salt, pin);
+    const hashedPassword = dopuHashCredential(salt, password);
+
+    // Step 3: POST with form-urlencoded hashed credentials
+    const postBody = new URLSearchParams({
+      memberID: memberId,
+      salt,
+      pin: hashedPin,
+      password: hashedPassword,
+    }).toString();
+
+    const postRes = await axios.post(`${baseUrl}/saldo`, postBody, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      timeout: 10000,
+    });
+    const data = postRes.data;
+    const raw = typeof data === "string" ? data : JSON.stringify(data);
+    return await parseDopuSaldoResponse(raw);
   } catch (err: any) {
     const errMsg = err?.response?.data ? String(err.response.data).slice(0, 80) : String(err?.message ?? err).slice(0, 80);
     logger.warn({ err: errMsg }, "DOPU /saldo request failed");
     return { balance: null, raw: `Error: ${errMsg}` };
   }
+}
+
+function parseDopuSaldoResponse(raw: string): DopuBalanceResult {
+  if (/too many requests/i.test(raw)) {
+    return { balance: null, raw: "❌ IP diblokir DOPU (Too many requests)" };
+  }
+  // Format 1: "Saldo : Rp 354.867" or "Saldo: 354867" or "saldo=354867"
+  const matchSaldo = raw.match(/saldo[^0-9]*([0-9][0-9.,]*)/i);
+  if (matchSaldo) {
+    return { balance: Number(matchSaldo[1].replace(/\./g, "").replace(/,/g, "")), raw };
+  }
+  // Format 2: JSON-like
+  try {
+    const obj = JSON.parse(raw);
+    const val = obj.saldo ?? obj.balance ?? obj.kredit ?? obj.credit ?? obj.deposit;
+    if (val !== undefined) return { balance: Number(String(val).replace(/\./g, "").replace(/,/g, "")), raw };
+  } catch {
+    // not JSON
+  }
+  // Format 3: any standalone 3+ digit number (e.g. "354867")
+  const matchNum = raw.match(/\b([0-9]{3,}(?:[.,][0-9]+)*)\b/);
+  if (matchNum) {
+    return { balance: Number(matchNum[1].replace(/\./g, "").replace(/,/g, "")), raw };
+  }
+  logger.warn({ raw: raw.slice(0, 200) }, "DOPU /saldo: unexpected format");
+  return { balance: null, raw: raw.slice(0, 100) };
 }
 
 export type DopuStatusResult =
