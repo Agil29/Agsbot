@@ -11,6 +11,17 @@ function dopuHashCredential(salt: string, value: string): string {
     .replace(/=+$/, "");
 }
 
+
+function sanitizeDopuError(raw) {
+  return raw
+    .replace(/Saldo\s+[\d.,]+\s*@\s*[\d:]+/gi, "")
+    .replace(/\*?\s*bantuan\s+ketik\s+cs\s*\*?/gi, "")
+    .replace(/^\s*\*\s*/g, "")
+    .replace(/\s*\*\s*$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, 120) || "Transaksi gagal";
+}
 export type DopuOrderResult =
   | { success: true; pending: boolean; sn: string; reffId: string }
   | { success: false; error: string; reffId: string };
@@ -57,7 +68,7 @@ function parseDopuResponse(raw: string): {
       }
 
       // status != 1 → synchronous failure
-      let errorMsg = message.trim().slice(0, 120) || "Transaksi gagal";
+      let errorMsg = sanitizeDopuError(message);
       if (msgUpper.includes("IP") || msgUpper.includes("ALAMAT")) {
         errorMsg = "IP server belum terdaftar. Hubungi admin.";
       } else if (msgUpper.includes("SALDO")) {
@@ -88,7 +99,7 @@ function parseDopuResponse(raw: string): {
     return { success: true, pending: true, sn: "", errorMsg: "" };
   }
 
-  let errorMsg = raw.trim().slice(0, 120) || "Transaksi gagal";
+  let errorMsg = sanitizeDopuError(raw);
   if (upper.includes("IP") || upper.includes("ALAMAT")) {
     errorMsg = "IP server belum terdaftar. Hubungi admin.";
   } else if (upper.includes("SALDO")) {
@@ -99,7 +110,7 @@ function parseDopuResponse(raw: string): {
     errorMsg = "Nomor tujuan tidak valid";
   } else if (upper.includes("GAGAL") || upper.includes("FAILED")) {
     const match = raw.match(/GAGAL[,.\s!]+([^\n*]+)/i);
-    if (match) errorMsg = match[1].trim().slice(0, 120);
+    if (match) errorMsg = sanitizeDopuError(match[1]);
   }
   return { success: false, pending: false, sn: "", errorMsg };
 }
@@ -241,7 +252,7 @@ export async function checkDopuOrderStatus(reffId: string, trxId?: string): Prom
       return { status: "success", sn: snMatch?.[1] ?? identifier };
     }
     if (upper.includes("GAGAL") || upper.includes("FAILED") || upper.includes("BATAL")) {
-      return { status: "failed", error: trimmed.slice(0, 120) };
+      return { status: "failed", error: sanitizeDopuError(trimmed) };
     }
     if (upper.includes("PROSES") || upper.includes("PENDING") || upper.includes("ANTRI") || upper.includes("MENUNGGU")) {
       return { status: "pending" };
