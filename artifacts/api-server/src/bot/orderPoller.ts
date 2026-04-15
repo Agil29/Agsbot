@@ -187,13 +187,19 @@ export function startOrderPolling(
         activePolls.delete(reffId);
 
         const refundedUser = getUser(chatId);
+        const _rawErr = String((statusRes as any).error ?? "");
+        const _displayErr = /kosong|stok|habis/i.test(_rawErr)
+          ? "Stok sedang kosong. Coba produk lain atau hubungi admin."
+          : /nomor|tujuan|invalid|dest/i.test(_rawErr)
+          ? "Nomor tujuan tidak valid."
+          : "Transaksi gagal. Hubungi admin untuk bantuan.";
         await bot
           .sendMessage(
             chatId,
             `❌ <b>ORDER GAGAL</b>\n\n` +
               `📦 Produk: <b>${pkgName}</b>\n` +
               `📱 Nomor: <code>${nomor}</code>\n\n` +
-              `⚠️ ${sanitizeDopuError((statusRes as any).error ?? "Transaksi gagal")}\n` +
+              `⚠️ ${_displayErr}\n` +
               `🔖 Ref: <code>${reffId}</code>\n\n` +
               `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
               `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,

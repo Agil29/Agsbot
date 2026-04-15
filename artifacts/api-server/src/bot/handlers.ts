@@ -115,7 +115,7 @@ async function sendTopupQR(bot: TelegramBot, chatId: number, userId: number, nom
   const result = await createPakasirTopup({ userId, chatId, userName, nominal });
 
   if ("error" in result) {
-    await bot.sendMessage(chatId, `❌ ${sanitizeDopuError(result.error ?? "Transaksi gagal")}`, { parse_mode: "HTML" });
+    await bot.sendMessage(chatId, `❌ ${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}`, { parse_mode: "HTML" });
     return;
   }
 
@@ -1125,14 +1125,14 @@ export function setupHandlers(bot: TelegramBot) {
               note: `Refund order QRIS gagal: ${result.error ?? ""}`,
             });
             await bot.editMessageCaption(
-              `❌ <b>ORDER GAGAL</b>\n\n⚠️ ${sanitizeDopuError(result.error ?? "Transaksi gagal")}\n\n` +
+              `❌ <b>ORDER GAGAL</b>\n\n⚠️ ${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}\n\n` +
               `💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dikembalikan ke saldo.\n` +
               `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
               { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
             ).catch(async () => {
               await bot.sendMessage(
                 chatId,
-                `❌ <b>ORDER GAGAL</b>\n\n${sanitizeDopuError(result.error ?? "Transaksi gagal")}\n\n💰 Saldo Rp ${topup.nominal.toLocaleString("id-ID")} dikembalikan.`,
+                `❌ <b>ORDER GAGAL</b>\n\n${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}\n\n💰 Saldo Rp ${topup.nominal.toLocaleString("id-ID")} dikembalikan.`,
                 { parse_mode: "HTML" }
               );
             });
@@ -1634,7 +1634,7 @@ export function setupHandlers(bot: TelegramBot) {
         const refundedUser = getUser(userId);
         await bot.editMessageText(
           `❌ <b>ORDER GAGAL</b>\n\n` +
-          `⚠️ ${sanitizeDopuError(result.error ?? "Transaksi gagal")}` +
+          `⚠️ ${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}` +
           (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
           `\n\n💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
           `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,

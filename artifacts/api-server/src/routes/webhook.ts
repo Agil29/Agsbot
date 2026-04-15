@@ -226,7 +226,7 @@ router.post("/pakasir", async (req, res) => {
           await bot.sendMessage(
             topup.chatId,
             `❌ <b>ORDER GAGAL</b>\n\n` +
-            `⚠️ ${sanitizeDopuError(result.error ?? "")}` +
+            `⚠️ ${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}` +
             (providerRef ? `\n🔖 Ref: <code>${providerRef}</code>` : "") +
             `\n\n💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
             `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
