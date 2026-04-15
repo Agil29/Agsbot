@@ -131,7 +131,11 @@ async function handleDopuCallback(data: Record<string, any>) {
     logger.info({ reffId, dopuTrxId, orderId: order.id }, "DOPU callback: order cancelled — saldo refunded");
 
     if (bot) {
-      const errMsg = message.length > 0 ? message.slice(0, 120) : "Transaksi gagal";
+      const errMsg = /kosong|stok|habis/i.test(message)
+        ? "Stok sedang kosong. Coba produk lain atau hubungi admin."
+        : /nomor|tujuan|invalid|dest/i.test(message)
+        ? "Nomor tujuan tidak valid."
+        : "Transaksi gagal. Hubungi admin untuk bantuan.";
       try {
         await bot.sendMessage(
           chatId,
