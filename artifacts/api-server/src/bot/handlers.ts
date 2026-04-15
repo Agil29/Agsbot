@@ -1681,6 +1681,7 @@ export function setupHandlers(bot: TelegramBot) {
           quota: session.selectedPackageQuota ?? "",
           validity: session.selectedPackageValidity ?? "",
           source: session.selectedSource,
+          baseprice: session.selectedPackageBaseprice,
         },
       });
 

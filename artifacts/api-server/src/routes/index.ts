@@ -8,6 +8,7 @@ import adminBroadcastRouter from "./admin/broadcast";
 import webhookRouter from "./webhook";
 import dopuCallbackRouter, { recentDopuCallbacks } from "./dopuCallback";
 import digiflazCallbackRouter from "./digiflazCallback";
+import khfyCallbackRouter, { recentKhfyCallbacks } from "./khfyCallback";
 
 const router: IRouter = Router();
 
@@ -19,6 +20,7 @@ router.use("/admin", adminBroadcastRouter);
 router.use("/webhook", webhookRouter);
 router.use(dopuCallbackRouter);
 router.use(digiflazCallbackRouter);
+router.use(khfyCallbackRouter);
 
 // Debug: see last 20 raw DOPU callback payloads
 router.get("/dopu-debug", (_req, res) => {

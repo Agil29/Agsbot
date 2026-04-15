@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import dopuCallbackRouter from "./routes/dopuCallback";
 import digiflazCallbackRouter from "./routes/digiflazCallback";
+import khfyCallbackRouter from "./routes/khfyCallback";
 import webhookRouter from "./routes/webhook";
 import { logger } from "./lib/logger";
 
@@ -57,5 +58,10 @@ app.use(digiflazCallbackRouter);
 app.use("/api", digiflazCallbackRouter);
 app.use("/webhook", webhookRouter);
 app.use("/api", router);
+
+import { createRequire as _cr } from "module";
+const adminDistPath = new URL("../../admin-dashboard/dist/public", import.meta.url).pathname;
+app.use("/admin", (await import("express")).default.static(adminDistPath, { index: "index.html" }));
+app.get(["/admin", "/admin/", "/admin/*splat"], (_req, res) => { res.sendFile(adminDistPath + "/index.html"); });
 
 export default app;

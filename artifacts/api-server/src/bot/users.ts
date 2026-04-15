@@ -243,3 +243,11 @@ export function formatRegDate(date: Date): string {
   ];
   return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
+
+export async function deleteUser(telegramId: number): Promise<boolean> {
+  if (!users.has(telegramId)) return false;
+  users.delete(telegramId);
+  await run("DELETE FROM saldo_logs WHERE user_id=$1", [telegramId]).catch(() => {});
+  await run("DELETE FROM users WHERE telegram_id=$1", [telegramId]);
+  return true;
+}

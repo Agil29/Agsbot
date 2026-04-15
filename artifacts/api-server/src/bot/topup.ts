@@ -13,6 +13,7 @@ export type OrderPayload = {
   quota: string;
   validity: string;
   source?: string;
+  baseprice?: number;
 };
 
 export type TopupOrder = {

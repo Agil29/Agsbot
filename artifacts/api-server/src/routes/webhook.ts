@@ -54,7 +54,7 @@ router.post("/pakasir", async (req, res) => {
   const bot = getBot();
 
   if (topup.orderPayload) {
-    const { sku, nomorTujuan, packageName, category, packageId, quota, validity, source } = topup.orderPayload;
+    const { sku, nomorTujuan, packageName, category, packageId, quota, validity, source, baseprice: pkgBaseprice } = topup.orderPayload;
 
     logger.info({ order_id, sku, nomorTujuan, category, source }, "Processing order payment via QRIS webhook");
 
@@ -80,7 +80,7 @@ router.post("/pakasir", async (req, res) => {
         packageId,
         packageName,
         price: topup.nominal,
-        baseprice: topup.nominal,
+        baseprice: pkgBaseprice ?? topup.nominal,
         quota,
         validity,
         nomorTujuan,
@@ -143,7 +143,7 @@ router.post("/pakasir", async (req, res) => {
         packageId,
         packageName,
         price: topup.nominal,
-        baseprice: topup.nominal,
+        baseprice: pkgBaseprice ?? topup.nominal,
         quota,
         validity,
         nomorTujuan,

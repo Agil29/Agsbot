@@ -9,7 +9,7 @@ import {
   type Category,
 } from "../../bot/store";
 import { refreshAllPackages } from "../../bot/apiService";
-import { getAllUsers, updateSaldo, getUser } from "../../bot/users";
+import { getAllUsers, updateSaldo, getUser, deleteUser } from "../../bot/users";
 import { getAllOrders, updateOrderStatus, type OrderStatus } from "../../bot/orders";
 import { getAllTopups, updateTopupStatus, getTopupById } from "../../bot/topup";
 import { getBot } from "../../bot/index";
@@ -138,13 +138,12 @@ router.get("/users", requireAdmin, (_req, res) => {
   res.json({ success: true, data: users });
 });
 
-router.delete("/users/:telegramId", requireAdmin, (req, res) => {
+router.delete("/users/:telegramId", requireAdmin, async (req, res) => {
   const telegramId = parseInt(req.params.telegramId, 10);
   if (isNaN(telegramId)) return res.status(400).json({ error: "Invalid telegramId" });
-  const user = getAllUsers().find((u) => u.telegramId === telegramId);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  // Mark as deleted by clearing saldo — in-memory: just return success note
-  res.json({ success: true, message: "User removed from session (data resets on restart)" });
+  const deleted = await deleteUser(telegramId);
+  if (!deleted) return res.status(404).json({ error: "User not found" });
+  res.json({ success: true, message: "User berhasil dihapus" });
 });
 
 router.post("/users/:telegramId/saldo", requireAdmin, async (req, res) => {

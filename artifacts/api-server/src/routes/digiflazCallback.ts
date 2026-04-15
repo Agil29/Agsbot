@@ -107,7 +107,7 @@ async function handleDigiflazCallback(body: Record<string, any>) {
     logger.info({ refId, orderId: order.id }, "Digiflaz callback: order cancelled — saldo refunded");
 
     if (bot) {
-      const errMsg = message.length > 0 ? message.slice(0, 120) : "Transaksi gagal di Digiflaz";
+      const errMsg = message.length > 0 ? message.slice(0, 120) : "Transaksi gagal. Hubungi admin.";
       try {
         await bot.sendMessage(
           chatId,

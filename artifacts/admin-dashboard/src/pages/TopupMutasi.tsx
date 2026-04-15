@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CreditCard, ShoppingBag, RefreshCw, Check, X, Search, SendHorizonal } from "lucide-react";
+import { CreditCard, ShoppingBag, RefreshCw, X, Search, SendHorizonal } from "lucide-react";
 import { api } from "@/lib/api";
 
 function formatDate(s: string) {
@@ -45,7 +45,6 @@ export function HistoryPenjualan() {
   const [loading, setLoading] = useState(true);
   const [providerFilter, setProviderFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -54,16 +53,6 @@ export function HistoryPenjualan() {
       setOrders(res.data ?? []);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleUpdateStatus(orderId: string, status: string) {
-    setUpdatingOrder(orderId);
-    try {
-      await api.orders.updateStatus(orderId, status);
-      await load();
-    } finally {
-      setUpdatingOrder(null);
     }
   }
 
@@ -93,7 +82,6 @@ export function HistoryPenjualan() {
         </button>
       </div>
 
-      {/* 12-month summary */}
       <div className="grid grid-cols-3 gap-3 mb-4">
         {[
           { label: "Transaksi 12 Bulan", value: String(orders12m.length), color: "text-blue-600" },
@@ -107,7 +95,6 @@ export function HistoryPenjualan() {
         ))}
       </div>
 
-      {/* Search + Provider filter */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -154,13 +141,13 @@ export function HistoryPenjualan() {
                   <th className="px-4 py-3 text-left font-medium">Order ID</th>
                   <th className="px-4 py-3 text-left font-medium">User</th>
                   <th className="px-4 py-3 text-left font-medium">Username</th>
+                  <th className="px-4 py-3 text-left font-medium">No. Target</th>
                   <th className="px-4 py-3 text-left font-medium">Paket</th>
                   <th className="px-4 py-3 text-left font-medium">Provider</th>
                   <th className="px-4 py-3 text-left font-medium">Harga</th>
                   <th className="px-4 py-3 text-left font-medium">Penghasilan</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Tanggal</th>
-                  <th className="px-4 py-3 text-left font-medium">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -177,6 +164,9 @@ export function HistoryPenjualan() {
                       <td className="px-4 py-3 text-slate-500 text-xs">
                         {o.userUsername ? `@${o.userUsername}` : "—"}
                       </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                        {o.nomorTujuan ?? "—"}
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{o.packageName}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${providerColor}`}>{providerLabel}</span>
@@ -189,28 +179,6 @@ export function HistoryPenjualan() {
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${st.color}`}>{st.label}</span>
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(o.createdAt)}</td>
-                      <td className="px-4 py-3">
-                        {(o.status === "processing" || o.status === "pending") ? (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleUpdateStatus(o.id, "done")}
-                              disabled={updatingOrder === o.id}
-                              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50"
-                            >
-                              <Check size={11} /> Selesai
-                            </button>
-                            <button
-                              onClick={() => handleUpdateStatus(o.id, "cancelled")}
-                              disabled={updatingOrder === o.id}
-                              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
-                            >
-                              <X size={11} /> Batal
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 text-xs">—</span>
-                        )}
-                      </td>
                     </tr>
                   );
                 })}
@@ -229,7 +197,6 @@ export function DepositMember() {
   const [msg, setMsg] = useState("");
   const [search, setSearch] = useState("");
 
-  // Transfer saldo form
   const [tUserId, setTUserId] = useState("");
   const [tAmount, setTAmount] = useState("");
   const [tLoading, setTLoading] = useState(false);
@@ -302,7 +269,6 @@ export function DepositMember() {
 
       {msg && <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">{msg}</div>}
 
-      {/* Transfer Saldo Manual */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 mb-5">
         <div className="flex items-center gap-2 mb-3">
           <SendHorizonal size={16} className="text-emerald-600" />
@@ -347,7 +313,6 @@ export function DepositMember() {
         )}
       </div>
 
-      {/* Search by Order ID */}
       <div className="mb-4">
         <div className="relative w-full max-w-sm">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -409,13 +374,13 @@ export function DepositMember() {
                               onClick={() => action(t.id, "approve")}
                               className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 flex items-center gap-1"
                             >
-                              <Check size={11} /> Setujui
+                              Setujui
                             </button>
                             <button
                               onClick={() => action(t.id, "cancel")}
                               className="px-3 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600 flex items-center gap-1"
                             >
-                              <X size={11} /> Tolak
+                              Tolak
                             </button>
                           </div>
                         )}
