@@ -15,7 +15,7 @@ function dopuHashCredential(salt: string, value: string): string {
 /**
  * Strip DOPU-internal info from error messages before showing to users.
  */
-function sanitizeDopuError(raw: string): string {
+export function sanitizeDopuError(raw: string): string {
   return raw
     .replace(/Saldo\s+[\d.,]+\s*@\s*[\d:]+/gi, "")
     .replace(/\*?\s*bantuan\s+ketik\s+cs\s*\*?/gi, "")

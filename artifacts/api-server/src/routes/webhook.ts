@@ -4,7 +4,7 @@ import { getTopupById, updateTopupStatus } from "../bot/topup";
 import { creditSaldoAtomic } from "../bot/users";
 import { createOrder, updateOrderStatus } from "../bot/orders";
 import { placeKhfyOrder } from "../bot/khfyApi";
-import { placeDopuOrder, type DopuOrderResult } from "../bot/dopuApi";
+import { placeDopuOrder, sanitizeDopuError, type DopuOrderResult } from "../bot/dopuApi";
 import { placeDigiflazOrder, type DigiflazOrderResult } from "../bot/digiflazApi";
 import { startOrderPolling } from "../bot/orderPoller";
 import { getBot } from "../bot";
@@ -226,7 +226,7 @@ router.post("/pakasir", async (req, res) => {
           await bot.sendMessage(
             topup.chatId,
             `❌ <b>ORDER GAGAL</b>\n\n` +
-            `⚠️ ${result.error}` +
+            `⚠️ ${sanitizeDopuError(result.error ?? "")}` +
             (providerRef ? `\n🔖 Ref: <code>${providerRef}</code>` : "") +
             `\n\n💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.\n` +
             `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,

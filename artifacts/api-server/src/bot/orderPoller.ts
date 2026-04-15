@@ -193,7 +193,7 @@ export function startOrderPolling(
             `❌ <b>ORDER GAGAL</b>\n\n` +
               `📦 Produk: <b>${pkgName}</b>\n` +
               `📱 Nomor: <code>${nomor}</code>\n\n` +
-              `⚠️ ${(statusRes as any).error ?? "Transaksi gagal"}\n` +
+              `⚠️ ${sanitizeDopuError((statusRes as any).error ?? "Transaksi gagal")}\n` +
               `🔖 Ref: <code>${reffId}</code>\n\n` +
               `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
               `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
