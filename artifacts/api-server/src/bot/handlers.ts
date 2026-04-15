@@ -418,9 +418,12 @@ export function setupHandlers(bot: TelegramBot) {
     if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
     const prevSession = getSession(from.id);
+    if (prevSession.step === "waiting_whatsapp") {
+      await bot.sendMessage(msg.chat.id, `📱 <b>Daftarkan Nomor WhatsApp Anda</b>\n\nMasukkan nomor WhatsApp untuk melanjutkan.\n\nContoh: <code>081234567890</code>`, { parse_mode: 'HTML' });
+      return;
+    }
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     clearSession(from.id);
-    // Fire admin notifications in background — do NOT await so user gets instant response
     if (prevSession.step === "chat_admin") {
       const userName = `${user.firstName}${user.lastName ? " " + user.lastName : ""}`;
       const adminIds = getAdminIds();
@@ -477,6 +480,10 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/💰 TOPUP/, async (msg) => {
     if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
+    if (getSession(from.id).step === "waiting_whatsapp") {
+      await bot.sendMessage(msg.chat.id, `📱 <b>Daftarkan Nomor WhatsApp Anda</b>\n\nMasukkan nomor WhatsApp untuk melanjutkan.\n\nContoh: <code>081234567890</code>`, { parse_mode: 'HTML' });
+      return;
+    }
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
     setSession(from.id, { step: "waiting_topup_amount" });
 
@@ -593,6 +600,10 @@ export function setupHandlers(bot: TelegramBot) {
 
   bot.onText(/📋 RIWAYAT/, async (msg) => {
     if (isBlocked(msg.from!.id)) return;
+    if (getSession(msg.from!.id).step === "waiting_whatsapp") {
+      await bot.sendMessage(msg.chat.id, `📱 <b>Daftarkan Nomor WhatsApp Anda</b>\n\nMasukkan nomor WhatsApp untuk melanjutkan.\n\nContoh: <code>081234567890</code>`, { parse_mode: 'HTML' });
+      return;
+    }
     await bot.sendMessage(
       msg.chat.id,
       "📋 <b>RIWAYAT</b>\n\nRiwayat transaksi dan saldo 6 bulan terakhir masih bisa di akses",
@@ -1747,6 +1758,10 @@ function handleOrder(bot: TelegramBot) {
   return async (msg: TelegramBot.Message) => {
     const userId = msg.from?.id ?? msg.chat.id;
     if (isBlocked(userId)) return;
+    if (getSession(userId).step === "waiting_whatsapp") {
+      await bot.sendMessage(msg.chat.id, `📱 <b>Daftarkan Nomor WhatsApp Anda</b>\n\nMasukkan nomor WhatsApp untuk melanjutkan.\n\nContoh: <code>081234567890</code>`, { parse_mode: 'HTML' });
+      return;
+    }
     setSession(userId, { step: "select_category" });
     await bot.sendMessage(msg.chat.id, "📦 <b>PILIH KATEGORI</b>\n\nSilakan pilih kategori paket yang tersedia:", {
       parse_mode: "HTML",
