@@ -12,7 +12,10 @@ function dopuHashCredential(salt: string, value: string): string {
 }
 
 
-function sanitizeDopuError(raw) {
+/**
+ * Strip DOPU-internal info from error messages before showing to users.
+ */
+function sanitizeDopuError(raw: string): string {
   return raw
     .replace(/Saldo\s+[\d.,]+\s*@\s*[\d:]+/gi, "")
     .replace(/\*?\s*bantuan\s+ketik\s+cs\s*\*?/gi, "")
@@ -22,6 +25,7 @@ function sanitizeDopuError(raw) {
     .trim()
     .slice(0, 120) || "Transaksi gagal";
 }
+
 export type DopuOrderResult =
   | { success: true; pending: boolean; sn: string; reffId: string }
   | { success: false; error: string; reffId: string };
@@ -240,7 +244,7 @@ export async function checkDopuOrderStatus(reffId: string, trxId?: string): Prom
       }
 
       if (st === "0") {
-        const error = message.trim().length > 0 ? message.trim().slice(0, 120) : "Transaksi gagal";
+        const error = sanitizeDopuError(message.trim().length > 0 ? message : "Transaksi gagal");
         return { status: "failed", error };
       }
 
