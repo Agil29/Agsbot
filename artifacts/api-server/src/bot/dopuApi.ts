@@ -16,18 +16,17 @@ function dopuHashCredential(salt: string, value: string): string {
  * Strip DOPU-internal info from error messages before showing to users.
  */
 export function sanitizeDopuError(raw: string): string {
-  if (/\bSaldo\s+[\d.,]+/i.test(raw)) {
-    if (/kosong|stok|habis/i.test(raw)) return 'Stok sedang kosong/ditutup';
-    if (/nomor|tujuan/i.test(raw)) return 'Nomor tujuan tidak valid';
-    return 'Stok tidak tersedia. Hubungi admin.';
+  if (/Saldo\s+[\d.,]+/.test(raw)) {
+    if (/kosong|stok|habis/i.test(raw)) return "Stok sedang kosong/ditutup";
+    if (/nomor|tujuan/i.test(raw)) return "Nomor tujuan tidak valid";
+    return "Stok tidak tersedia. Hubungi admin.";
   }
   return raw
-    .replace(/\*?\s*bantuan\s+ketik\s+cs\s*\*?/gi, '')
-    .replace(/^\s*\*\s*/g, '')
-    .replace(/\s*\*\s*$/g, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/bantuan\s+ketik\s+cs/gi, "")
+    .replace(/\*/g, "")
+    .replace(/\s{2,}/g, " ")
     .trim()
-    .slice(0, 120) || 'Transaksi gagal';
+    .slice(0, 120) || "Transaksi gagal";
 }
 
 export type DopuOrderResult =
