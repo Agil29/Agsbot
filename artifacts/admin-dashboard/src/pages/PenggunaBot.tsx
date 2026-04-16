@@ -29,7 +29,7 @@ export function PenggunaBot() {
   const [blockingId, setBlockingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
-  const filteredUsers = search.trim()
+  const filteredUsers = (search.trim()
     ? users.filter((u) => {
         const q = search.trim().toLowerCase();
         return (
@@ -40,7 +40,8 @@ export function PenggunaBot() {
           (u.whatsapp ?? "").includes(q)
         );
       })
-    : users;
+    : [...users]
+  ).sort((a, b) => (b.saldo ?? 0) - (a.saldo ?? 0));
 
   async function load() {
     setLoading(true);
