@@ -3,12 +3,11 @@ import { logger } from "../lib/logger";
 import { randomUUID } from "crypto";
 
 export type KhfyOrderResult =
-  | { success: true; sn: string; message: string; reffId: string }
+  | { success: true; sn: string; message: string; reffId: string; trxid?: string }
   | { success: false; error: string; reffId: string };
 
 export type KhfyBalanceResult = { balance: number; raw: string } | { balance: null; raw: string };
 
-// Status hasil polling
 export type KhfyStatusResult =
   | { status: "success"; sn: string }
   | { status: "failed"; error: string }
@@ -52,95 +51,90 @@ export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
       const raw = typeof data === "string" ? data : JSON.stringify(data);
       const bal = parseBalanceFromData(data);
       if (bal !== null) return { balance: bal, raw };
-      logger.info({ url, raw: raw.slice(0, 80) }, "KHFY balance endpoint: no parseable saldo");
     } catch {
       // Try next
     }
   }
 
   try {
+    const today = new Date().toISOString().slice(0, 10);
     const res = await axios.get(`${baseUrl}/history`, {
-      params: { api_key: apiKey, refid: "connectivity-check" },
+      params: { api_key: apiKey, start_date: today },
       timeout: 10000,
     });
     const data = res.data ?? {};
     const raw = typeof data === "string" ? data : JSON.stringify(data);
     const rawLower = raw.toLowerCase();
     if (rawLower.includes("invalid") && rawLower.includes("key")) {
-      logger.warn({ raw: raw.slice(0, 80) }, "KHFY /history: invalid API key");
       return { balance: null, raw: "❌ API key tidak valid" };
     }
-    logger.info({ raw: raw.slice(0, 80) }, "KHFY /history ping response");
     return { balance: null, raw: `✅ Server merespons, saldo tidak tersedia via API` };
   } catch (e: any) {
     const errDetail = e?.response?.status
       ? `HTTP ${e.response.status}`
       : String(e?.message ?? e).slice(0, 60);
-    logger.warn({ err: errDetail }, "KHFY: all endpoints failed");
     return { balance: null, raw: `❌ Tidak terhubung: ${errDetail}` };
   }
 }
 
 /**
- * Cek status order KHFY menggunakan reff_id.
- * Digunakan oleh orderPoller untuk polling setelah order ditempatkan.
+ * Cek status order KHFY menggunakan trxid via endpoint /history?trxid=...
+ * status2: 1 = sukses, 72 = gagal, lainnya = pending
  */
-export async function checkKhfyOrderStatus(reffId: string): Promise<KhfyStatusResult> {
+export async function checkKhfyOrderStatus(trxid: string): Promise<KhfyStatusResult> {
   const apiKey = process.env.API2_KEY ?? "";
   const baseUrl = process.env.API2_BASE_URL ?? "";
 
-  if (!apiKey || !baseUrl) {
+  if (!apiKey || !baseUrl || !trxid) {
+    logger.warn({ trxid }, "KHFY checkStatus: missing config or trxid");
     return { status: "unknown" };
   }
 
   try {
-    const res = await axios.get(`${baseUrl}/status`, {
-      params: { reff_id: reffId, api_key: apiKey },
+    const res = await axios.get(`${baseUrl}/history`, {
+      params: { trxid, api_key: apiKey },
       timeout: 15000,
     });
 
     const data = res.data ?? {};
-    logger.info({ data, reffId }, "KHFY /status response");
+    logger.info({ data, trxid }, "KHFY /history status response");
 
-    const status = String(data.status ?? "").toLowerCase();
-    const msg = String(data.message ?? data.msg ?? data.pesan ?? "").toLowerCase();
-
-    // Sukses
-    if (
-      data.ok === true ||
-      status === "sukses" || status === "success" || status === "berhasil" ||
-      status === "1" || status === "complete" || status === "completed"
-    ) {
-      return {
-        status: "success",
-        sn: String(data.sn ?? data.serial ?? data.no_seri ?? ""),
-      };
-    }
-
-    // Gagal
-    if (
-      status === "gagal" || status === "failed" || status === "fail" ||
-      status === "error" || status === "0" || status === "cancel" ||
-      msg.includes("stok") || msg.includes("kosong") || msg.includes("habis") ||
-      msg.includes("gagal") || msg.includes("failed") || msg.includes("terdaftar")
-    ) {
-      const rawErr = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "gagal");
-      return { status: "failed", error: rawErr };
-    }
-
-    // Masih pending/processing
-    if (
-      status === "pending" || status === "process" || status === "processing" ||
-      status === "antri" || status === "waiting" || status === "" ||
-      msg.includes("proses") || msg.includes("diproses") || msg.includes("pending")
-    ) {
+    const items = Array.isArray(data.data) ? data.data : [];
+    if (items.length === 0) {
+      logger.warn({ trxid }, "KHFY /history: no data, anggap pending");
       return { status: "pending" };
     }
 
-    logger.warn({ data, reffId }, "KHFY /status: status tidak dikenali, anggap pending");
+    const item = items[0];
+    const status2 = Number(item.status2 ?? -1);
+    const statusText = String(item.status_text ?? "").toLowerCase();
+    const keterangan = String(item.keterangan ?? "");
+    const sn = String(item.sn ?? "");
+
+    // status2 = 1 → sukses
+    if (status2 === 1 || statusText === "sukses" || statusText === "success" || statusText === "berhasil") {
+      return { status: "success", sn };
+    }
+
+    // status2 = 72 atau GAGAL → gagal
+    if (
+      status2 === 72 || status2 === 0 ||
+      statusText === "gagal" || statusText === "failed" || statusText === "fail" ||
+      statusText === "error" || statusText === "cancel"
+    ) {
+      return { status: "failed", error: keterangan || statusText };
+    }
+
+    // Masih pending
+    if (statusText === "pending" || statusText === "process" || statusText === "processing" || statusText === "") {
+      return { status: "pending" };
+    }
+
+    logger.warn({ item, trxid }, "KHFY /history: status tidak dikenali, anggap pending");
     return { status: "pending" };
+
   } catch (err: any) {
-    logger.error({ err: err?.response?.data ?? err?.message, reffId }, "KHFY /status error");
+    logger.error({ err: err?.response?.data ?? err?.message, trxid }, "KHFY /history error");
     return { status: "unknown" };
   }
 }
@@ -167,10 +161,13 @@ export async function placeKhfyOrder(params: {
     const data = res.data ?? {};
     logger.info({ data, sku: params.sku, tujuan: params.tujuan }, "KHFY /trx response");
 
+    // Ambil trxid dari response untuk polling
+    const trxid = String(data.data?.trxid ?? data.trxid ?? "");
+
     const status = String(data.status ?? "").toLowerCase();
     const msg = String(data.message ?? data.msg ?? data.pesan ?? "").toLowerCase();
 
-    // Langsung gagal — jangan lanjut polling
+    // Langsung gagal
     const isFailed =
       status === "gagal" || status === "failed" || status === "fail" ||
       status === "error" || status === "0" || status === "cancel" ||
@@ -201,24 +198,23 @@ export async function placeKhfyOrder(params: {
       return { success: false, error: errorMsg, reffId };
     }
 
-    // Sukses langsung (rare) atau pending — keduanya dianggap "accepted"
-    // Bot akan polling untuk konfirmasi final via checkKhfyOrderStatus
     const ok =
       data.ok === true ||
       status === "sukses" || status === "success" || status === "berhasil" ||
       status === "1" || status === "pending" || status === "process" ||
-      status === "processing" || status === "antri" || status === "";
+      status === "processing" || status === "antri" || status === "" ||
+      (data.msg && String(data.msg).toLowerCase().includes("proses"));
 
     if (ok) {
       return {
         success: true,
         sn: String(data.sn ?? data.serial ?? data.no_seri ?? ""),
-        message: String(data.message ?? data.msg ?? data.pesan ?? "Order diterima, sedang diproses."),
+        message: String(data.msg ?? data.message ?? data.pesan ?? "Order diterima, sedang diproses."),
         reffId,
+        trxid, // ← untuk polling via /history?trxid=
       };
     }
 
-    // Fallback gagal
     const rawError = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "");
     return {
       success: false,
