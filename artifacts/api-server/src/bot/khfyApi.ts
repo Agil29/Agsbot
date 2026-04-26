@@ -8,6 +8,13 @@ export type KhfyOrderResult =
 
 export type KhfyBalanceResult = { balance: number; raw: string } | { balance: null; raw: string };
 
+// Status hasil polling
+export type KhfyStatusResult =
+  | { status: "success"; sn: string }
+  | { status: "failed"; error: string }
+  | { status: "pending" }
+  | { status: "unknown" };
+
 function parseBalanceFromData(data: unknown): number | null {
   if (typeof data === "object" && data !== null) {
     const d = data as Record<string, unknown>;
@@ -32,7 +39,6 @@ export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
   const baseUrl = process.env.API2_BASE_URL ?? "";
   if (!apiKey || !baseUrl) return { balance: null, raw: "Env API2_KEY / API2_BASE_URL tidak tersedia" };
 
-  // Per official docs: panel.khfy-store.com/api_v2/saldo?api_key=...
   const balEndpoints = [
     `${baseUrl}/saldo`,
     `${baseUrl}/balance`,
@@ -52,7 +58,6 @@ export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
     }
   }
 
-  // Fallback: connectivity test via /history (read-only, won't place any order)
   try {
     const res = await axios.get(`${baseUrl}/history`, {
       params: { api_key: apiKey, refid: "connectivity-check" },
@@ -60,7 +65,6 @@ export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
     });
     const data = res.data ?? {};
     const raw = typeof data === "string" ? data : JSON.stringify(data);
-    // Check for auth errors
     const rawLower = raw.toLowerCase();
     if (rawLower.includes("invalid") && rawLower.includes("key")) {
       logger.warn({ raw: raw.slice(0, 80) }, "KHFY /history: invalid API key");
@@ -74,6 +78,70 @@ export async function getKhfyBalance(): Promise<KhfyBalanceResult> {
       : String(e?.message ?? e).slice(0, 60);
     logger.warn({ err: errDetail }, "KHFY: all endpoints failed");
     return { balance: null, raw: `❌ Tidak terhubung: ${errDetail}` };
+  }
+}
+
+/**
+ * Cek status order KHFY menggunakan reff_id.
+ * Digunakan oleh orderPoller untuk polling setelah order ditempatkan.
+ */
+export async function checkKhfyOrderStatus(reffId: string): Promise<KhfyStatusResult> {
+  const apiKey = process.env.API2_KEY ?? "";
+  const baseUrl = process.env.API2_BASE_URL ?? "";
+
+  if (!apiKey || !baseUrl) {
+    return { status: "unknown" };
+  }
+
+  try {
+    const res = await axios.get(`${baseUrl}/status`, {
+      params: { reff_id: reffId, api_key: apiKey },
+      timeout: 15000,
+    });
+
+    const data = res.data ?? {};
+    logger.info({ data, reffId }, "KHFY /status response");
+
+    const status = String(data.status ?? "").toLowerCase();
+    const msg = String(data.message ?? data.msg ?? data.pesan ?? "").toLowerCase();
+
+    // Sukses
+    if (
+      data.ok === true ||
+      status === "sukses" || status === "success" || status === "berhasil" ||
+      status === "1" || status === "complete" || status === "completed"
+    ) {
+      return {
+        status: "success",
+        sn: String(data.sn ?? data.serial ?? data.no_seri ?? ""),
+      };
+    }
+
+    // Gagal
+    if (
+      status === "gagal" || status === "failed" || status === "fail" ||
+      status === "error" || status === "0" || status === "cancel" ||
+      msg.includes("stok") || msg.includes("kosong") || msg.includes("habis") ||
+      msg.includes("gagal") || msg.includes("failed") || msg.includes("terdaftar")
+    ) {
+      const rawErr = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "gagal");
+      return { status: "failed", error: rawErr };
+    }
+
+    // Masih pending/processing
+    if (
+      status === "pending" || status === "process" || status === "processing" ||
+      status === "antri" || status === "waiting" || status === "" ||
+      msg.includes("proses") || msg.includes("diproses") || msg.includes("pending")
+    ) {
+      return { status: "pending" };
+    }
+
+    logger.warn({ data, reffId }, "KHFY /status: status tidak dikenali, anggap pending");
+    return { status: "pending" };
+  } catch (err: any) {
+    logger.error({ err: err?.response?.data ?? err?.message, reffId }, "KHFY /status error");
+    return { status: "unknown" };
   }
 }
 
@@ -100,41 +168,63 @@ export async function placeKhfyOrder(params: {
     logger.info({ data, sku: params.sku, tujuan: params.tujuan }, "KHFY /trx response");
 
     const status = String(data.status ?? "").toLowerCase();
-    const ok = data.ok === true || status === "sukses" || status === "success" || status === "berhasil";
+    const msg = String(data.message ?? data.msg ?? data.pesan ?? "").toLowerCase();
+
+    // Langsung gagal — jangan lanjut polling
+    const isFailed =
+      status === "gagal" || status === "failed" || status === "fail" ||
+      status === "error" || status === "0" || status === "cancel" ||
+      msg.includes("stok") || msg.includes("kosong") || msg.includes("habis") ||
+      msg.includes("terdaftar") || msg.includes("invalid");
+
+    if (isFailed) {
+      const rawError = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "");
+      let errorMsg = "Order gagal. Hubungi admin.";
+      if (rawError) {
+        const upper = rawError.toUpperCase();
+        if (upper.includes("KOSONG") || upper.includes("STOK") || upper.includes("HABIS")) {
+          errorMsg = "Stok sedang kosong. Coba lagi nanti.";
+        } else if (upper.includes("NOMOR") || upper.includes("TUJUAN")) {
+          errorMsg = "Nomor tujuan tidak valid.";
+        } else if (upper.includes("TERDAFTAR")) {
+          errorMsg = rawError.slice(0, 120);
+        } else {
+          errorMsg = rawError
+            .replace(/RC=[^\s]+\s*/gi, "")
+            .replace(/TrxID=[^\s]*\s*/gi, "")
+            .replace(/@\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2}:\d{2}/g, "")
+            .replace(/#/g, "")
+            .trim()
+            .slice(0, 120) || "Order gagal. Hubungi admin.";
+        }
+      }
+      return { success: false, error: errorMsg, reffId };
+    }
+
+    // Sukses langsung (rare) atau pending — keduanya dianggap "accepted"
+    // Bot akan polling untuk konfirmasi final via checkKhfyOrderStatus
+    const ok =
+      data.ok === true ||
+      status === "sukses" || status === "success" || status === "berhasil" ||
+      status === "1" || status === "pending" || status === "process" ||
+      status === "processing" || status === "antri" || status === "";
 
     if (ok) {
       return {
         success: true,
         sn: String(data.sn ?? data.serial ?? data.no_seri ?? ""),
-        message: String(data.message ?? data.msg ?? data.pesan ?? "Order berhasil."),
+        message: String(data.message ?? data.msg ?? data.pesan ?? "Order diterima, sedang diproses."),
         reffId,
       };
     }
 
-    // Extract error reason — KHFY uses msg, message, pesan, or error field
+    // Fallback gagal
     const rawError = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "");
-    let errorMsg = "Order gagal. Hubungi admin.";
-    if (rawError) {
-      const upper = rawError.toUpperCase();
-      if (upper.includes("KOSONG") || upper.includes("STOK")) {
-        errorMsg = "Stok sedang kosong. Coba lagi nanti.";
-      } else if (upper.includes("NOMOR") || upper.includes("TUJUAN")) {
-        errorMsg = "Nomor tujuan tidak valid.";
-      } else if (upper.includes("SALDO")) {
-        errorMsg = "Stok tidak tersedia. Hubungi admin.";
-      } else {
-        // Use sanitized raw error (strip internal IDs like RC=... TrxID=...)
-        errorMsg = rawError
-          .replace(/RC=[^\s]+\s*/gi, "")
-          .replace(/TrxID=[^\s]*\s*/gi, "")
-          .replace(/@\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2}:\d{2}/g, "")
-          .replace(/#/g, "")
-          .trim()
-          .slice(0, 120) || "Order gagal. Hubungi admin.";
-      }
-    }
-
-    return { success: false, error: errorMsg, reffId };
+    return {
+      success: false,
+      error: rawError.slice(0, 120) || "Order gagal. Hubungi admin.",
+      reffId,
+    };
   } catch (err: any) {
     logger.error({ err: err?.response?.data ?? err?.message }, "KHFY /trx error");
     const msg = err?.response?.data?.message ?? err?.message ?? "Gagal terhubung ke server. Coba lagi.";
