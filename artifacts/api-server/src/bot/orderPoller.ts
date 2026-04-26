@@ -4,18 +4,20 @@ import { type Order, getAllOrders, getOrderByReffId, updateOrderStatus } from ".
 import { getUser, creditSaldoAtomic } from "./users";
 import { checkDopuOrderStatus } from "./dopuApi";
 import { checkDigiflazOrderStatus } from "./digiflazApi";
+import { checkKhfyOrderStatus } from "./khfyApi";
 
 const MAX_ATTEMPTS_DOPU = 30;
 const MAX_ATTEMPTS_DIGIFLAZ = 60;
-const INTERVAL_DOPU_MS = 2 * 60 * 1000;     // 2 minutes between each DOPU poll attempt
-const INTERVAL_DIGIFLAZ_MS = 45 * 1000;     // 45 seconds for Digiflaz
-const RATELIMIT_BACKOFF_MS = 10 * 60 * 1000; // 10 minutes on rate limit
+const MAX_ATTEMPTS_KHFY = 10; // Poll KHFY max 10x
+
+const INTERVAL_DOPU_MS = 2 * 60 * 1000;     // 2 menit
+const INTERVAL_DIGIFLAZ_MS = 45 * 1000;      // 45 detik
+const INTERVAL_KHFY_MS = 15 * 1000;          // 15 detik (KHFY biasanya cepat)
+
+const RATELIMIT_BACKOFF_MS = 10 * 60 * 1000; // 10 menit
 
 /**
  * Per-provider sequential request queue.
- * Ensures only ONE request goes to each provider at a time,
- * with a minimum gap between consecutive requests.
- * This prevents rate-limit blocks even with many concurrent orders.
  */
 class ProviderQueue {
   private queue: Array<() => Promise<unknown>> = [];
@@ -24,7 +26,6 @@ class ProviderQueue {
 
   constructor(private minGapMs: number, private name: string) {}
 
-  /** Enqueue a function — it will run after the previous one finishes + minGap */
   enqueue<T>(fn: () => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
       this.queue.push(async () => {
@@ -51,20 +52,24 @@ class ProviderQueue {
   }
 }
 
-// One queue per provider — minimum 15s between consecutive DOPU requests, 10s for Digiflaz
 const dopuQueue = new ProviderQueue(15_000, "dopu");
 const digiflazQueue = new ProviderQueue(10_000, "digiflaz");
+const khfyQueue = new ProviderQueue(5_000, "khfy"); // 5 detik gap antar request KHFY
 
-function queuedCheckStatus(provider: "dopu" | "digiflaz", reffId: string, dopuTrxId?: string) {
+function queuedCheckStatus(
+  provider: "dopu" | "digiflaz" | "khfy",
+  reffId: string,
+  dopuTrxId?: string
+) {
   if (provider === "dopu") {
     return dopuQueue.enqueue(() => checkDopuOrderStatus(reffId, dopuTrxId));
+  }
+  if (provider === "khfy") {
+    return khfyQueue.enqueue(() => checkKhfyOrderStatus(reffId));
   }
   return digiflazQueue.enqueue(() => checkDigiflazOrderStatus(reffId));
 }
 
-/**
- * Global DOPU rate limit: when ANY DOPU order gets rate-limited, ALL DOPU polls pause until this timestamp.
- */
 let dopuGlobalRateLimitUntil = 0;
 
 function isDopuGloballyRateLimited(): boolean {
@@ -76,33 +81,40 @@ function setDopuGlobalRateLimit() {
   logger.warn({ until: new Date(dopuGlobalRateLimitUntil).toISOString() }, "DOPU global rate limit — all DOPU polls paused for 10 min");
 }
 
-/**
- * Start polling for a single DOPU/Digiflaz order.
- * Safe to call multiple times — uses a per-reffId lock to prevent duplicate polls.
- */
 const activePolls = new Set<string>();
 
 export function startOrderPolling(
   bot: TelegramBot,
   order: Order,
   opts: {
-    provider: "dopu" | "digiflaz";
+    provider: "dopu" | "digiflaz" | "khfy";
     dopuTrxId?: string;
     initialAttempt?: number;
     delayMs?: number;
   }
 ) {
   const { provider, dopuTrxId, initialAttempt = 0 } = opts;
-  const intervalMs = provider === "digiflaz" ? INTERVAL_DIGIFLAZ_MS : INTERVAL_DOPU_MS;
-  const maxAttempts = provider === "digiflaz" ? MAX_ATTEMPTS_DIGIFLAZ : MAX_ATTEMPTS_DOPU;
-  const delayMs = opts.delayMs ?? intervalMs;
 
+  const intervalMs =
+    provider === "digiflaz" ? INTERVAL_DIGIFLAZ_MS :
+    provider === "khfy" ? INTERVAL_KHFY_MS :
+    INTERVAL_DOPU_MS;
+
+  const maxAttempts =
+    provider === "digiflaz" ? MAX_ATTEMPTS_DIGIFLAZ :
+    provider === "khfy" ? MAX_ATTEMPTS_KHFY :
+    MAX_ATTEMPTS_DOPU;
+
+  const delayMs = opts.delayMs ?? intervalMs;
   const reffId = order.reffId;
+
   if (!reffId) return;
+
   if (activePolls.has(reffId)) {
     logger.info({ reffId }, "Poll already active — skip duplicate");
     return;
   }
+
   activePolls.add(reffId);
 
   const orderId = order.id;
@@ -111,10 +123,12 @@ export function startOrderPolling(
   const nomor = order.nomorTujuan ?? "-";
   const price = order.price;
   const category = order.category;
+
   let attempt = initialAttempt;
 
   const poll = async () => {
     attempt++;
+
     try {
       const currentOrd = getOrderByReffId(reffId);
       if (!currentOrd || currentOrd.status === "done" || currentOrd.status === "cancelled") {
@@ -123,19 +137,18 @@ export function startOrderPolling(
         return;
       }
 
-      // If DOPU is globally rate limited, skip this attempt and retry after backoff
       if (provider === "dopu" && isDopuGloballyRateLimited()) {
         const waitMs = dopuGlobalRateLimitUntil - Date.now();
-        logger.info({ reffId, waitMs }, "DOPU globally rate limited — skipping poll, scheduling retry");
-        attempt--; // don't count against max attempts
+        logger.info({ reffId, waitMs }, "DOPU globally rate limited — skipping poll");
+        attempt--;
         setTimeout(poll, waitMs + 5000);
         return;
       }
 
       const statusRes = await queuedCheckStatus(provider, reffId, dopuTrxId);
-
       logger.info({ reffId, orderId, attempt, status: statusRes.status, provider }, "Pending poll result");
 
+      // ── SUKSES ──────────────────────────────────────────────────────────
       if (statusRes.status === "success") {
         const ord = getOrderByReffId(reffId);
         if (!ord || ord.status === "done" || ord.status === "cancelled") {
@@ -143,6 +156,7 @@ export function startOrderPolling(
           activePolls.delete(reffId);
           return;
         }
+
         updateOrderStatus(orderId, "done", statusRes.sn);
         activePolls.delete(reffId);
 
@@ -150,81 +164,123 @@ export function startOrderPolling(
           category === "circle" && provider !== "digiflaz"
             ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle.`
             : "";
+
         const now = new Date();
         const tgl = now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
         const jam = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-        await bot
-          .sendMessage(
-            chatId,
-            `✅ <b>ORDER BERHASIL !</b>\n` +
-              `━━━━━━━━━━━━━━━━━━━\n` +
-              `🔖 Order ID  : <code>${orderId}</code>\n` +
-              `📦 Produk : <b>${pkgName}</b>\n` +
-              `📱 Target : <code>${nomor}</code>\n` +
-              `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
-              `📅 Date  : ${tgl}\n\n` +
-              `Jam Sukses : ${jam} WIB\n\n` +
-              `Terimakasih sudah berbelanja ☺️☺️` +
-              circleNote,
-            { parse_mode: "HTML" }
-          )
-          .catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (success)"));
+
+        // Hitung saldo setelah order
+        const userAfter = getUser(chatId);
+        const sisaSaldo = userAfter?.saldo ?? 0;
+
+        await bot.sendMessage(
+          chatId,
+          `✅ <b>ORDER BERHASIL !</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━\n` +
+          `🔖 Order ID : <code>${orderId}</code>\n` +
+          `📦 Produk : <b>${pkgName}</b>\n` +
+          `📱 Target : <code>${nomor}</code>\n` +
+          `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+          `• Saldo tersisa: <b>Rp ${sisaSaldo.toLocaleString("id-ID")}</b>\n` +
+          `📅 Date  : ${tgl}\n\n` +
+          `Jam Sukses : ${jam} WIB\n\n` +
+          `Terimakasih sudah berbelanja ☺️☺️` +
+          circleNote,
+          { parse_mode: "HTML" }
+        ).catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (success)"));
+
         return;
       }
 
+      // ── GAGAL ───────────────────────────────────────────────────────────
       if (statusRes.status === "failed") {
         const ord = getOrderByReffId(reffId);
         if (!ord || ord.status === "cancelled" || ord.status === "done") {
           activePolls.delete(reffId);
           return;
         }
-        await creditSaldoAtomic(chatId, price, {
+
+        const refundedUser = await creditSaldoAtomic(chatId, price, {
           type: "order_refund",
           refId: orderId,
           note: `Refund order ${provider} gagal (poll): ${(statusRes as any).error ?? ""}`,
         });
+
         updateOrderStatus(orderId, "cancelled");
         activePolls.delete(reffId);
 
-        const refundedUser = getUser(chatId);
-        const _rawErr = String((statusRes as any).error ?? "");
-        const _displayErr = /kosong|stok|habis/i.test(_rawErr)
+        const rawErr = String((statusRes as any).error ?? "");
+        const displayErr = /kosong|stok|habis/i.test(rawErr)
           ? "Stok sedang kosong. Coba produk lain atau hubungi admin."
-          : /nomor|tujuan|invalid|dest/i.test(_rawErr)
+          : /nomor|tujuan|invalid|dest/i.test(rawErr)
           ? "Nomor tujuan tidak valid."
+          : /terdaftar/i.test(rawErr)
+          ? rawErr.slice(0, 120)
           : "Transaksi gagal. Hubungi admin untuk bantuan.";
-        await bot
-          .sendMessage(
-            chatId,
-            `❌ <b>ORDER GAGAL</b>\n\n` +
-              `📦 Produk: <b>${pkgName}</b>\n` +
-              `📱 Nomor: <code>${nomor}</code>\n\n` +
-              `⚠️ ${_displayErr}\n` +
-              `🔖 Ref: <code>${reffId}</code>\n\n` +
-              `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
-              `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
-            { parse_mode: "HTML" }
-          )
-          .catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (failed)"));
+
+        const newSaldo = refundedUser?.saldo ?? (getUser(chatId)?.saldo ?? 0);
+
+        await bot.sendMessage(
+          chatId,
+          `❌ <b>ORDER GAGAL</b>\n\n` +
+          `📦 Produk: <b>${pkgName}</b>\n` +
+          `📱 Nomor: <code>${nomor}</code>\n\n` +
+          `⚠️ ${displayErr}\n` +
+          `🔖 Ref: <code>${reffId}</code>\n\n` +
+          `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+          `Saldo sekarang: <b>Rp ${newSaldo.toLocaleString("id-ID")}</b>`,
+          { parse_mode: "HTML" }
+        ).catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (failed)"));
+
         return;
       }
 
-      // Rate limited — set GLOBAL backoff so all DOPU polls pause, not just this one
+      // ── RATE LIMIT ──────────────────────────────────────────────────────
       if ((statusRes as any).status === "ratelimit") {
         setDopuGlobalRateLimit();
-        attempt--; // don't count this against max attempts
+        attempt--;
         const waitMs = dopuGlobalRateLimitUntil - Date.now() + 5000;
         setTimeout(poll, waitMs);
         return;
       }
 
-      // Still pending
+      // ── MASIH PENDING ───────────────────────────────────────────────────
       if (attempt < maxAttempts) {
         setTimeout(poll, intervalMs);
       } else {
-        logger.warn({ reffId, nomor, pkgName, provider, attempt }, "Order still pending after max attempts");
+        // KHFY: setelah max attempts habis tanpa hasil → anggap gagal & refund
+        if (provider === "khfy") {
+          logger.warn({ reffId, nomor, pkgName, attempt }, "KHFY order timeout — refunding");
+
+          const ord = getOrderByReffId(reffId);
+          if (ord && ord.status !== "cancelled" && ord.status !== "done") {
+            const refundedUser = await creditSaldoAtomic(chatId, price, {
+              type: "order_refund",
+              refId: orderId,
+              note: `Refund KHFY timeout setelah ${attempt} attempt`,
+            });
+            updateOrderStatus(orderId, "cancelled");
+            const newSaldo = refundedUser?.saldo ?? (getUser(chatId)?.saldo ?? 0);
+
+            await bot.sendMessage(
+              chatId,
+              `❌ <b>ORDER GAGAL</b>\n\n` +
+              `📦 Produk: <b>${pkgName}</b>\n` +
+              `📱 Nomor: <code>${nomor}</code>\n\n` +
+              `⚠️ Transaksi tidak mendapat respon dari server. Hubungi admin.\n` +
+              `🔖 Ref: <code>${reffId}</code>\n\n` +
+              `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+              `Saldo sekarang: <b>Rp ${newSaldo.toLocaleString("id-ID")}</b>`,
+              { parse_mode: "HTML" }
+            ).catch(() => {});
+          }
+        } else {
+          logger.warn({ reffId, nomor, pkgName, provider, attempt }, "Order still pending after max attempts");
+        }
+
         activePolls.delete(reffId);
       }
+
     } catch (err) {
       logger.error({ err, reffId, attempt }, "Error during order status poll");
       if (attempt < maxAttempts) setTimeout(poll, intervalMs);
@@ -236,38 +292,38 @@ export function startOrderPolling(
 }
 
 /**
- * On server startup: find all orders still in "processing" state and resume polling.
- * These are orders that were in-flight when the server was restarted.
+ * On server startup: resume polling untuk semua order yang masih "processing".
  */
 export function resumeProcessingOrders(bot: TelegramBot) {
   const processing = getAllOrders().filter((o) => o.status === "processing" && o.reffId);
+
   if (processing.length === 0) {
     logger.info("No processing orders to resume");
     return;
   }
+
   logger.info({ count: processing.length }, "Resuming polling for processing orders after restart");
 
   for (let i = 0; i < processing.length; i++) {
     const order = processing[i];
 
-    // Determine provider:
-    // 1. Use stored provider field if available (most reliable)
-    // 2. Fall back to category-based heuristic (akrab1/circle → dopu, others → digiflaz)
-    // 3. Skip akrab2/KHFY — synchronous, should never be "processing"
+    // KHFY sekarang di-poll, bukan di-skip
     if (order.provider === "khfy" || order.category === "akrab2") {
-      logger.warn({ orderId: order.id, category: order.category }, "Skipping resume poll for KHFY — synchronous");
+      logger.info({ orderId: order.id }, "Resuming KHFY poll on restart");
+      startOrderPolling(bot, order, {
+        provider: "khfy",
+        delayMs: 5000 + i * 5000, // stagger lebih rapat karena interval KHFY pendek
+      });
       continue;
     }
 
-    const provider: "dopu" | "digiflaz" = order.provider === "digiflaz"
-      ? "digiflaz"
-      : order.provider === "dopu"
-        ? "dopu"
-        : (order.category === "akrab1" || order.category === "circle" ? "dopu" : "digiflaz");
+    const provider: "dopu" | "digiflaz" =
+      order.provider === "digiflaz" ? "digiflaz" :
+      order.provider === "dopu" ? "dopu" :
+      (order.category === "akrab1" || order.category === "circle" ? "dopu" : "digiflaz");
 
     logger.info({ orderId: order.id, provider, source: order.provider ?? "inferred" }, "Resuming poll");
 
-    // Stagger polls: 60s apart per order on startup — queue handles serialization thereafter
     const staggerMs = 60000 + i * 60000;
     startOrderPolling(bot, order, {
       provider,
