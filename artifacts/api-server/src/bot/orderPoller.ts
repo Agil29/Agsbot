@@ -59,14 +59,15 @@ const khfyQueue = new ProviderQueue(5_000, "khfy"); // 5 detik gap antar request
 function queuedCheckStatus(
   provider: "dopu" | "digiflaz" | "khfy",
   reffId: string,
-  dopuTrxId?: string
+  dopuTrxId?: string,
+  khfyTrxId?: string
 ) {
   if (provider === "dopu") {
     return dopuQueue.enqueue(() => checkDopuOrderStatus(reffId, dopuTrxId));
   }
-  if (provider === "khfy") {
-    return khfyQueue.enqueue(() => checkKhfyOrderStatus(reffId));
-  }
+ if (provider === "khfy") {
+  return khfyQueue.enqueue(() => checkKhfyOrderStatus(khfyTrxId ?? reffId));
+}
   return digiflazQueue.enqueue(() => checkDigiflazOrderStatus(reffId));
 }
 
