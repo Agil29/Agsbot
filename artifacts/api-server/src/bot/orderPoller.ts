@@ -90,11 +90,12 @@ export function startOrderPolling(
   opts: {
     provider: "dopu" | "digiflaz" | "khfy";
     dopuTrxId?: string;
+    khfyTrxId?: string;
     initialAttempt?: number;
     delayMs?: number;
   }
 ) {
-  const { provider, dopuTrxId, initialAttempt = 0 } = opts;
+  const { provider, dopuTrxId, khfyTrxId, initialAttempt = 0 } = opts;
 
   const intervalMs =
     provider === "digiflaz" ? INTERVAL_DIGIFLAZ_MS :
@@ -146,7 +147,7 @@ export function startOrderPolling(
         return;
       }
 
-      const statusRes = await queuedCheckStatus(provider, reffId, dopuTrxId);
+      const statusRes = await queuedCheckStatus(provider, reffId, dopuTrxId, khfyTrxId);
       logger.info({ reffId, orderId, attempt, status: statusRes.status, provider }, "Pending poll result");
 
       // ── SUKSES ──────────────────────────────────────────────────────────
@@ -310,13 +311,14 @@ export function resumeProcessingOrders(bot: TelegramBot) {
 
     // KHFY sekarang di-poll, bukan di-skip
     if (order.provider === "khfy" || order.category === "akrab2") {
-      logger.info({ orderId: order.id }, "Resuming KHFY poll on restart");
-      startOrderPolling(bot, order, {
-        provider: "khfy",
-        delayMs: 5000 + i * 5000, // stagger lebih rapat karena interval KHFY pendek
-      });
-      continue;
-    }
+  logger.info({ orderId: order.id }, "Resuming KHFY poll on restart");
+  startOrderPolling(bot, order, {
+    provider: "khfy",
+    khfyTrxId: order.sn || undefined,
+    delayMs: 5000 + i * 5000,
+  });
+  continue;
+}
 
     const provider: "dopu" | "digiflaz" =
       order.provider === "digiflaz" ? "digiflaz" :
