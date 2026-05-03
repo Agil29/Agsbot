@@ -1582,7 +1582,6 @@ export function setupHandlers(bot: TelegramBot) {
             });
           }
         } else {
-         } else {
   // KHFY async — tunggu polling status final
   const _tgl = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
   const _jam = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
