@@ -1589,7 +1589,7 @@ export function setupHandlers(bot: TelegramBot) {
   await bot.editMessageCaption(
     `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `🔖 Order ID  : <code>${newOrder.id}</code>\n` +
+    `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
     `📦 Produk: <b>${packageName}</b>\n` +
     `📱 Nomor: <code>${nomorTujuan}</code>\n` +
     `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
