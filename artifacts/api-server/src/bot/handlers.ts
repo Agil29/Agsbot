@@ -1599,11 +1599,11 @@ export function setupHandlers(bot: TelegramBot) {
 
   const khfyTrxId = (result as any).trxid || sn || undefined;
 
-  startOrderPolling(bot, newOrder, {
-    provider: "khfy",
-    khfyTrxId,
-    delayMs: 5000,
-  });
+  startOrderPolling(bot, pendingOrder, {
+  provider: "khfy",
+  khfyTrxId,
+  delayMs: 5000,
+});
 }
       } else {
         // API call failed — mark order cancelled, then refund saldo
