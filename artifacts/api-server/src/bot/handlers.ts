@@ -1046,7 +1046,7 @@ export function setupHandlers(bot: TelegramBot) {
               validity,
               nomorTujuan,
               sn: sn || undefined,
-              reffId: (useDopu || useDigiflaz) ? providerRef : undefined,
+              reffId: providerRef || refId,
               paymentMethod: "qris",
               provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy",
             });
@@ -1541,7 +1541,7 @@ export function setupHandlers(bot: TelegramBot) {
         quota: session.selectedPackageQuota ?? "",
         validity: session.selectedPackageValidity ?? "",
         nomorTujuan: nomor,
-        reffId: (useDopu || useDigiflaz) ? preReffId : undefined,
+        reffId: preReffId,
         paymentMethod: "saldo",
         provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy",
       });
