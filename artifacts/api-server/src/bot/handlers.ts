@@ -1571,6 +1571,12 @@ export function setupHandlers(bot: TelegramBot) {
       const isKhfyProvider = !useManual && !useDopu && !useDigiflaz;
       const khfyPending = isKhfyProvider && result.success;
 
+      logger.info({
+        orderId: pendingOrder.id, selectedCat, selectedSource, useManual, useDigiflaz, useDopu,
+        isKhfyProvider, khfyPending, dopuPending, resultSuccess: result.success,
+        reffId: pendingOrder.reffId, provider: pendingOrder.provider,
+      }, "SALDO ORDER DEBUG — routing & pending flags");
+
       if (result.success) {
         const sn = result.sn;
         // Update the pre-created order with SN and final status
