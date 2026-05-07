@@ -212,7 +212,9 @@ export function startOrderPolling(
         activePolls.delete(reffId);
 
         const rawErr = String((statusRes as any).error ?? "");
-        const displayErr = /kosong|stok|habis/i.test(rawErr)
+        const displayErr = provider === "khfy"
+          ? (rawErr.slice(0, 120) || "Transaksi gagal. Hubungi admin.")
+          : /kosong|stok|habis/i.test(rawErr)
           ? "Stok sedang kosong. Coba produk lain atau hubungi admin."
           : /nomor|tujuan|invalid|dest/i.test(rawErr)
           ? "Nomor tujuan tidak valid."

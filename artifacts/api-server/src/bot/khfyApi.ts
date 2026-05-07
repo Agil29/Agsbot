@@ -176,25 +176,13 @@ export async function placeKhfyOrder(params: {
 
     if (isFailed) {
       const rawError = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "");
-      let errorMsg = "Order gagal. Hubungi admin.";
-      if (rawError) {
-        const upper = rawError.toUpperCase();
-        if (upper.includes("KOSONG") || upper.includes("STOK") || upper.includes("HABIS")) {
-          errorMsg = "Stok sedang kosong. Coba lagi nanti.";
-        } else if (upper.includes("NOMOR") || upper.includes("TUJUAN")) {
-          errorMsg = "Nomor tujuan tidak valid.";
-        } else if (upper.includes("TERDAFTAR")) {
-          errorMsg = rawError.slice(0, 120);
-        } else {
-          errorMsg = rawError
-            .replace(/RC=[^\s]+\s*/gi, "")
-            .replace(/TrxID=[^\s]*\s*/gi, "")
-            .replace(/@\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2}:\d{2}/g, "")
-            .replace(/#/g, "")
-            .trim()
-            .slice(0, 120) || "Order gagal. Hubungi admin.";
-        }
-      }
+      const errorMsg = rawError
+        .replace(/RC=[^\s]+\s*/gi, "")
+        .replace(/TrxID=[^\s]*\s*/gi, "")
+        .replace(/@\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2}:\d{2}/g, "")
+        .replace(/#/g, "")
+        .trim()
+        .slice(0, 120) || "Order gagal. Hubungi admin.";
       return { success: false, error: errorMsg, reffId };
     }
 

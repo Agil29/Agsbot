@@ -1141,15 +1141,18 @@ export function setupHandlers(bot: TelegramBot) {
               refId: topupId,
               note: `Refund order QRIS gagal: ${result.error ?? ""}`,
             });
+            const qrisErrMsg = isQrisKhfy
+              ? (String(result.error ?? "").slice(0, 120) || "Transaksi gagal. Hubungi admin.")
+              : (/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.");
             await bot.editMessageCaption(
-              `❌ <b>ORDER GAGAL</b>\n\n⚠️ ${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}\n\n` +
+              `❌ <b>ORDER GAGAL</b>\n\n⚠️ ${qrisErrMsg}\n\n` +
               `💰 Rp ${topup.nominal.toLocaleString("id-ID")} telah dikembalikan ke saldo.\n` +
               `Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
               { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
             ).catch(async () => {
               await bot.sendMessage(
                 chatId,
-                `❌ <b>ORDER GAGAL</b>\n\n${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}\n\n💰 Saldo Rp ${topup.nominal.toLocaleString("id-ID")} dikembalikan.`,
+                `❌ <b>ORDER GAGAL</b>\n\n${qrisErrMsg}\n\n💰 Saldo Rp ${topup.nominal.toLocaleString("id-ID")} dikembalikan.`,
                 { parse_mode: "HTML" }
               );
             });
@@ -1656,7 +1659,7 @@ export function setupHandlers(bot: TelegramBot) {
         const refundedUser = getUser(userId);
         await bot.editMessageText(
           `❌ <b>ORDER GAGAL</b>\n\n` +
-          `⚠️ ${(/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}` +
+          `⚠️ ${isKhfyProvider ? (String(result.error ?? "").slice(0, 120) || "Transaksi gagal. Hubungi admin.") : (/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin.")}` +
           (dopuRef ? `\n🔖 Ref: <code>${dopuRef}</code>` : "") +
           `\n\n💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
           `Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
