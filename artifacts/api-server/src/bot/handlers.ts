@@ -42,12 +42,20 @@ function isAdmin(userId: number): boolean {
 async function doBroadcast(
   bot: TelegramBot,
   message: string,
+  photoFileId?: string,
 ): Promise<{ sent: number; failed: number; total: number }> {
   const users = getAllUsers();
   let sent = 0, failed = 0;
   for (const user of users) {
     try {
-      await bot.sendMessage(user.telegramId, message, { parse_mode: "HTML" });
+      if (photoFileId) {
+        await bot.sendPhoto(user.telegramId, photoFileId, {
+          caption: message || undefined,
+          parse_mode: "HTML",
+        });
+      } else {
+        await bot.sendMessage(user.telegramId, message, { parse_mode: "HTML" });
+      }
       sent++;
     } catch {
       failed++;
@@ -243,6 +251,7 @@ export function setupHandlers(bot: TelegramBot) {
       `📢 <b>Mode Broadcast</b>\n\n` +
       `Kirim pesan yang ingin dibroadcast ke <b>semua user</b>.\n` +
       `Format HTML didukung: <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;code&gt;</code>\n\n` +
+      `📷 Anda juga bisa kirim <b>gambar</b> (dengan atau tanpa caption).\n\n` +
       `Kirim /cancel untuk membatalkan.`,
       { parse_mode: "HTML" }
     );
@@ -620,11 +629,37 @@ export function setupHandlers(bot: TelegramBot) {
   });
 
   bot.on("message", async (msg) => {
+    const from = msg.from!;
+    const session = getSession(from.id);
+
+    // Allow photo messages through for broadcast
+    if (msg.photo && session.step === "waiting_broadcast_message" && isAdmin(from.id)) {
+      const photoFileId = msg.photo[msg.photo.length - 1].file_id;
+      const bcastCaption = msg.caption?.trim() ?? "";
+      const totalUsers = getAllUsers().length;
+      setSession(from.id, { step: "broadcast_confirm", broadcastMessage: bcastCaption, broadcastPhoto: photoFileId });
+      await bot.sendPhoto(
+        msg.chat.id,
+        photoFileId,
+        {
+          caption:
+            `📢 <b>Preview Broadcast</b>\n━━━━━━━━━━━━━━━━━━━━\n\n${bcastCaption}\n\n━━━━━━━━━━━━━━━━━━━━\n` +
+            `Pesan ini akan dikirim ke <b>${totalUsers} pengguna</b>.\nLanjutkan?`,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [[
+              { text: `✅ Kirim ke ${totalUsers} user`, callback_data: "bcast_confirm" },
+              { text: "❌ Batalkan", callback_data: "bcast_cancel" },
+            ]],
+          },
+        }
+      );
+      return;
+    }
+
     if (!msg.text) return;
     // Skip messages handled by dedicated onText/command handlers to avoid double-processing
     if (/^\/|🏠|💰|📦|📋|💳|📱|📢|💬/.test(msg.text)) return;
-    const from = msg.from!;
-    const session = getSession(from.id);
 
     // ── Admin in waiting_admin_reply mode: relay next typed message to target user ──
     if (isAdmin(from.id) && session.step === "waiting_admin_reply") {
@@ -1242,17 +1277,23 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
+      const session = getSession(userId);
+      const bcastPhoto = session.broadcastPhoto;
+
       if (data === "bcast_cancel") {
         clearSession(userId);
         try {
-          await bot.editMessageText("❌ <b>Broadcast dibatalkan.</b>", { chat_id: chatId, message_id: messageId, parse_mode: "HTML" });
+          if (bcastPhoto) {
+            await bot.editMessageCaption("❌ <b>Broadcast dibatalkan.</b>", { chat_id: chatId, message_id: messageId, parse_mode: "HTML" });
+          } else {
+            await bot.editMessageText("❌ <b>Broadcast dibatalkan.</b>", { chat_id: chatId, message_id: messageId, parse_mode: "HTML" });
+          }
         } catch { }
         return;
       }
 
-      const session = getSession(userId);
-      const bcastMsg = session.broadcastMessage;
-      if (!bcastMsg) {
+      const bcastMsg = session.broadcastMessage ?? "";
+      if (!bcastMsg && !bcastPhoto) {
         try { await bot.editMessageText("❌ Pesan broadcast tidak ditemukan.", { chat_id: chatId, message_id: messageId }); } catch { }
         return;
       }
@@ -1261,22 +1302,33 @@ export function setupHandlers(bot: TelegramBot) {
       const totalUsers = getAllUsers().length;
 
       try {
-        await bot.editMessageText(
-          `⏳ <b>Mengirim broadcast...</b>\n\nMengirim ke <b>${totalUsers} user</b>. Mohon tunggu.`,
-          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-        );
+        if (bcastPhoto) {
+          await bot.editMessageCaption(
+            `⏳ <b>Mengirim broadcast...</b>\n\nMengirim ke <b>${totalUsers} user</b>. Mohon tunggu.`,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          );
+        } else {
+          await bot.editMessageText(
+            `⏳ <b>Mengirim broadcast...</b>\n\nMengirim ke <b>${totalUsers} user</b>. Mohon tunggu.`,
+            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+          );
+        }
       } catch { }
 
-      const { sent, failed } = await doBroadcast(bot, bcastMsg);
+      const { sent, failed } = await doBroadcast(bot, bcastMsg, bcastPhoto);
+
+      const resultText =
+        `✅ <b>Broadcast Selesai!</b>\n\n` +
+        `👥 Total user: <b>${totalUsers}</b>\n` +
+        `✅ Terkirim: <b>${sent}</b>\n` +
+        `❌ Gagal: <b>${failed}</b>`;
 
       try {
-        await bot.editMessageText(
-          `✅ <b>Broadcast Selesai!</b>\n\n` +
-          `👥 Total user: <b>${totalUsers}</b>\n` +
-          `✅ Terkirim: <b>${sent}</b>\n` +
-          `❌ Gagal: <b>${failed}</b>`,
-          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-        );
+        if (bcastPhoto) {
+          await bot.editMessageCaption(resultText, { chat_id: chatId, message_id: messageId, parse_mode: "HTML" });
+        } else {
+          await bot.editMessageText(resultText, { chat_id: chatId, message_id: messageId, parse_mode: "HTML" });
+        }
       } catch { }
       return;
     }

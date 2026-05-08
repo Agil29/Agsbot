@@ -15,6 +15,7 @@ export type UserSession = {
     | "waiting_transfer_userid"
     | "waiting_transfer_amount";
   broadcastMessage?: string;
+  broadcastPhoto?: string;
   replyTargetUserId?: number;
   transferTargetId?: number;
   category?: string;
