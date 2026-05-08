@@ -1437,11 +1437,16 @@ export function setupHandlers(bot: TelegramBot) {
 
       setSession(userId, { step: "waiting_nomor_tujuan" });
 
+      const stockNote = session.selectedCategory === "akrab1" || session.selectedCategory === "circle"
+        ? `\n\n<b>Pastikan anda sudah cek stock terlebih dahulu</b>\n`
+        : "\n";
+
       await bot.editMessageText(
         `📱 <b>MASUKKAN NOMOR TUJUAN</b>\n\n` +
         `Paket: <b>${session.selectedPackageName ?? "-"}</b>\n` +
-        `Harga: <b>Rp ${(session.selectedPackagePrice ?? 0).toLocaleString("id-ID")}</b>\n\n` +
-        `Silahkan masukan nomor tujuan:\n<i>(contoh: 081234567890)</i>`,
+        `Harga: <b>Rp ${(session.selectedPackagePrice ?? 0).toLocaleString("id-ID")}</b>` +
+        stockNote +
+        `\nSilahkan masukan nomor tujuan:\n<i>(contoh: 081234567890)</i>`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
       return;
