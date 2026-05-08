@@ -1438,7 +1438,7 @@ export function setupHandlers(bot: TelegramBot) {
       setSession(userId, { step: "waiting_nomor_tujuan" });
 
       const stockNote = session.selectedCategory === "akrab1" || session.selectedCategory === "circle"
-        ? `\n\n<b>Pastikan anda sudah cek stock terlebih dahulu</b>\n`
+        ? `\n\n<b>❗️Pastikan sudah cek stock terlebih dahulu❗️</b>\n`
         : "\n";
 
       await bot.editMessageText(
