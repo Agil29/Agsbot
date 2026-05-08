@@ -173,9 +173,6 @@ router.post("/pakasir", async (req, res) => {
           const _tgl = _now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
           const _jam = _now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
           if (isPending) {
-            const circleNote = category === "circle" && !useDigiflaz
-              ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
-              : "";
             await bot.sendMessage(
               topup.chatId,
               `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
@@ -185,14 +182,10 @@ router.post("/pakasir", async (req, res) => {
               `📱 Nomor: <code>${nomorTujuan}</code>\n` +
               `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
               (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
-              `\n⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` +
-              circleNote,
+              `\n⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>`,
               { parse_mode: "HTML" }
             );
           } else {
-            const circleNote = category === "circle" && !useDigiflaz
-              ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
-              : "";
             await bot.sendMessage(
               topup.chatId,
               `✅ <b>ORDER BERHASIL !</b>\n` +
@@ -203,8 +196,7 @@ router.post("/pakasir", async (req, res) => {
               `💰 Harga : <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
               `📅 Date  : ${_tgl}\n\n` +
               `Jam Sukses : ${_jam} WIB\n\n` +
-              `Terimakasih sudah berbelanja ☺️☺️` +
-              circleNote,
+              `Terimakasih sudah berbelanja ☺️☺️`,
               { parse_mode: "HTML" }
             );
           }

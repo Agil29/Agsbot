@@ -83,10 +83,6 @@ async function handleDopuCallback(data: Record<string, any>) {
     logger.info({ reffId, dopuTrxId, orderId: order.id, finalSn }, "DOPU callback: order done");
 
     if (bot) {
-      const circleNote =
-        order.category === "circle"
-          ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
-          : "";
       const now = new Date();
       const tgl = now.toLocaleDateString("id-ID", {
         day: "2-digit",
@@ -110,8 +106,7 @@ async function handleDopuCallback(data: Record<string, any>) {
             `💰 Harga : <b>Rp ${order.price.toLocaleString("id-ID")}</b>\n` +
             `📅 Date  : ${tgl}\n\n` +
             `Jam Sukses : ${jam} WIB\n\n` +
-            `Terimakasih sudah berbelanja ☺️☺️` +
-            circleNote,
+            `Terimakasih sudah berbelanja ☺️☺️`,
           { parse_mode: "HTML" }
         );
       } catch (err) {

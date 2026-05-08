@@ -162,11 +162,6 @@ export function startOrderPolling(
         updateOrderStatus(orderId, "done", statusRes.sn);
         activePolls.delete(reffId);
 
-        const circleNote =
-          category === "circle" && provider !== "digiflaz"
-            ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle.`
-            : "";
-
         const now = new Date();
         const tgl = now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
         const jam = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
@@ -186,8 +181,7 @@ export function startOrderPolling(
           `• Saldo tersisa: <b>Rp ${sisaSaldo.toLocaleString("id-ID")}</b>\n` +
           `📅 Date  : ${tgl}\n\n` +
           `Jam Sukses : ${jam} WIB\n\n` +
-          `Terimakasih sudah berbelanja ☺️☺️` +
-          circleNote,
+          `Terimakasih sudah berbelanja ☺️☺️`,
           { parse_mode: "HTML" }
         ).catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (success)"));
 

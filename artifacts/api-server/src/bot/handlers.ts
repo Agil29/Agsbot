@@ -1065,9 +1065,6 @@ export function setupHandlers(bot: TelegramBot) {
             }
 
             if (isPending) {
-              const circleNote = category === "circle" && !useDigiflaz
-                ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
-                : "";
               await bot.editMessageCaption(
                 `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
                 `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1076,8 +1073,7 @@ export function setupHandlers(bot: TelegramBot) {
                 `📱 Nomor: <code>${nomorTujuan}</code>\n` +
                 `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
                 (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
-                `\n⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` +
-                circleNote,
+                `\n⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>`,
                 { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
               ).catch(async () => {
                 await bot.sendMessage(
@@ -1088,10 +1084,6 @@ export function setupHandlers(bot: TelegramBot) {
               });
             } else if (khfyPendingQ) {
               // KHFY async — tunggu polling status final
-              const circleNote = category === "circle"
-                ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle.</i>`
-                : "";
-
               await bot.editMessageCaption(
                 `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
                 `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1099,8 +1091,7 @@ export function setupHandlers(bot: TelegramBot) {
                 `📦 Produk: <b>${packageName}</b>\n` +
                 `📱 Nomor: <code>${nomorTujuan}</code>\n` +
                 `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-                `\n⏳ <i>Paket sedang diproses...</i>` +
-                circleNote,
+                `\n⏳ <i>Paket sedang diproses...</i>`,
                 { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
               ).catch(async () => {
                 await bot.sendMessage(
@@ -1581,9 +1572,6 @@ export function setupHandlers(bot: TelegramBot) {
 
         if (dopuPending) {
           // DOPU/Digiflaz async — order accepted but not yet confirmed
-          const circleNote = selectedCat === "circle" && !useDigiflaz
-            ? `\n\n📱 Buka aplikasi MyXL → konfirmasi undangan Circle yang masuk ke nomor tujuan.`
-            : "";
           await bot.editMessageText(
             `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1593,8 +1581,7 @@ export function setupHandlers(bot: TelegramBot) {
             `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
             (sn ? `🔑 No. Trx: <code>${sn}</code>\n` : "") +
             `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>\n\n` +
-            `⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` +
-            circleNote,
+            `⏳ <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>`,
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );
 
