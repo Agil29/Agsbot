@@ -62,7 +62,7 @@ export async function startBot() {
   bot.startPolling({ interval: 0, params: { timeout: 30 } });
 
   setupHandlers(bot);
-  startPackageRefreshScheduler(5 * 60 * 1000);
+  startPackageRefreshScheduler(2 * 60 * 1000);
   startTopupExpiryChecker(bot);
   resumeProcessingOrders(bot);
 
