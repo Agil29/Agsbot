@@ -12,7 +12,7 @@ import { isBlacklisted } from "./blacklist";
 import { createOrder, getOrdersByUser, formatOrderDate, statusLabel, getOrderByReffId, updateOrderStatus, getAllOrders, getOrderById } from "./orders";
 import { startOrderPolling } from "./orderPoller";
 import { createPakasirTopup, getTopupById, updateTopupStatus, calculateFee, checkPakasirStatus, getTopupsByUser } from "./topup";
-import { recordAndCheck, isBlocked } from "./rateLimit";
+import { recordAndCheck } from "./rateLimit";
 import { placeKhfyOrder, getKhfyBalance } from "./khfyApi";
 import { placeDopuOrder, checkDopuOrderStatus, getDopuBalance, sanitizeDopuError, type DopuOrderResult } from "./dopuApi";
 import { placeDigiflazOrder, checkDigiflazOrderStatus, type DigiflazOrderResult } from "./digiflazApi";
@@ -424,7 +424,6 @@ export function setupHandlers(bot: TelegramBot) {
   // ── 🏠 Menu ──────────────────────────────────────────────────────────────
 
   bot.onText(/🏠 Menu/, async (msg) => {
-    if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
     const prevSession = getSession(from.id);
     if (prevSession.step === "waiting_whatsapp") {
@@ -452,7 +451,6 @@ export function setupHandlers(bot: TelegramBot) {
 
   // ── 💬 CHAT ADMIN ─────────────────────────────────────────────────────────
   bot.onText(/\/chatadmin/, async (msg) => {
-    if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
     if (isAdmin(from.id)) return; // admin tidak perlu chat diri sendiri
     const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
@@ -487,7 +485,6 @@ export function setupHandlers(bot: TelegramBot) {
   bot.onText(/📦 ORDER/, handleOrder(bot));
 
   bot.onText(/💰 TOPUP/, async (msg) => {
-    if (isBlocked(msg.from!.id)) return;
     const from = msg.from!;
     if (getSession(from.id).step === "waiting_whatsapp") {
       await bot.sendMessage(msg.chat.id, `📱 <b>Daftarkan Nomor WhatsApp Anda</b>\n\nMasukkan nomor WhatsApp untuk melanjutkan.\n\nContoh: <code>081234567890</code>`, { parse_mode: 'HTML' });
@@ -608,7 +605,6 @@ export function setupHandlers(bot: TelegramBot) {
   // ── RIWAYAT button ────────────────────────────────────────────────────────
 
   bot.onText(/📋 RIWAYAT/, async (msg) => {
-    if (isBlocked(msg.from!.id)) return;
     if (getSession(msg.from!.id).step === "waiting_whatsapp") {
       await bot.sendMessage(msg.chat.id, `📱 <b>Daftarkan Nomor WhatsApp Anda</b>\n\nMasukkan nomor WhatsApp untuk melanjutkan.\n\nContoh: <code>081234567890</code>`, { parse_mode: 'HTML' });
       return;
@@ -922,7 +918,10 @@ export function setupHandlers(bot: TelegramBot) {
     }
 
     // ── Rate limit check for inline button presses (admins exempt) ──────────
-    if (!isAdmin(userId)) {
+    // Navigation callbacks (category, pagination, back, cancel, package browsing)
+    // are excluded from rate limiting — they are normal UI interactions, not spam.
+    const isNavCallback = /^(cat_|page_|pkg_|confirm_|back_|cancel_order|refresh_stock|hist_|bcast_)/.test(data);
+    if (!isAdmin(userId) && !isNavCallback) {
       const rl = recordAndCheck(userId);
       if (rl.status === "warn") {
         await bot.answerCallbackQuery(query.id, {
@@ -1826,7 +1825,6 @@ export function setupHandlers(bot: TelegramBot) {
 function handleOrder(bot: TelegramBot) {
   return async (msg: TelegramBot.Message) => {
     const userId = msg.from?.id ?? msg.chat.id;
-    if (isBlocked(userId)) return;
     if (getSession(userId).step === "waiting_whatsapp") {
       await bot.sendMessage(msg.chat.id, `📱 <b>Daftarkan Nomor WhatsApp Anda</b>\n\nMasukkan nomor WhatsApp untuk melanjutkan.\n\nContoh: <code>081234567890</code>`, { parse_mode: 'HTML' });
       return;
