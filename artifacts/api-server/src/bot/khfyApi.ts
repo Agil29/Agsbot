@@ -172,7 +172,9 @@ export async function placeKhfyOrder(params: {
       status === "gagal" || status === "failed" || status === "fail" ||
       status === "error" || status === "0" || status === "cancel" ||
       msg.includes("stok") || msg.includes("kosong") || msg.includes("habis") ||
-      msg.includes("terdaftar") || msg.includes("invalid");
+      msg.includes("terdaftar") || msg.includes("invalid") ||
+      msg.includes("saldo") || msg.includes("kurang") || msg.includes("cukup") ||
+      msg.includes("insufficient") || msg.includes("balance");
 
     if (isFailed) {
       const rawError = String(data.message ?? data.msg ?? data.pesan ?? data.error ?? "");
@@ -190,7 +192,7 @@ export async function placeKhfyOrder(params: {
       data.ok === true ||
       status === "sukses" || status === "success" || status === "berhasil" ||
       status === "1" || status === "pending" || status === "process" ||
-      status === "processing" || status === "antri" || status === "" ||
+      status === "processing" || status === "antri" ||
       (data.msg && String(data.msg).toLowerCase().includes("proses"));
 
     if (ok) {
