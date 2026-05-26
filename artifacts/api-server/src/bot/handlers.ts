@@ -861,6 +861,21 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
 
+      // Validasi prefix XL/Axis untuk produk AKRAB dan CIRCLE
+      const cat = session.selectedCategory;
+      if (cat === "akrab1" || cat === "akrab2" || cat === "circle") {
+        const xlPrefixes = ["0817","0818","0819","0859","0877","0878","0831","0832","0833","0838"];
+        const isXl = xlPrefixes.some((p) => nomor.startsWith(p));
+        if (!isXl) {
+          await bot.sendMessage(
+            msg.chat.id,
+            "❌ <b>Nomor bukan operator XL/Axis!</b>\n\nProduk ini hanya untuk nomor XL/Axis.\nPastikan nomor tujuan benar.\n\nContoh nomor XL: <code>081712345678</code>",
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
+      }
+
       const user = getUser(from.id);
       const price = session.selectedPackagePrice ?? 0;
       setSession(from.id, { step: "select_payment", selectedNomorTujuan: nomor });
