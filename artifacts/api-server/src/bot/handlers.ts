@@ -1247,15 +1247,41 @@ export function setupHandlers(bot: TelegramBot) {
         await refreshAllPackages();
         const packages = category ? getPackagesWithMarkup(category) : [];
         const label = category ? categoryLabels[category] : "Paket";
-        await bot.editMessageText(
-          `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
-          {
-            chat_id: chatId,
-            message_id: messageId,
-            parse_mode: "HTML",
-            reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category, packages) : {}),
-          }
-        );
+
+        // Cek saldo KHFY untuk AKRAB 2
+        let khfyOutOfStock = false;
+        if (category === "akrab2" && packages.length > 0) {
+          try {
+            const minPrice = Math.min(...packages.map((p) => p.price).filter((p) => p > 0)) || 1;
+            const bal = await getKhfyBalance();
+            if (bal.balance !== null && bal.balance < minPrice) {
+              khfyOutOfStock = true;
+            }
+          } catch { }
+        }
+
+        if (khfyOutOfStock) {
+          await bot.editMessageText(
+            `📦 <b>PAKET ${label}</b>\n\n` +
+            `⚠️ <b>Stok paket kosong</b>, silakan cek stok pada tombol di bawah ini`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: "HTML",
+              reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? { ...pkgKeyboardOpts(category, packages), forceOutOfStock: true } : {}),
+            }
+          );
+        } else {
+          await bot.editMessageText(
+            `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: "HTML",
+              reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category, packages) : {}),
+            }
+          );
+        }
       } catch (err) {
         logger.error({ err }, "Failed to refresh stock");
         await bot.answerCallbackQuery(query.id, { text: "❌ Gagal refresh. Coba lagi." });
@@ -1382,6 +1408,25 @@ export function setupHandlers(bot: TelegramBot) {
         );
         return;
       }
+
+      // Cek saldo KHFY untuk AKRAB 2 — jika saldo terlalu rendah, semua order akan gagal
+      if (category === "akrab2") {
+        try {
+          const minPrice = Math.min(...packages.map((p) => p.price).filter((p) => p > 0)) || 1;
+          const bal = await getKhfyBalance();
+          if (bal.balance !== null && bal.balance < minPrice) {
+            await bot.editMessageText(
+              `📦 <b>PAKET ${categoryLabels[category]}</b>\n\n` +
+              `⚠️ <b>Stok paket kosong</b>, silakan cek stok pada tombol di bawah ini`,
+              { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0, { ...pkgKeyboardOpts(category, packages), forceOutOfStock: true }) }
+            );
+            return;
+          }
+        } catch (err) {
+          logger.error({ err }, "Failed to check KHFY balance for stock display");
+        }
+      }
+
       await bot.editMessageText(
         `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, 0, pkgKeyboardOpts(category, packages)) }
