@@ -351,6 +351,11 @@ export function DaftarProduk({ category }: { category: string }) {
       setRefreshing(false);
     }
   }
+  function handleToggleActive(p: Product) {
+    api.packages.update(category, p.id, { active: !p.active })
+      .then(() => { showMsg(`${p.name} ${!p.active ? "diaktifkan" : "dinonaktifkan"}`); load(); })
+      .catch((e: any) => showMsg(e.message, "error"));
+  }
 
   function startEdit(p: Product) {
     setEditId(p.id);
@@ -598,12 +603,19 @@ export function DaftarProduk({ category }: { category: string }) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          p.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
-                        }`}>
-                          {p.active ? "Aktif" : "Nonaktif"}
-                        </span>
-                      </td>
+  <button
+    onClick={() => handleToggleActive(p)}
+    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+      p.active
+        ? "bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600"
+        : "bg-slate-100 text-slate-500 hover:bg-green-100 hover:text-green-700"
+    }`}
+    title={p.active ? "Klik untuk nonaktifkan" : "Klik untuk aktifkan"}
+  >
+    {p.active ? "✅ Aktif" : "⭕ Nonaktif"}
+  </button>
+</td>
+
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button

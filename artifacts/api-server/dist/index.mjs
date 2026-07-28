@@ -100806,7 +100806,7 @@ Terimakasih sudah berbelanja \u263A\uFE0F\u263A\uFE0F` + circleNote,
         updateOrderStatus(orderId, "cancelled");
         activePolls.delete(reffId2);
         const rawErr = String(statusRes.error ?? "");
-        const displayErr = /kosong|stok|habis/i.test(rawErr) ? "Stok sedang kosong. Coba produk lain atau hubungi admin." : /nomor|tujuan|invalid|dest/i.test(rawErr) ? "Nomor tujuan tidak valid." : /terdaftar/i.test(rawErr) ? rawErr.slice(0, 120) : "Transaksi gagal. Hubungi admin untuk bantuan.";
+        const keteranganKhfy = rawErr.length > 0 ? rawErr.slice(0, 150) : "";
         const newSaldo = refundedUser?.saldo ?? (getUser(chatId)?.saldo ?? 0);
         await bot.sendMessage(
           chatId,
@@ -100815,10 +100815,11 @@ Terimakasih sudah berbelanja \u263A\uFE0F\u263A\uFE0F` + circleNote,
 \u{1F4E6} Produk: <b>${pkgName}</b>
 \u{1F4F1} Nomor: <code>${nomor2}</code>
 
-\u26A0\uFE0F ${displayErr}
-\u{1F516} Ref: <code>${reffId2}</code>
+` + (keteranganKhfy ? `\u{1F4CB} Keterangan : ${keteranganKhfy}
 
-\u{1F4B0} Saldo <b>Rp ${price2.toLocaleString("id-ID")}</b> telah dikembalikan.
+` : `\u26A0\uFE0F Transaksi gagal. Hubungi admin untuk bantuan.
+
+`) + `\u{1F4B0} Saldo <b>Rp ${price2.toLocaleString("id-ID")}</b> telah dikembalikan.
 Saldo sekarang: <b>Rp ${newSaldo.toLocaleString("id-ID")}</b>`,
           { parse_mode: "HTML" }
         ).catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (failed)"));
@@ -101944,19 +101945,19 @@ Pesan berikutnya akan langsung dikirim ke user.
     }
     if (data.startsWith("topup_paid_")) {
       const topupId = data.replace("topup_paid_", "");
-      const topup2 = getTopupById(topupId);
-      if (!topup2) {
+      const topup = getTopupById(topupId);
+      if (!topup) {
         await bot.answerCallbackQuery(query2.id, { text: "\u26A0\uFE0F Order tidak ditemukan.", show_alert: true }).catch(() => {
         });
         return;
       }
-      if (topup2.status === "expired") {
+      if (topup.status === "expired") {
         await bot.answerCallbackQuery(query2.id, { text: "\u23F0 Order sudah kadaluarsa.", show_alert: true }).catch(() => {
         });
         return;
       }
-      if (topup2.status === "completed") {
-        const alreadyMsg = topup2.orderPayload ? "\u2705 Order sudah diproses!" : "\u2705 Saldo sudah ditambahkan!";
+      if (topup.status === "completed") {
+        const alreadyMsg = topup.orderPayload ? "\u2705 Order sudah diproses!" : "\u2705 Saldo sudah ditambahkan!";
         await bot.answerCallbackQuery(query2.id, { text: alreadyMsg, show_alert: true }).catch(() => {
         });
         return;
@@ -101968,21 +101969,21 @@ Pesan berikutnya akan langsung dikirim ke user.
       const isPaid = pakasirStatus != null && /paid|completed|settlement|success|sukses|lunas|berhasil|^1$/i.test(String(pakasirStatus));
       if (isPaid) {
         updateTopupStatus(topupId, "completed");
-        if (topup2.orderPayload) {
-          const { sku, nomorTujuan: nomorTujuan2, packageName: packageName2, category, packageId, quota, validity, source } = topup2.orderPayload;
+        if (topup.orderPayload) {
+          const { sku, nomorTujuan, packageName, category, packageId, quota, validity, source } = topup.orderPayload;
           if (!sku || source === "manual") {
             const adminIds = (process.env.ADMIN_TELEGRAM_IDS ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
             createOrder({
-              userId: topup2.userId,
-              userName: topup2.userName ?? "",
+              userId: topup.userId,
+              userName: topup.userName ?? "",
               category,
               packageId,
-              packageName: packageName2,
-              price: topup2.nominal,
-              baseprice: topup2.nominal,
+              packageName,
+              price: topup.nominal,
+              baseprice: topup.nominal,
               quota,
               validity,
-              nomorTujuan: nomorTujuan2,
+              nomorTujuan,
               reffId: topupId,
               paymentMethod: "qris"
             });
@@ -101991,10 +101992,10 @@ Pesan berikutnya akan langsung dikirim ke user.
                 adminId,
                 `\u{1F514} <b>ORDER MANUAL MASUK (QRIS)</b>
 
-\u{1F464} User: <code>${topup2.userId}</code>
-\u{1F4E6} Paket: <b>${packageName2}</b>
-\u{1F4F1} Nomor: <code>${nomorTujuan2}</code>
-\u{1F4B0} Bayar: <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u{1F464} User: <code>${topup.userId}</code>
+\u{1F4E6} Paket: <b>${packageName}</b>
+\u{1F4F1} Nomor: <code>${nomorTujuan}</code>
+\u{1F4B0} Bayar: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 \u{1F516} Order ID: <code>${topupId}</code>
 
 \u26A0\uFE0F Proses order ini secara manual.`,
@@ -102005,7 +102006,7 @@ Pesan berikutnya akan langsung dikirim ke user.
             await bot.editMessageCaption(
               `\u2705 <b>PEMBAYARAN DITERIMA</b>
 
-Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</code> telah diterima.
+Pembayaran untuk paket <b>${packageName}</b> ke nomor <code>${nomorTujuan}</code> telah diterima.
 
 \u23F3 Admin akan memproses order Anda segera. Mohon tunggu konfirmasi.
 
@@ -102016,7 +102017,7 @@ Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</co
                 chatId,
                 `\u2705 <b>PEMBAYARAN DITERIMA</b>
 
-Paket <b>${packageName2}</b> \u2192 <code>${nomorTujuan2}</code>
+Paket <b>${packageName}</b> \u2192 <code>${nomorTujuan}</code>
 
 Admin akan proses segera.`,
                 { parse_mode: "HTML" }
@@ -102031,12 +102032,12 @@ Admin akan proses segera.`,
           await bot.editMessageCaption(
             `\u23F3 <b>Memproses order...</b>
 
-\u{1F4E6} <b>${packageName2}</b>
-\u{1F4F1} <code>${nomorTujuan2}</code>`,
+\u{1F4E6} <b>${packageName}</b>
+\u{1F4F1} <code>${nomorTujuan}</code>`,
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           ).catch(() => {
           });
-          const result = useDigiflaz ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan2, refId }) : useDopu ? await placeDopuOrder({ sku, tujuan: nomorTujuan2, reffId: refId }) : await placeKhfyOrder({ sku, tujuan: nomorTujuan2, reffId });
+          const result = useDigiflaz ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan, refId }) : useDopu ? await placeDopuOrder({ sku, tujuan: nomorTujuan, reffId: refId }) : await placeKhfyOrder({ sku, tujuan: nomorTujuan, reffId });
           const dopuResult = useDopu ? result : null;
           const digiflazResultQ = useDigiflaz ? result : null;
           const providerRef = dopuResult?.reffId ?? digiflazResultQ?.refId ?? refId;
@@ -102044,18 +102045,18 @@ Admin akan proses segera.`,
           if (result.success) {
             const sn = result.sn;
             const newOrder = createOrder({
-              userId: topup2.userId,
-              userName: topup2.userName ?? "",
+              userId: topup.userId,
+              userName: topup.userName ?? "",
               category,
               packageId,
-              packageName: packageName2,
-              price: topup2.nominal,
-              baseprice: topup2.nominal,
+              packageName,
+              price: topup.nominal,
+              baseprice: topup.nominal,
               quota,
               validity,
-              nomorTujuan: nomorTujuan2,
+              nomorTujuan,
               sn: sn || void 0,
-              reffId: useDopu || useDigiflaz ? providerRef : void 0,
+              reffId: preReffId,
               paymentMethod: "qris",
               provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy"
             });
@@ -102077,9 +102078,9 @@ Admin akan proses segera.`,
 \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
 
 \u{1F516} Order ID  : <code>${newOrder.id}</code>
-\u{1F4E6} Produk: <b>${packageName2}</b>
-\u{1F4F1} Nomor: <code>${nomorTujuan2}</code>
-\u{1F4B0} Harga: <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u{1F4E6} Produk: <b>${packageName}</b>
+\u{1F4F1} Nomor: <code>${nomorTujuan}</code>
+\u{1F4B0} Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 ` + (sn ? `\u{1F511} No. Trx: <code>${sn}</code>
 ` : "") + `
 \u23F3 <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` + circleNote,
@@ -102089,22 +102090,39 @@ Admin akan proses segera.`,
                   chatId,
                   `\u2699\uFE0F <b>ORDER SEDANG DIPROSES</b>
 
-\u{1F4E6} <b>${packageName2}</b>
-\u{1F4F1} <code>${nomorTujuan2}</code>
+\u{1F4E6} <b>${packageName}</b>
+\u{1F4F1} <code>${nomorTujuan}</code>
 
 \u23F3 Paket sedang diproses. Hubungi admin jika dalam 30 menit belum masuk.`,
                   { parse_mode: "HTML" }
                 );
               });
             } else {
-              const circleNote = selectedCat === "circle" ? `
+              const khfyTrxId = result.trxid || sn || void 0;
+              if (!khfyTrxId && sn) {
+                updateOrderStatus(pendingOrder.id, "done", sn);
+                const _n = /* @__PURE__ */ new Date();
+                const _tgl = _n.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+                const _jam = _n.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+                await bot.editMessageText(
+                  `\u2705 <b>ORDER BERHASIL !</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F516} Order ID : <code>${pendingOrder.id}</code>
+\u{1F4E6} Produk : <b>${session.selectedPackageName ?? sku}</b>
+\u{1F4F1} Target : <code>${nomor}</code>
+\u{1F4B0} Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>
+\u{1F4C5} Date  : ${_tgl}
 
-\u2139\uFE0F <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>` : "";
-              const _now2 = /* @__PURE__ */ new Date();
-              const _tgl2 = _now2.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
-              const _jam2 = _now2.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-              await bot.editMessageText(
-                `\u2699\uFE0F <b>ORDER SEDANG DIPROSES</b>
+Jam Sukses : ${_jam} WIB
+
+Terimakasih sudah berbelanja \u263A\uFE0F\u263A\uFE0F`,
+                  { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+                ).catch(() => {
+                });
+              } else {
+                updateOrderStatus(pendingOrder.id, "processing", khfyTrxId);
+                await bot.editMessageText(
+                  `\u2699\uFE0F <b>ORDER SEDANG DIPROSES</b>
 \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
 
 \u{1F516} Order ID  : <code>${pendingOrder.id}</code>
@@ -102112,21 +102130,14 @@ Admin akan proses segera.`,
 \u{1F4F1} Nomor: <code>${nomor}</code>
 \u{1F4B0} Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>
 
-\u23F3 <i>Paket sedang diproses...</i>`,
-                { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-              ).catch(() => {
-              });
-              const khfyTrxId = result.trxid || sn || void 0;
-              if (dopuRef) {
-                startOrderPolling(bot, pendingOrder, {
-                  provider: "khfy",
-                  khfyTrxId,
-                  delayMs: 5e3
+\u23F3 <i>Paket sedang diproses. Notifikasi otomatis akan dikirim.</i>`,
+                  { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+                ).catch(() => {
                 });
+                startOrderPolling(bot, pendingOrder, { provider: "khfy", khfyTrxId, delayMs: 5e3 });
               }
             }
-          } else {
-            const refunded = await creditSaldoAtomic(topup2.userId, topup2.nominal, {
+            const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
               type: "order_refund",
               refId: topupId,
               note: `Refund order QRIS gagal: ${result.error ?? ""}`
@@ -102136,7 +102147,7 @@ Admin akan proses segera.`,
 
 \u26A0\uFE0F ${/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin."}
 
-\u{1F4B0} Rp ${topup2.nominal.toLocaleString("id-ID")} telah dikembalikan ke saldo.
+\u{1F4B0} Rp ${topup.nominal.toLocaleString("id-ID")} telah dikembalikan ke saldo.
 Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
               { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
             ).catch(async () => {
@@ -102146,23 +102157,23 @@ Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
 
 ${/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin."}
 
-\u{1F4B0} Saldo Rp ${topup2.nominal.toLocaleString("id-ID")} dikembalikan.`,
+\u{1F4B0} Saldo Rp ${topup.nominal.toLocaleString("id-ID")} dikembalikan.`,
                 { parse_mode: "HTML" }
               );
             });
           }
           return;
         }
-        const updatedUser = await creditSaldoAtomic(topup2.userId, topup2.nominal, {
+        const updatedUser = await creditSaldoAtomic(topup.userId, topup.nominal, {
           type: "topup",
           refId: topupId,
-          note: `QRIS topup Rp${topup2.nominal.toLocaleString("id-ID")} via konfirmasi manual`
+          note: `QRIS topup Rp${topup.nominal.toLocaleString("id-ID")} via konfirmasi manual`
         });
         await bot.editMessageCaption(
           `\u2705 <b>TOPUP BERHASIL!</b>
 
-\u2022 Order ID: <code>${topup2.id}</code>
-\u2022 Nominal: <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u2022 Order ID: <code>${topup.id}</code>
+\u2022 Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 \u2022 Saldo sekarang: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
           { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
         ).catch(async () => {
@@ -102170,7 +102181,7 @@ ${/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. C
             chatId,
             `\u2705 <b>TOPUP BERHASIL!</b>
 
-\u2022 Nominal: <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u2022 Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 \u2022 Saldo sekarang: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }
           );
@@ -102524,17 +102535,17 @@ Silakan topup saldo terlebih dahulu melalui menu \u{1F4B0} TOPUP.`,
         );
         return;
       }
-      const selectedCat2 = session2.selectedCategory ?? "akrab2";
+      const selectedCat = session2.selectedCategory ?? "akrab2";
       const selectedSource = session2.selectedSource ?? "";
       const useManual = isManualSource;
       const useDigiflaz = !useManual && selectedSource === "digiflaz";
-      const useDopu = !useManual && !useDigiflaz && (selectedSource === "dopu" || selectedCat2 === "akrab1" || selectedCat2 === "circle");
-      const preReffId = randomUUID4().replace(/-/g, "").slice(0, 20);
+      const useDopu = !useManual && !useDigiflaz && (selectedSource === "dopu" || selectedCat === "akrab1" || selectedCat === "circle");
+      const preReffId2 = randomUUID4().replace(/-/g, "").slice(0, 20);
       const pendingOrder2 = createOrder({
         userId,
         userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
         userUsername: user.username ?? void 0,
-        category: selectedCat2,
+        category: selectedCat,
         packageId: session2.packageId ?? "",
         packageName: session2.selectedPackageName ?? sku,
         price: price2,
@@ -102542,7 +102553,7 @@ Silakan topup saldo terlebih dahulu melalui menu \u{1F4B0} TOPUP.`,
         quota: session2.selectedPackageQuota ?? "",
         validity: session2.selectedPackageValidity ?? "",
         nomorTujuan: nomor2,
-        reffId: useDopu || useDigiflaz ? preReffId : void 0,
+        reffId: preReffId2,
         paymentMethod: "saldo",
         provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy"
       });
@@ -102553,17 +102564,17 @@ Silakan topup saldo terlebih dahulu melalui menu \u{1F4B0} TOPUP.`,
 Saldo dikurangi sementara. Mohon tunggu...`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
       );
-      const result = useManual ? { success: true, sn: void 0, pending: false, message: "manual" } : useDigiflaz ? await placeDigiflazOrder({ sku, tujuan: nomor2, refId: preReffId }) : useDopu ? await placeDopuOrder({ sku, tujuan: nomor2, reffId: preReffId }) : await placeKhfyOrder({ sku, tujuan: nomor2, reffId: preReffId });
+      const result = useManual ? { success: true, sn: void 0, pending: false, message: "manual" } : useDigiflaz ? await placeDigiflazOrder({ sku, tujuan: nomor2, refId: preReffId2 }) : useDopu ? await placeDopuOrder({ sku, tujuan: nomor2, reffId: preReffId2 }) : await placeKhfyOrder({ sku, tujuan: nomor2, reffId: preReffId2 });
       const updatedUser = getUser(userId);
       const dopuResult = useDopu ? result : null;
       const digiflazResult = useDigiflaz ? result : null;
-      const dopuRef2 = dopuResult?.reffId ?? (digiflazResult ? result.refId : "") ?? preReffId;
+      const dopuRef = dopuResult?.reffId ?? (digiflazResult ? result.refId : "") ?? preReffId2;
       const dopuPending = (dopuResult && result.success ? result.pending === true : false) || (digiflazResult && result.success ? result.pending === true : false);
       if (result.success) {
         const sn = result.sn;
         updateOrderStatus(pendingOrder2.id, dopuPending ? "processing" : "done", sn || void 0);
         if (dopuPending) {
-          const circleNote = selectedCat2 === "circle" && !useDigiflaz ? `
+          const circleNote = selectedCat === "circle" && !useDigiflaz ? `
 
 \u{1F4F1} Buka aplikasi MyXL \u2192 konfirmasi undangan Circle yang masuk ke nomor tujuan.` : "";
           await bot.editMessageText(
@@ -102581,7 +102592,7 @@ Saldo dikurangi sementara. Mohon tunggu...`,
 \u23F3 <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` + circleNote,
             { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
           );
-          if (dopuRef2) {
+          if (dopuRef) {
             const dopuTrxId = sn || void 0;
             startOrderPolling(bot, pendingOrder2, {
               provider: useDigiflaz ? "digiflaz" : "dopu",
@@ -102590,27 +102601,47 @@ Saldo dikurangi sementara. Mohon tunggu...`,
             });
           }
         } else {
-          const _tgl = (/* @__PURE__ */ new Date()).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
-          const _jam = (/* @__PURE__ */ new Date()).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-          await bot.editMessageCaption(
-            `\u2699\uFE0F <b>ORDER SEDANG DIPROSES</b>
+          const khfyTrxId = result.trxid || result.sn || void 0;
+          if (!khfyTrxId && result.sn) {
+            updateOrderStatus(pendingOrder2.id, "done", result.sn);
+            const _n = /* @__PURE__ */ new Date();
+            const _tgl = _n.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+            const _jam = _n.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+            await bot.editMessageText(
+              `\u2705 <b>ORDER BERHASIL !</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F516} Order ID : <code>${pendingOrder2.id}</code>
+\u{1F4E6} Produk : <b>${session2.selectedPackageName ?? sku}</b>
+\u{1F4F1} Target : <code>${nomor2}</code>
+\u{1F4B0} Harga : <b>Rp ${price2.toLocaleString("id-ID")}</b>
+\u2022 Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>
+\u{1F4C5} Date  : ${_tgl}
+
+Jam Sukses : ${_jam} WIB
+
+Terimakasih sudah berbelanja \u263A\uFE0F\u263A\uFE0F`,
+              { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+            ).catch(() => {
+            });
+          } else {
+            updateOrderStatus(pendingOrder2.id, "processing", khfyTrxId);
+            await bot.editMessageText(
+              `\u2699\uFE0F <b>ORDER SEDANG DIPROSES</b>
 \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
 
 \u{1F516} Order ID  : <code>${pendingOrder2.id}</code>
-\u{1F4E6} Produk: <b>${packageName}</b>
-\u{1F4F1} Nomor: <code>${nomorTujuan}</code>
-\u{1F4B0} Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
+\u{1F4E6} Produk: <b>${session2.selectedPackageName ?? sku}</b>
+\u{1F4F1} Nomor: <code>${nomor2}</code>
+\u{1F4B0} Harga: <b>Rp ${price2.toLocaleString("id-ID")}</b>
 
-\u23F3 <i>Paket sedang diproses...</i>`,
-            { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-          ).catch(() => {
-          });
-          const khfyTrxId = result.trxid || sn || void 0;
-          startOrderPolling(bot, pendingOrder2, {
-            provider: "khfy",
-            khfyTrxId,
-            delayMs: 5e3
-          });
+\u2022 Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>
+
+\u23F3 <i>Paket sedang diproses. Notifikasi otomatis akan dikirim.</i>`,
+              { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+            ).catch(() => {
+            });
+            startOrderPolling(bot, pendingOrder2, { provider: "khfy", khfyTrxId, delayMs: 5e3 });
+          }
         }
       } else {
         updateOrderStatus(pendingOrder2.id, "cancelled");
@@ -102623,8 +102654,8 @@ Saldo dikurangi sementara. Mohon tunggu...`,
         await bot.editMessageText(
           `\u274C <b>ORDER GAGAL</b>
 
-\u26A0\uFE0F ${/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin."}` + (dopuRef2 ? `
-\u{1F516} Ref: <code>${dopuRef2}</code>` : "") + `
+\u26A0\uFE0F ${/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin."}` + (dopuRef ? `
+\u{1F516} Ref: <code>${dopuRef}</code>` : "") + `
 
 \u{1F4B0} Saldo <b>Rp ${price2.toLocaleString("id-ID")}</b> telah dikembalikan.
 Saldo sekarang: <b>Rp ${(refundedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
@@ -102764,28 +102795,28 @@ async function checkExpiredTopups(bot) {
   const pending = getAllTopups().filter(
     (t) => t.status === "pending" && t.expiresAt <= now
   );
-  for (const topup2 of pending) {
+  for (const topup of pending) {
     try {
-      updateTopupStatus(topup2.id, "expired");
-      cancelPakasirTransaction(topup2.id).catch(() => {
+      updateTopupStatus(topup.id, "expired");
+      cancelPakasirTransaction(topup.id).catch(() => {
       });
       logger.info(
-        { topupId: topup2.id, userId: topup2.userId },
+        { topupId: topup.id, userId: topup.userId },
         "Topup expired \u2014 notifying user"
       );
-      const isOrderPayment = !!topup2.orderPayload;
+      const isOrderPayment = !!topup.orderPayload;
       const message = isOrderPayment ? `\u23F0 <b>TRANSAKSI KADALUARSA</b>
 
-Pembayaran untuk paket <b>${topup2.orderPayload.packageName}</b> ke nomor <code>${topup2.orderPayload.nomorTujuan}</code> tidak dikonfirmasi dalam waktu 3 menit.
+Pembayaran untuk paket <b>${topup.orderPayload.packageName}</b> ke nomor <code>${topup.orderPayload.nomorTujuan}</code> tidak dikonfirmasi dalam waktu 3 menit.
 
 Jika sudah membayar, hubungi admin agar diverifikasi manual.` : `\u23F0 <b>TOPUP KADALUARSA</b>
 
-Topup <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b> tidak dibayar dalam 5 menit.
+Topup <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b> tidak dibayar dalam 5 menit.
 
 Silakan buat topup baru melalui menu \u{1F4B0} TOPUP.`;
-      await bot.sendMessage(topup2.chatId, message, { parse_mode: "HTML" });
+      await bot.sendMessage(topup.chatId, message, { parse_mode: "HTML" });
     } catch (err) {
-      logger.error({ err, topupId: topup2.id }, "Error saat proses expiry topup");
+      logger.error({ err, topupId: topup.id }, "Error saat proses expiry topup");
     }
   }
 }
@@ -103025,15 +103056,15 @@ router3.get("/topups", requireAdmin, (_req, res) => {
 });
 router3.put("/topups/:topupId/approve", requireAdmin, (req, res) => {
   const { topupId } = req.params;
-  const topup2 = getTopupById(topupId);
-  if (!topup2) return res.status(404).json({ error: "Topup tidak ditemukan" });
+  const topup = getTopupById(topupId);
+  if (!topup) return res.status(404).json({ error: "Topup tidak ditemukan" });
   const updated = updateTopupStatus(topupId, "done");
   res.json({ success: true, data: updated });
 });
 router3.put("/topups/:topupId/cancel", requireAdmin, (req, res) => {
   const { topupId } = req.params;
-  const topup2 = getTopupById(topupId);
-  if (!topup2) return res.status(404).json({ error: "Topup tidak ditemukan" });
+  const topup = getTopupById(topupId);
+  if (!topup) return res.status(404).json({ error: "Topup tidak ditemukan" });
   const updated = updateTopupStatus(topupId, "cancelled");
   res.json({ success: true, data: updated });
 });
@@ -103299,29 +103330,29 @@ router6.post("/pakasir", async (req, res) => {
     logger.info({ order_id, status }, "Pakasir webhook \u2014 ignoring non-paid status");
     return res.json({ ok: true, message: "Ignored non-paid status" });
   }
-  const topup2 = getTopupById(order_id);
-  if (!topup2) {
+  const topup = getTopupById(order_id);
+  if (!topup) {
     logger.warn({ order_id }, "Topup not found for webhook");
     return res.status(404).json({ ok: false, message: "Order not found" });
   }
-  if (topup2.status === "completed") {
+  if (topup.status === "completed") {
     return res.json({ ok: true, message: "Already processed" });
   }
-  const paidAmount = amount !== void 0 ? Number(amount) : topup2.nominal;
-  if (amount !== void 0 && Math.abs(paidAmount - topup2.nominal) > 10) {
-    logger.warn({ order_id, paidAmount, nominal: topup2.nominal }, "Webhook amount mismatch \u2014 ignoring (logging only)");
+  const paidAmount = amount !== void 0 ? Number(amount) : topup.nominal;
+  if (amount !== void 0 && Math.abs(paidAmount - topup.nominal) > 10) {
+    logger.warn({ order_id, paidAmount, nominal: topup.nominal }, "Webhook amount mismatch \u2014 ignoring (logging only)");
   }
   updateTopupStatus(order_id, "completed");
   const bot = getBot();
-  if (topup2.orderPayload) {
-    const { sku, nomorTujuan: nomorTujuan2, packageName: packageName2, category, packageId, quota, validity, source, baseprice: pkgBaseprice } = topup2.orderPayload;
-    logger.info({ order_id, sku, nomorTujuan: nomorTujuan2, category, source }, "Processing order payment via QRIS webhook");
-    if (bot && topup2.chatId) {
+  if (topup.orderPayload) {
+    const { sku, nomorTujuan, packageName, category, packageId, quota, validity, source, baseprice: pkgBaseprice } = topup.orderPayload;
+    logger.info({ order_id, sku, nomorTujuan, category, source }, "Processing order payment via QRIS webhook");
+    if (bot && topup.chatId) {
       bot.sendMessage(
-        topup2.chatId,
+        topup.chatId,
         `\u23F3 <b>Pembayaran diterima!</b>
 
-\u{1F4E6} Paket <b>${packageName2}</b> ke <code>${nomorTujuan2}</code> sedang diproses...
+\u{1F4E6} Paket <b>${packageName}</b> ke <code>${nomorTujuan}</code> sedang diproses...
 
 Harap tunggu konfirmasi selesai.`,
         { parse_mode: "HTML" }
@@ -103331,16 +103362,16 @@ Harap tunggu konfirmasi selesai.`,
     if (!sku || source === "manual") {
       const adminIds = (process.env.ADMIN_TELEGRAM_IDS ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
       createOrder({
-        userId: topup2.userId,
-        userName: topup2.userName,
+        userId: topup.userId,
+        userName: topup.userName,
         category,
         packageId,
-        packageName: packageName2,
-        price: topup2.nominal,
-        baseprice: pkgBaseprice ?? topup2.nominal,
+        packageName,
+        price: topup.nominal,
+        baseprice: pkgBaseprice ?? topup.nominal,
         quota,
         validity,
-        nomorTujuan: nomorTujuan2,
+        nomorTujuan,
         reffId: order_id,
         paymentMethod: "qris"
       });
@@ -103350,10 +103381,10 @@ Harap tunggu konfirmasi selesai.`,
             adminId,
             `\u{1F514} <b>ORDER MANUAL MASUK (QRIS)</b>
 
-\u{1F464} User: <code>${topup2.userId}</code>
-\u{1F4E6} Paket: <b>${packageName2}</b>
-\u{1F4F1} Nomor: <code>${nomorTujuan2}</code>
-\u{1F4B0} Bayar: <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u{1F464} User: <code>${topup.userId}</code>
+\u{1F4E6} Paket: <b>${packageName}</b>
+\u{1F4F1} Nomor: <code>${nomorTujuan}</code>
+\u{1F4B0} Bayar: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 \u{1F516} Order ID: <code>${order_id}</code>
 
 \u26A0\uFE0F Proses order ini secara manual.`,
@@ -103361,12 +103392,12 @@ Harap tunggu konfirmasi selesai.`,
           ).catch(() => {
           });
         }
-        if (topup2.chatId) {
+        if (topup.chatId) {
           bot.sendMessage(
-            topup2.chatId,
+            topup.chatId,
             `\u2705 <b>PEMBAYARAN DITERIMA</b>
 
-Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</code> telah diterima.
+Pembayaran untuk paket <b>${packageName}</b> ke nomor <code>${nomorTujuan}</code> telah diterima.
 
 \u23F3 Admin akan memproses order Anda segera. Mohon tunggu konfirmasi.
 
@@ -103376,14 +103407,14 @@ Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</co
           });
         }
       }
-      logger.info({ order_id, packageName: packageName2, nomorTujuan: nomorTujuan2 }, "Manual QRIS order received \u2014 notified admin");
+      logger.info({ order_id, packageName, nomorTujuan }, "Manual QRIS order received \u2014 notified admin");
       return res.json({ ok: true, message: "Manual order \u2014 admin notified" });
     }
     const useDigiflaz = source === "digiflaz";
     const useDopu = !useDigiflaz && (category === "akrab1" || category === "circle");
     const { randomUUID: randomUUID5 } = await import("crypto");
     const webhookRefId = randomUUID5().replace(/-/g, "").slice(0, 20);
-    const result = useDigiflaz ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan2, refId: webhookRefId }) : useDopu ? await placeDopuOrder({ sku, tujuan: nomorTujuan2, reffId: webhookRefId }) : await placeKhfyOrder({ sku, tujuan: nomorTujuan2 });
+    const result = useDigiflaz ? await placeDigiflazOrder({ sku, tujuan: nomorTujuan, refId: webhookRefId }) : useDopu ? await placeDopuOrder({ sku, tujuan: nomorTujuan, reffId: webhookRefId }) : await placeKhfyOrder({ sku, tujuan: nomorTujuan });
     const dopuResult = useDopu ? result : null;
     const digiflazResult = useDigiflaz ? result : null;
     const providerRef = dopuResult?.reffId ?? digiflazResult?.refId ?? webhookRefId;
@@ -103391,16 +103422,16 @@ Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</co
     if (result.success) {
       const sn = result.sn;
       const newOrder = createOrder({
-        userId: topup2.userId,
-        userName: topup2.userName,
+        userId: topup.userId,
+        userName: topup.userName,
         category,
         packageId,
-        packageName: packageName2,
-        price: topup2.nominal,
-        baseprice: pkgBaseprice ?? topup2.nominal,
+        packageName,
+        price: topup.nominal,
+        baseprice: pkgBaseprice ?? topup.nominal,
         quota,
         validity,
-        nomorTujuan: nomorTujuan2,
+        nomorTujuan,
         sn: sn || void 0,
         reffId: useDopu || useDigiflaz ? providerRef : void 0,
         paymentMethod: "qris",
@@ -103416,7 +103447,7 @@ Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</co
         });
         logger.info({ order_id, sku, providerRef, provider: useDigiflaz ? "digiflaz" : "dopu" }, "Started polling for pending QRIS order");
       }
-      if (bot && topup2.chatId) {
+      if (bot && topup.chatId) {
         try {
           const _now = /* @__PURE__ */ new Date();
           const _tgl = _now.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
@@ -103426,14 +103457,14 @@ Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</co
 
 \u{1F4F1} Buka aplikasi MyXL \u2192 konfirmasi undangan Circle yang masuk ke nomor tujuan.` : "";
             await bot.sendMessage(
-              topup2.chatId,
+              topup.chatId,
               `\u2699\uFE0F <b>ORDER SEDANG DIPROSES</b>
 \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
 
 \u{1F516} Order ID  : <code>${newOrder.id}</code>
-\u{1F4E6} Produk: <b>${packageName2}</b>
-\u{1F4F1} Nomor: <code>${nomorTujuan2}</code>
-\u{1F4B0} Harga: <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u{1F4E6} Produk: <b>${packageName}</b>
+\u{1F4F1} Nomor: <code>${nomorTujuan}</code>
+\u{1F4B0} Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 ` + (sn ? `\u{1F511} No. Trx: <code>${sn}</code>
 ` : "") + `
 \u23F3 <i>Paket sedang diproses. Jika dalam 30 menit tidak masuk, hubungi admin.</i>` + circleNote,
@@ -103444,13 +103475,13 @@ Pembayaran untuk paket <b>${packageName2}</b> ke nomor <code>${nomorTujuan2}</co
 
 \u2139\uFE0F <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>` : "";
             await bot.sendMessage(
-              topup2.chatId,
+              topup.chatId,
               `\u2705 <b>ORDER BERHASIL !</b>
 \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
 \u{1F516} Order ID  : <code>${newOrder.id}</code>
-\u{1F4E6} Produk : <b>${packageName2}</b>
-\u{1F4F1} Target : <code>${nomorTujuan2}</code>
-\u{1F4B0} Harga : <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u{1F4E6} Produk : <b>${packageName}</b>
+\u{1F4F1} Target : <code>${nomorTujuan}</code>
+\u{1F4B0} Harga : <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 \u{1F4C5} Date  : ${_tgl}
 
 Jam Sukses : ${_jam} WIB
@@ -103465,21 +103496,21 @@ Terimakasih sudah berbelanja \u263A\uFE0F\u263A\uFE0F` + circleNote,
       }
       logger.info({ order_id, sku, sn, pending: isPending }, "Order via QRIS webhook completed");
     } else {
-      const refunded = await creditSaldoAtomic(topup2.userId, topup2.nominal, {
+      const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
         type: "order_refund",
         refId: order_id,
         note: `Refund order QRIS gagal: ${result.error ?? ""}`
       });
-      if (bot && topup2.chatId) {
+      if (bot && topup.chatId) {
         try {
           await bot.sendMessage(
-            topup2.chatId,
+            topup.chatId,
             `\u274C <b>ORDER GAGAL</b>
 
 \u26A0\uFE0F ${/kosong|stok|habis/i.test(String(result.error ?? "")) ? "Stok sedang kosong. Coba produk lain." : /nomor|tujuan|invalid|dest/i.test(String(result.error ?? "")) ? "Nomor tujuan tidak valid." : "Transaksi gagal. Hubungi admin."}` + (providerRef ? `
 \u{1F516} Ref: <code>${providerRef}</code>` : "") + `
 
-\u{1F4B0} Rp ${topup2.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.
+\u{1F4B0} Rp ${topup.nominal.toLocaleString("id-ID")} telah dimasukkan ke saldo Anda.
 Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
             { parse_mode: "HTML" }
           );
@@ -103491,19 +103522,19 @@ Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
     }
     return res.json({ ok: true, message: "Order payment processed" });
   }
-  const updatedUser = await creditSaldoAtomic(topup2.userId, topup2.nominal, {
+  const updatedUser = await creditSaldoAtomic(topup.userId, topup.nominal, {
     type: "topup",
     refId: order_id,
-    note: `QRIS topup Rp${topup2.nominal.toLocaleString("id-ID")} via webhook Pakasir`
+    note: `QRIS topup Rp${topup.nominal.toLocaleString("id-ID")} via webhook Pakasir`
   });
-  if (bot && topup2.chatId) {
+  if (bot && topup.chatId) {
     try {
       await bot.sendMessage(
-        topup2.chatId,
+        topup.chatId,
         `\u2705 <b>TOPUP BERHASIL!</b>
 
-\u2022 Order ID: <code>${topup2.id}</code>
-\u2022 Nominal: <b>Rp ${topup2.nominal.toLocaleString("id-ID")}</b>
+\u2022 Order ID: <code>${topup.id}</code>
+\u2022 Nominal: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>
 ` + (updatedUser ? `\u2022 Saldo sekarang: <b>Rp ${updatedUser.saldo.toLocaleString("id-ID")}</b>` : ""),
         { parse_mode: "HTML" }
       );
@@ -103511,7 +103542,7 @@ Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
       logger.error({ err }, "Failed to notify user via Telegram");
     }
   }
-  logger.info({ order_id, userId: topup2.userId }, "Topup completed via webhook");
+  logger.info({ order_id, userId: topup.userId }, "Topup completed via webhook");
   return res.json({ ok: true, message: "Topup processed" });
 });
 var webhook_default = router6;

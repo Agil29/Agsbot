@@ -1044,7 +1044,7 @@ export function setupHandlers(bot: TelegramBot) {
               validity,
               nomorTujuan,
               sn: sn || undefined,
-              reffId: (useDopu || useDigiflaz) ? providerRef : undefined,
+              reffId: preReffId,
               paymentMethod: "qris",
               provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy",
             });
@@ -1085,36 +1085,40 @@ export function setupHandlers(bot: TelegramBot) {
                 );
               });
             } else {
-              // KHFY async — jangan kirim sukses langsung, tunggu polling status final
-  const circleNote = selectedCat === "circle"
-    ? `\n\nℹ️ <i>Segera buka aplikasi MyXL untuk konfirmasi undangan Circle. Undangan akan dikirim ke nomor tujuan.</i>`
-    : "";
-  const _now2 = new Date();
-  const _tgl2 = _now2.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
-  const _jam2 = _now2.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-
-  await bot.editMessageText(
-    `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
-    `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
-    `📱 Nomor: <code>${nomor}</code>\n` +
-    `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
-    `\n⏳ <i>Paket sedang diproses...</i>`,
-    { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-  ).catch(() => {});
-
-  const khfyTrxId = (result as any).trxid || sn || undefined;
-
-  if (dopuRef) {
-    startOrderPolling(bot, pendingOrder, {
-      provider: "khfy",
-      khfyTrxId,
-      delayMs: 5000,
-    });
-  }
-}
-          } else {
+              // KHFY — handle result langsung
+              const khfyTrxId = (result as any).trxid || sn || undefined;
+              if (!khfyTrxId && sn) {
+                // Langsung sukses
+                updateOrderStatus(pendingOrder.id, "done", sn);
+                const _n = new Date();
+                const _tgl = _n.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+                const _jam = _n.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+                await bot.editMessageText(
+                  `✅ <b>ORDER BERHASIL !</b>\n` +
+                  `━━━━━━━━━━━━━━━━━━━\n` +
+                  `🔖 Order ID : <code>${pendingOrder.id}</code>\n` +
+                  `📦 Produk : <b>${session.selectedPackageName ?? sku}</b>\n` +
+                  `📱 Target : <code>${nomor}</code>\n` +
+                  `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+                  `📅 Date  : ${_tgl}\n\nJam Sukses : ${_jam} WIB\n\nTerimakasih sudah berbelanja ☺️☺️`,
+                  { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+                ).catch(() => {});
+              } else {
+                // Pending — mulai polling
+                updateOrderStatus(pendingOrder.id, "processing", khfyTrxId);
+                await bot.editMessageText(
+                  `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
+                  `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                  `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
+                  `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
+                  `📱 Nomor: <code>${nomor}</code>\n` +
+                  `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+                  `\n⏳ <i>Paket sedang diproses. Notifikasi otomatis akan dikirim.</i>`,
+                  { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+                ).catch(() => {});
+                startOrderPolling(bot, pendingOrder, { provider: "khfy", khfyTrxId, delayMs: 5000 });
+              }
+            }
             const refunded = await creditSaldoAtomic(topup.userId, topup.nominal, {
               type: "order_refund",
               refId: topupId,
@@ -1521,7 +1525,7 @@ export function setupHandlers(bot: TelegramBot) {
         quota: session.selectedPackageQuota ?? "",
         validity: session.selectedPackageValidity ?? "",
         nomorTujuan: nomor,
-        reffId: (useDopu || useDigiflaz) ? preReffId : undefined,
+        reffId: preReffId,
         paymentMethod: "saldo",
         provider: useDigiflaz ? "digiflaz" : useDopu ? "dopu" : "khfy",
       });
@@ -1582,30 +1586,43 @@ export function setupHandlers(bot: TelegramBot) {
               delayMs: 60 * 1000,
             });
           }
-        } else {
-  // KHFY async — tunggu polling status final
-  const _tgl = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
-  const _jam = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-
-  await bot.editMessageCaption(
-    `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
-    `📦 Produk: <b>${packageName}</b>\n` +
-    `📱 Nomor: <code>${nomorTujuan}</code>\n` +
-    `💰 Harga: <b>Rp ${topup.nominal.toLocaleString("id-ID")}</b>\n` +
-    `\n⏳ <i>Paket sedang diproses...</i>`,
-    { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
-  ).catch(() => {});
-
-  const khfyTrxId = (result as any).trxid || sn || undefined;
-
-  startOrderPolling(bot, pendingOrder, {
-  provider: "khfy",
-  khfyTrxId,
-  delayMs: 5000,
-});
-}
+                } else {
+            // KHFY — handle result langsung
+            const khfyTrxId = (result as any).trxid || result.sn || undefined;
+            if (!khfyTrxId && result.sn) {
+              // Langsung sukses
+              updateOrderStatus(pendingOrder.id, "done", result.sn);
+              const _n = new Date();
+              const _tgl = _n.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+              const _jam = _n.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+              await bot.editMessageText(
+                `✅ <b>ORDER BERHASIL !</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━\n` +
+                `🔖 Order ID : <code>${pendingOrder.id}</code>\n` +
+                `📦 Produk : <b>${session.selectedPackageName ?? sku}</b>\n` +
+                `📱 Target : <code>${nomor}</code>\n` +
+                `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+                `• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>\n` +
+                `📅 Date  : ${_tgl}\n\nJam Sukses : ${_jam} WIB\n\nTerimakasih sudah berbelanja ☺️☺️`,
+                { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+              ).catch(() => {});
+            } else {
+              // Pending — mulai polling
+              updateOrderStatus(pendingOrder.id, "processing", khfyTrxId);
+              await bot.editMessageText(
+                `⚙️ <b>ORDER SEDANG DIPROSES</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `🔖 Order ID  : <code>${pendingOrder.id}</code>\n` +
+                `📦 Produk: <b>${session.selectedPackageName ?? sku}</b>\n` +
+                `📱 Nomor: <code>${nomor}</code>\n` +
+                `💰 Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+                `\n• Saldo tersisa: <b>Rp ${(updatedUser?.saldo ?? 0).toLocaleString("id-ID")}</b>\n\n` +
+                `⏳ <i>Paket sedang diproses. Notifikasi otomatis akan dikirim.</i>`,
+                { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+              ).catch(() => {});
+              startOrderPolling(bot, pendingOrder, { provider: "khfy", khfyTrxId, delayMs: 5000 });
+            }
+          }
       } else {
         // API call failed — mark order cancelled, then refund saldo
         updateOrderStatus(pendingOrder.id, "cancelled");

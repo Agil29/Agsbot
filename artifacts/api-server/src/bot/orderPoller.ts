@@ -212,27 +212,20 @@ export function startOrderPolling(
         activePolls.delete(reffId);
 
         const rawErr = String((statusRes as any).error ?? "");
-        const displayErr = /kosong|stok|habis/i.test(rawErr)
-          ? "Stok sedang kosong. Coba produk lain atau hubungi admin."
-          : /nomor|tujuan|invalid|dest/i.test(rawErr)
-          ? "Nomor tujuan tidak valid."
-          : /terdaftar/i.test(rawErr)
-          ? rawErr.slice(0, 120)
-          : "Transaksi gagal. Hubungi admin untuk bantuan.";
+const keteranganKhfy = rawErr.length > 0 ? rawErr.slice(0, 150) : "";
 
-        const newSaldo = refundedUser?.saldo ?? (getUser(chatId)?.saldo ?? 0);
+const newSaldo = refundedUser?.saldo ?? (getUser(chatId)?.saldo ?? 0);
 
-        await bot.sendMessage(
-          chatId,
-          `❌ <b>ORDER GAGAL</b>\n\n` +
-          `📦 Produk: <b>${pkgName}</b>\n` +
-          `📱 Nomor: <code>${nomor}</code>\n\n` +
-          `⚠️ ${displayErr}\n` +
-          `🔖 Ref: <code>${reffId}</code>\n\n` +
-          `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
-          `Saldo sekarang: <b>Rp ${newSaldo.toLocaleString("id-ID")}</b>`,
-          { parse_mode: "HTML" }
-        ).catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (failed)"));
+await bot.sendMessage(
+  chatId,
+  `❌ <b>ORDER GAGAL</b>\n\n` +
+  `📦 Produk: <b>${pkgName}</b>\n` +
+  `📱 Nomor: <code>${nomor}</code>\n\n` +
+  (keteranganKhfy ? `📋 Keterangan : ${keteranganKhfy}\n\n` : `⚠️ Transaksi gagal. Hubungi admin untuk bantuan.\n\n`) +
+  `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
+  `Saldo sekarang: <b>Rp ${newSaldo.toLocaleString("id-ID")}</b>`,
+  { parse_mode: "HTML" }
+).catch((err) => logger.error({ err, chatId }, "Poll: failed to notify user (failed)"));
 
         return;
       }
