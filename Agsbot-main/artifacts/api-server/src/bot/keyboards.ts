@@ -33,7 +33,6 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
         { text: "AKRAB V1", callback_data: "cat_akrab1" },
         { text: "AKRAB V2", callback_data: "cat_akrab2" },
       ],
-      [{ text: "PRE ORDER ⏳", callback_data: "cat_preorder" }],
       [{ text: "CIRCLE (XL ONLY)", callback_data: "cat_circle" }],
     ],
   };
