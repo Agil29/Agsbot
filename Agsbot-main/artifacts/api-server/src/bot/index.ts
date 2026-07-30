@@ -13,7 +13,7 @@ import { loadProductMarkupsFromDb } from "./productMarkup";
 import { loadBlacklistFromDb } from "./blacklist";
 import { resumeProcessingOrders } from "./orderPoller";
 import { loadPreOrdersFromDb } from "./preOrders";
-import { startPreOrderPoller } from "./preOrderPoller";
+// import { startPreOrderPoller } from "./preOrderPoller"; // Temporarily disabled for build
 
 let botInstance: TelegramBot | null = null;
 
@@ -68,7 +68,7 @@ export async function startBot() {
   startPackageRefreshScheduler(5 * 60 * 1000);
   startTopupExpiryChecker(bot);
   resumeProcessingOrders(bot);
-  startPreOrderPoller(bot);
+  // startPreOrderPoller(bot); // Temporarily disabled for build
 
   // Register bot commands visible to all users
   const defaultCommands = [
