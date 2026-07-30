@@ -221,7 +221,7 @@ export function DepositMember() {
     setTLoading(true);
     setTMsg(null);
     try {
-      const res = await api.users.adjustSaldo(uid, amt);
+      const res = await api.users.setSaldo(uid, amt);
       const saldoNow = res?.data?.saldo;
       const label = amt > 0 ? `+Rp ${amt.toLocaleString("id-ID")}` : `-Rp ${Math.abs(amt).toLocaleString("id-ID")}`;
       setTMsg({ text: `✓ Berhasil transfer ${label} ke ID ${uid}${saldoNow !== undefined ? ` · Saldo sekarang Rp ${Number(saldoNow).toLocaleString("id-ID")}` : ""}`, ok: true });
