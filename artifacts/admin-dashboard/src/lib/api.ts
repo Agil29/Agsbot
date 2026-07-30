@@ -77,6 +77,8 @@ export const api = {
     update: (data: any) => request<any>("PUT", "/settings", data),
   },
   analytics: () => request<any>("GET", "/analytics"),
+  broadcast: (message: string) =>
+    request<any>("POST", "/broadcast", { message, parseMode: "HTML" }),
   saldoLogs: {
     list: () => request<any>("GET", "/saldo-logs"),
     byUser: (telegramId: number) => request<any>("GET", `/saldo-logs/${telegramId}`),
