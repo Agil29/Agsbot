@@ -890,6 +890,52 @@ export function setupHandlers(bot: TelegramBot) {
       return;
     }
 
+    // ── PRE ORDER: Input Nomor Tujuan ─────────────────────────────────────────
+    if (session.step === "preorder_waiting_nomor") {
+      const nomor = msg.text.trim().replace(/\s+/g, "");
+      if (!/^0\d{8,13}$/.test(nomor)) {
+        await bot.sendMessage(
+          msg.chat.id,
+          "❌ Format nomor tidak valid.\nMasukkan nomor HP yang benar.\nContoh: <code>081234567890</code>",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      const sku = session.preorderPackageSku ?? "";
+      // Cek duplikat pre-order
+      if (hasActivePendingPreOrder(nomor, sku)) {
+        await bot.sendMessage(
+          msg.chat.id,
+          `⚠️ <b>Pre Order Sudah Ada</b>\n\n` +
+          `Nomor <code>${nomor}</code> sudah punya pre order aktif untuk paket yang sama.\n\n` +
+          `Silakan gunakan nomor lain atau hubungi admin @${SUPPORT_USERNAME} untuk info lebih lanjut.`,
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      const user = getUser(from.id);
+      const price = session.preorderPackagePrice ?? 0;
+      setSession(from.id, { step: "preorder_select_payment", preorderNomorTujuan: nomor });
+
+      const confirmText =
+        `⏳ <b>KONFIRMASI PRE ORDER</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `• Produk: <b>${session.preorderPackageName ?? "-"}</b>\n` +
+        `• Nomor: <code>${nomor}</code>\n` +
+        `• Harga: <b>Rp ${price.toLocaleString("id-ID")}</b>\n\n` +
+        `• Saldo Anda: <b>Rp ${(user?.saldo ?? 0).toLocaleString("id-ID")}</b>\n\n` +
+        `⏳ Pre order akan diproses otomatis saat stok KHFY ready.\n\n` +
+        `Pilih Metode Pembayaran:`;
+
+      await bot.sendMessage(msg.chat.id, confirmText, {
+        parse_mode: "HTML",
+        reply_markup: preOrderPaymentKeyboard(),
+      });
+      return;
+    }
+
     if (session.step === "waiting_topup_amount") {
       const text = msg.text.trim().replace(/[.,]/g, "");
       const nominal = parseInt(text, 10);
@@ -1658,6 +1704,28 @@ export function setupHandlers(bot: TelegramBot) {
     // Answer all other callbacks generically (topup_paid_ and refresh_stock answer themselves above)
     try { await bot.answerCallbackQuery(query.id); } catch { }
 
+    // ── PRE ORDER Category ──────────────────────────────────────────────────
+    if (data === "cat_preorder") {
+      const packages = getPackagesWithMarkup("akrab2"); // Pre-order menggunakan paket KHFY (akrab2)
+      setSession(userId, { step: "preorder_select_package" });
+
+      if (packages.length === 0) {
+        await bot.editMessageText(
+          `⏳ <b>PRE ORDER</b>\n\n⚠️ Belum ada paket tersedia untuk pre order.\nHubungi admin: @${SUPPORT_USERNAME}`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: backToCategoryKeyboard() }
+        );
+        return;
+      }
+      await bot.editMessageText(
+        `⏳ <b>PRE ORDER</b>\n\n` +
+        `📌 Pre order untuk paket KHFY yang stoknya sedang <b>kosong</b>.\n` +
+        `💰 Dana akan tertahan dan order otomatis diproses saat stok tersedia.\n\n` +
+        `Pilih paket:`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: preOrderPackageKeyboard(packages) }
+      );
+      return;
+    }
+
     if (data.startsWith("cat_")) {
       const category = data.replace("cat_", "") as Category;
       const packages = getPackagesWithMarkup(category);
@@ -1758,6 +1826,264 @@ export function setupHandlers(bot: TelegramBot) {
         `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, page, pkgKeyboardOpts(category, packages)) }
       );
+      return;
+    }
+
+    // ── PRE ORDER: Select Package ────────────────────────────────────────────
+    if (data.startsWith("preorder_pkg_")) {
+      const packageId = data.replace("preorder_pkg_", "");
+      const packages = getPackagesWithMarkup("akrab2");
+      const pkg = packages.find((p) => p.id === packageId);
+      if (!pkg) {
+        await bot.sendMessage(chatId, "❌ Paket tidak ditemukan.");
+        return;
+      }
+
+      setSession(userId, {
+        step: "preorder_confirm",
+        preorderPackageId: packageId,
+        preorderPackageName: pkg.name,
+        preorderPackagePrice: pkg.price,
+        preorderPackageBaseprice: pkg.baseprice ?? pkg.price,
+        preorderPackageSku: pkg.sku,
+      });
+
+      await bot.editMessageText(
+        `⏳ <b>DETAIL PRE ORDER</b>\n\n` +
+        `Produk: <b>${pkg.name}</b>\n` +
+        `Harga: <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>\n\n` +
+        `📌 <b>Pre order akan diproses otomatis saat stok KHFY tersedia.</b>\n` +
+        `Dana akan tertahan sampai order berhasil atau di-cancel admin.\n\n` +
+        `Lanjutkan pre order?`,
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "HTML",
+          reply_markup: preOrderConfirmKeyboard(packageId),
+        }
+      );
+      return;
+    }
+
+    if (data === "preorder_back_list") {
+      const packages = getPackagesWithMarkup("akrab2");
+      setSession(userId, { step: "preorder_select_package" });
+      await bot.editMessageText(
+        `⏳ <b>PRE ORDER</b>\n\n` +
+        `📌 Pre order untuk paket KHFY yang stoknya sedang <b>kosong</b>.\n` +
+        `💰 Dana akan tertahan dan order otomatis diproses saat stok tersedia.\n\n` +
+        `Pilih paket:`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: preOrderPackageKeyboard(packages) }
+      );
+      return;
+    }
+
+    if (data.startsWith("preorder_confirm_")) {
+      setSession(userId, { step: "preorder_waiting_nomor" });
+      const session = getSession(userId);
+
+      await bot.editMessageText(
+        `📱 <b>MASUKKAN NOMOR TUJUAN</b>\n\n` +
+        `Paket: <b>${session.preorderPackageName ?? "-"}</b>\n` +
+        `Harga: <b>Rp ${(session.preorderPackagePrice ?? 0).toLocaleString("id-ID")}</b>\n\n` +
+        `Silakan masukkan nomor tujuan:\n<i>(contoh: 081234567890)</i>`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    if (data === "preorder_paysaldo") {
+      const from = query.from;
+      const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+      const session = getSession(userId);
+
+      const price = session.preorderPackagePrice ?? 0;
+      const nomor = session.preorderNomorTujuan ?? "";
+      const sku = session.preorderPackageSku ?? "";
+      const packageName = session.preorderPackageName ?? "";
+      const packageId = session.preorderPackageId ?? "";
+      const baseprice = session.preorderPackageBaseprice ?? price;
+
+      if (!nomor || !sku) {
+        await bot.sendMessage(chatId, "❌ Sesi tidak valid. Silakan pre order ulang.", { parse_mode: "HTML" });
+        return;
+      }
+
+      // Cek duplikat pre-order
+      if (hasActivePendingPreOrder(nomor, sku)) {
+        await bot.answerCallbackQuery(query.id, {
+          text: "⚠️ Nomor ini sudah punya pre order aktif untuk paket yang sama!",
+          show_alert: true,
+        }).catch(() => {});
+        return;
+      }
+
+      if (user.saldo < price) {
+        await bot.answerCallbackQuery(query.id, {
+          text: `💰 Saldo tidak cukup! Saldo Anda: Rp ${user.saldo.toLocaleString("id-ID")}`,
+          show_alert: true,
+        }).catch(() => {});
+        return;
+      }
+
+      // Deduct saldo
+      const updatedUser = await deductSaldoAtomic(userId, price, {
+        type: "preorder",
+        refId: `PRE-${Date.now()}`,
+        note: `Pre order ${packageName} ke ${nomor}`,
+      });
+
+      if (!updatedUser) {
+        await bot.sendMessage(chatId, "❌ Gagal mengurangi saldo. Silakan coba lagi.", { parse_mode: "HTML" });
+        return;
+      }
+
+      // Create pre-order
+      const po = createPreOrder({
+        userId,
+        userName: `${user.firstName}${user.lastName ? " " + user.lastName : ""}`,
+        userUsername: user.username,
+        packageId,
+        packageName,
+        sku,
+        price,
+        baseprice,
+        nomorTujuan: nomor,
+        paymentMethod: "saldo",
+      });
+
+      clearSession(userId);
+      await bot.editMessageText(
+        `✅ <b>PRE ORDER BERHASIL DIBUAT!</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `🔖 Pre Order ID : <code>${po.id}</code>\n` +
+        `📦 Produk : <b>${po.packageName}</b>\n` +
+        `📱 Nomor : <code>${po.nomorTujuan}</code>\n` +
+        `💰 Harga : <b>Rp ${po.price.toLocaleString("id-ID")}</b>\n` +
+        `💳 Saldo tersisa : <b>Rp ${updatedUser.saldo.toLocaleString("id-ID")}</b>\n\n` +
+        `⏳ <b>Pre order akan diproses otomatis saat stok KHFY tersedia.</b>\n\n` +
+        `📌 Untuk cancel pre order, hubungi admin @${SUPPORT_USERNAME}`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    if (data === "preorder_payqris") {
+      const from = query.from;
+      const session = getSession(userId);
+
+      const price = session.preorderPackagePrice ?? 0;
+      const nomor = session.preorderNomorTujuan ?? "";
+      const sku = session.preorderPackageSku ?? "";
+      const packageName = session.preorderPackageName ?? "";
+      const packageId = session.preorderPackageId ?? "";
+      const baseprice = session.preorderPackageBaseprice ?? price;
+
+      if (!nomor || !sku) {
+        await bot.sendMessage(chatId, "❌ Sesi tidak valid. Silakan pre order ulang.", { parse_mode: "HTML" });
+        return;
+      }
+
+      // Cek duplikat pre-order
+      if (hasActivePendingPreOrder(nomor, sku)) {
+        await bot.answerCallbackQuery(query.id, {
+          text: "⚠️ Nomor ini sudah punya pre order aktif untuk paket yang sama!",
+          show_alert: true,
+        }).catch(() => {});
+        return;
+      }
+
+      const user = getUser(userId);
+      const userName = user ? user.firstName + (user.lastName ? " " + user.lastName : "") : String(userId);
+
+      await bot.editMessageText("⏳ <b>Membuat QRIS...</b>\n\nMohon tunggu sebentar.", {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: "HTML",
+      });
+
+      const result = await createPakasirTopup({
+        userId,
+        chatId,
+        userName,
+        nominal: price,
+        orderPayload: {
+          category: "preorder",
+          packageId,
+          packageName,
+          sku,
+          nomorTujuan: nomor,
+          source: "preorder",
+          baseprice,
+        },
+      });
+
+      if ("error" in result) {
+        await bot.editMessageText(`❌ Gagal membuat QRIS. Silakan coba lagi atau hubungi admin.`, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "HTML",
+        });
+        return;
+      }
+
+      const { order, qrisString } = result;
+      const expiryMinutes = 5;
+
+      let qrBuffer: Buffer;
+      try {
+        qrBuffer = await QRCode.toBuffer(qrisString, {
+          errorCorrectionLevel: "M",
+          width: 512,
+          margin: 2,
+        });
+      } catch (err) {
+        logger.error({ err }, "Failed to generate QR code from QRIS string");
+        await bot.editMessageText("❌ Gagal membuat gambar QR. Silakan coba lagi.", {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "HTML",
+        });
+        return;
+      }
+
+      const caption =
+        `<b>PROSES PRE ORDER (QRIS)</b>\n\n` +
+        `• Paket: <b>${packageName}</b>\n` +
+        `• Nomor: <code>${nomor}</code>\n` +
+        `• Total: <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+        `• Order ID: <code>${order.id}</code>\n` +
+        `• Exp: <b>${expiryMinutes} Menit</b>\n\n` +
+        `⏳ <i>Pre order akan diproses otomatis saat stok KHFY ready.</i>\n\n` +
+        `<i>Scan QR menggunakan aplikasi QRIS (GoPay, OVO, Dana, dll).</i>`;
+
+      const keyboard: TelegramBot.InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: "✅ SUDAH BAYAR", callback_data: `topup_paid_${order.id}` }]],
+      };
+
+      // Delete previous message and send new photo
+      await bot.deleteMessage(chatId, messageId).catch(() => {});
+      await bot.sendPhoto(chatId, qrBuffer, {
+        caption,
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+
+      clearSession(userId);
+
+      setTimeout(async () => {
+        const t = getTopupById(order.id);
+        if (t && t.status === "pending") {
+          updateTopupStatus(order.id, "expired");
+          try {
+            await bot.sendMessage(
+              chatId,
+              `⏰ <b>Pre order kadaluarsa</b>\n\nOrder <code>${order.id}</code> sudah kadaluarsa. Silakan pre order ulang jika diperlukan.`,
+              { parse_mode: "HTML" }
+            );
+          } catch {}
+        }
+      }, expiryMinutes * 60 * 1000);
       return;
     }
 
