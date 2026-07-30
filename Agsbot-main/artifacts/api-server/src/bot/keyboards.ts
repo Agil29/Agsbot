@@ -33,7 +33,54 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
         { text: "AKRAB V1", callback_data: "cat_akrab1" },
         { text: "AKRAB V2", callback_data: "cat_akrab2" },
       ],
+      [{ text: "PRE ORDER ⏳", callback_data: "cat_preorder" }],
       [{ text: "CIRCLE (XL ONLY)", callback_data: "cat_circle" }],
+    ],
+  };
+}
+
+export function preOrderPackageKeyboard(
+  packages: PackageItem[],
+): TelegramBot.InlineKeyboardMarkup {
+  const rows: TelegramBot.InlineKeyboardButton[][] = [];
+
+  for (let i = 0; i < packages.length; i += 2) {
+    const row: TelegramBot.InlineKeyboardButton[] = [];
+    const p1 = packages[i];
+    const p2 = packages[i + 1];
+
+    const label = (pkg: PackageItem) => {
+      let l = pkg.name;
+      if (pkg.price > 0) l += ` — Rp ${pkg.price.toLocaleString("id-ID")}`;
+      return l;
+    };
+
+    row.push({ text: label(p1), callback_data: `preorder_pkg_${p1.id}` });
+    if (p2) row.push({ text: label(p2), callback_data: `preorder_pkg_${p2.id}` });
+    rows.push(row);
+  }
+
+  rows.push([{ text: "🔙 Kembali ke Kategori", callback_data: "back_category" }]);
+  return { inline_keyboard: rows };
+}
+
+export function preOrderConfirmKeyboard(packageId: string): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: "✅ Konfirmasi Pre Order", callback_data: `preorder_confirm_${packageId}` },
+        { text: "🔙 Kembali ke List", callback_data: "preorder_back_list" },
+      ],
+    ],
+  };
+}
+
+export function preOrderPaymentKeyboard(): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: "💳 PAKAI SALDO", callback_data: "preorder_paysaldo" }],
+      [{ text: "📱 BAYAR LANGSUNG (QRIS)", callback_data: "preorder_payqris" }],
+      [{ text: "❌ Batal", callback_data: "cancel_order" }],
     ],
   };
 }
@@ -65,8 +112,10 @@ export function packageInlineKeyboard(
   const buttons: TelegramBot.InlineKeyboardButton[] = pageItems.map((pkg) => {
     let label: string;
     if (pkg.source === "api2") {
-      const stockText = pkg.stock && pkg.stock > 0 ? `✅` : "❌";
-      label = `${pkg.name} ${stockText}`;
+      const hasStock = pkg.stock !== undefined && pkg.stock > 0;
+      const stockIcon = hasStock ? `✅` : "❌";
+      const stockQty = pkg.stock !== undefined ? ` (${pkg.stock})` : "";
+      label = `${pkg.name} ${stockIcon}${stockQty}`;
       if (pkg.price > 0) label += ` — Rp ${pkg.price.toLocaleString("id-ID")}`;
     } else if (pkg.source === "dopu") {
       label = pkg.name;

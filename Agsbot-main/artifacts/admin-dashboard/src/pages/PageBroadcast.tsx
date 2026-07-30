@@ -26,10 +26,7 @@ export function PageBroadcast() {
     setConfirmed(false);
 
     try {
-      const data = await api("/admin/broadcast", {
-        method: "POST",
-        body: JSON.stringify({ message, parseMode: "HTML" }),
-      });
+      const data = await api.broadcast(message, "HTML");
       setResult(data);
     } catch (err: any) {
       setError(err?.message ?? "Gagal mengirim broadcast");

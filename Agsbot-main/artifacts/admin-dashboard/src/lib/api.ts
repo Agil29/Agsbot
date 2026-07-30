@@ -52,6 +52,8 @@ export const api = {
     list: () => request<any>("GET", "/users"),
     setSaldo: (telegramId: number, amount: number) =>
       request<any>("POST", `/users/${telegramId}/saldo`, { amount }),
+    adjustSaldo: (telegramId: number, amount: number) =>
+      request<any>("POST", `/users/${telegramId}/saldo`, { amount }),
     delete: (telegramId: number) => request<any>("DELETE", `/users/${telegramId}`),
   },
   packages: {
@@ -99,5 +101,12 @@ export const api = {
       request<any>("PUT", `/product-markup/${encodeURIComponent(sku)}`, { category, type, amount }),
     remove: (sku: string) =>
       request<any>("DELETE", `/product-markup/${encodeURIComponent(sku)}`),
+  },
+  broadcast: (message: string, parseMode?: string) =>
+    request<any>("POST", "/broadcast", { message, parseMode }),
+  preOrders: {
+    list: () => request<any>("GET", "/pre-orders"),
+    cancel: (id: string, note?: string) =>
+      request<any>("PUT", `/pre-orders/${id}/cancel`, { note }),
   },
 };

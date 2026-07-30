@@ -6,7 +6,7 @@ import { getDigiflazPrice } from "./digiflazApi";
 // Diselaraskan dengan daftar produk KHFY: XLA51 dihapus (sudah tidak ada),
 // XLA48/XLA55/XLA77 ditambahkan. Urut berdasarkan angka SKU.
 const AKRAB2_ALLOWED_SKUS = [
-  "XLA14", "XLA32", "XLA39", "XLA48", "XLA55", "XLA65", "XLA77", "XLA89",
+  "XLA14", "XLA20", "XLA32", "XLA39", "XLA48", "XLA55", "XLA64", "XLA65", "XLA77", "XLA89",
 ];
 
 const AKRAB1_SKUS = [
@@ -177,7 +177,8 @@ function formatKhfyPackage(
   stockMap: AkrabStockMap | null
 ): PackageItem {
   const sku = String(raw.kode_produk ?? raw.kode ?? raw.produk ?? raw.code ?? raw.sku ?? "");
-  const name = String(raw.nama_produk ?? raw.nama ?? raw.name ?? sku);
+  // Gunakan kode SKU sebagai nama tampilan (XLA14, XLA32, dst)
+  const name = sku.toUpperCase().trim() || String(raw.nama_produk ?? raw.nama ?? raw.name ?? sku);
   const price = Number(raw.harga_final ?? raw.harga ?? raw.price ?? 0);
   const desc = String(raw.deskripsi ?? raw.keterangan ?? raw.description ?? "");
 

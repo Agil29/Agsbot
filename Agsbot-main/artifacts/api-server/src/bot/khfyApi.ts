@@ -109,7 +109,24 @@ export async function checkKhfyOrderStatus(trxid: string): Promise<KhfyStatusRes
     const status2 = Number(item.status2 ?? -1);
     const statusText = String(item.status_text ?? "").toLowerCase();
     const keterangan = String(item.keterangan ?? "");
+    const keteranganLower = keterangan.toLowerCase();
     const sn = String(item.sn ?? "");
+
+    // Cek keterangan dulu — KHFY kadang return status sukses tapi keterangan menunjukkan gagal
+    const keteranganGagal =
+      keteranganLower.includes("stock") ||
+      keteranganLower.includes("stok") ||
+      keteranganLower.includes("habis") ||
+      keteranganLower.includes("kosong") ||
+      keteranganLower.includes("gagal") ||
+      keteranganLower.includes("failed") ||
+      keteranganLower.includes("invalid") ||
+      keteranganLower.includes("terdaftar");
+
+    if (keteranganGagal) {
+      logger.warn({ trxid, keterangan, status2, statusText }, "KHFY: keterangan menunjukkan gagal meskipun status mungkin sukses");
+      return { status: "failed", error: keterangan };
+    }
 
     // status2 = 1 → sukses
     if (status2 === 1 || statusText === "sukses" || statusText === "success" || statusText === "berhasil") {
@@ -171,7 +188,7 @@ export async function placeKhfyOrder(params: {
     const isFailed =
       status === "gagal" || status === "failed" || status === "fail" ||
       status === "error" || status === "0" || status === "cancel" ||
-      msg.includes("stok") || msg.includes("kosong") || msg.includes("habis") ||
+      msg.includes("stock") || msg.includes("stok") || msg.includes("kosong") || msg.includes("habis") ||
       msg.includes("terdaftar") || msg.includes("invalid");
 
     if (isFailed) {
@@ -179,7 +196,7 @@ export async function placeKhfyOrder(params: {
       let errorMsg = "Order gagal. Hubungi admin.";
       if (rawError) {
         const upper = rawError.toUpperCase();
-        if (upper.includes("KOSONG") || upper.includes("STOK") || upper.includes("HABIS")) {
+        if (upper.includes("KOSONG") || upper.includes("STOK") || upper.includes("STOCK") || upper.includes("HABIS") || upper.includes("TRANSAKSI HABIS")) {
           errorMsg = "Stok sedang kosong. Coba lagi nanti.";
         } else if (upper.includes("NOMOR") || upper.includes("TUJUAN")) {
           errorMsg = "Nomor tujuan tidak valid.";

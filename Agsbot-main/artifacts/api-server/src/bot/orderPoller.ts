@@ -8,11 +8,11 @@ import { checkKhfyOrderStatus } from "./khfyApi";
 
 const MAX_ATTEMPTS_DOPU = 30;
 const MAX_ATTEMPTS_DIGIFLAZ = 60;
-const MAX_ATTEMPTS_KHFY = 10; // Poll KHFY max 10x
+const MAX_ATTEMPTS_KHFY = 20; // Poll KHFY max 20x (5 menit)
 
 const INTERVAL_DOPU_MS = 2 * 60 * 1000;     // 2 menit
 const INTERVAL_DIGIFLAZ_MS = 45 * 1000;      // 45 detik
-const INTERVAL_KHFY_MS = 15 * 1000;          // 15 detik (KHFY biasanya cepat)
+const INTERVAL_KHFY_MS = 20 * 1000;          // 20 detik per poll
 
 const RATELIMIT_BACKOFF_MS = 10 * 60 * 1000; // 10 menit
 
@@ -212,13 +212,7 @@ export function startOrderPolling(
         activePolls.delete(reffId);
 
         const rawErr = String((statusRes as any).error ?? "");
-        const displayErr = /kosong|stok|habis/i.test(rawErr)
-          ? "Stok sedang kosong. Coba produk lain atau hubungi admin."
-          : /nomor|tujuan|invalid|dest/i.test(rawErr)
-          ? "Nomor tujuan tidak valid."
-          : /terdaftar/i.test(rawErr)
-          ? rawErr.slice(0, 120)
-          : "Transaksi gagal. Hubungi admin untuk bantuan.";
+        const keteranganKhfy = rawErr.length > 0 ? rawErr.slice(0, 150) : "";
 
         const newSaldo = refundedUser?.saldo ?? (getUser(chatId)?.saldo ?? 0);
 
@@ -227,8 +221,7 @@ export function startOrderPolling(
           `❌ <b>ORDER GAGAL</b>\n\n` +
           `📦 Produk: <b>${pkgName}</b>\n` +
           `📱 Nomor: <code>${nomor}</code>\n\n` +
-          `⚠️ ${displayErr}\n` +
-          `🔖 Ref: <code>${reffId}</code>\n\n` +
+          (keteranganKhfy ? `📋 Keterangan : ${keteranganKhfy}\n\n` : `⚠️ Transaksi gagal. Hubungi admin untuk bantuan.\n\n`) +
           `💰 Saldo <b>Rp ${price.toLocaleString("id-ID")}</b> telah dikembalikan.\n` +
           `Saldo sekarang: <b>Rp ${newSaldo.toLocaleString("id-ID")}</b>`,
           { parse_mode: "HTML" }

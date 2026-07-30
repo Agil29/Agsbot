@@ -28,6 +28,7 @@ const NAV: NavItem[] = [
     children: [
       { label: "Paket AKRAB 1", href: "/products/akrab1" },
       { label: "Paket AKRAB 2", href: "/products/akrab2" },
+      { label: "Pre Order ⏳", href: "/pre-orders" },
       { label: "Paket CIRCLE", href: "/products/circle" },
     ],
   },

@@ -13,7 +13,7 @@ import { getAllUsers, updateSaldo, getUser, deleteUser } from "../../bot/users";
 import { getAllOrders, updateOrderStatus, type OrderStatus } from "../../bot/orders";
 import { getAllTopups, updateTopupStatus, getTopupById } from "../../bot/topup";
 import { getBot } from "../../bot/index";
-import { getAllMarkup, setMarkup, type MarkupType } from "../../bot/markup";
+import { getAllMarkup, setMarkup, getMarkup, applyMarkup, type MarkupType } from "../../bot/markup";
 import { getAllSaldoLogs, getSaldoLogs } from "../../bot/saldoLog";
 import {
   getAllProductMarkups,
@@ -48,7 +48,17 @@ router.get("/packages/:category", requireAdmin, (req, res) => {
     return res.status(400).json({ error: "Invalid category. Use akrab1, akrab2, or circle" });
   }
   const packages = getAllPackagesAdmin(category);
-  res.json({ success: true, category, data: packages });
+  const categoryMarkup = getMarkup(category);
+  const packagesWithSellPrice = packages.map((pkg) => {
+    const perProduct = pkg.sku ? getProductMarkup(pkg.sku) : null;
+    const activeMarkup = perProduct ?? categoryMarkup;
+    return {
+      ...pkg,
+      baseprice: pkg.price,
+      sellprice: applyMarkup(pkg.price, activeMarkup),
+    };
+  });
+  res.json({ success: true, category, data: packagesWithSellPrice });
 });
 
 router.post("/packages/:category", requireAdmin, (req, res) => {

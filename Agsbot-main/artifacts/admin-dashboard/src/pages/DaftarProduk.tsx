@@ -7,6 +7,8 @@ type Product = {
   name: string;
   description: string;
   price: number;
+  baseprice?: number;
+  sellprice?: number;
   active: boolean;
   source: string;
   sku?: string;
@@ -352,7 +354,15 @@ export function DaftarProduk({ category }: { category: string }) {
     }
   }
 
-  function startEdit(p: Product) {
+  async function handleToggleActive(p: Product) {
+    try {
+      await api.packages.update(category, p.id, { active: !p.active });
+      showMsg(`${p.name} ${!p.active ? "diaktifkan" : "dinonaktifkan"}`);
+      load();
+    } catch (e: any) {
+      showMsg(e.message, "error");
+    }
+  }
     setEditId(p.id);
     setForm({
       name: p.name,
@@ -551,7 +561,8 @@ export function DaftarProduk({ category }: { category: string }) {
                 <tr>
                   <th className="px-4 py-3 text-left font-medium">#</th>
                   <th className="px-4 py-3 text-left font-medium">Nama</th>
-                  <th className="px-4 py-3 text-left font-medium">Harga Dasar</th>
+                  <th className="px-4 py-3 text-left font-medium">Harga Dasar (KHFY)</th>
+                  <th className="px-4 py-3 text-left font-medium">Harga Jual</th>
                   <th className="px-4 py-3 text-left font-medium">Markup</th>
                   <th className="px-4 py-3 text-left font-medium">Sumber</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
@@ -566,8 +577,14 @@ export function DaftarProduk({ category }: { category: string }) {
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500">{i + 1}</td>
                       <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        Rp {p.price.toLocaleString("id-ID")}
+                      <td className="px-4 py-3 text-slate-600">
+                        Rp {(p.baseprice ?? p.price).toLocaleString("id-ID")}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-green-700">
+                        {p.sellprice !== undefined && p.sellprice !== (p.baseprice ?? p.price)
+                          ? `Rp ${p.sellprice.toLocaleString("id-ID")}`
+                          : <span className="text-slate-400 text-xs">—</span>
+                        }
                       </td>
                       <td className="px-4 py-3">
                         {pm ? (
@@ -598,11 +615,17 @@ export function DaftarProduk({ category }: { category: string }) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          p.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
-                        }`}>
-                          {p.active ? "Aktif" : "Nonaktif"}
-                        </span>
+                        <button
+                          onClick={() => handleToggleActive(p)}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                            p.active
+                              ? "bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600"
+                              : "bg-slate-100 text-slate-500 hover:bg-green-100 hover:text-green-700"
+                          }`}
+                          title={p.active ? "Klik untuk nonaktifkan" : "Klik untuk aktifkan"}
+                        >
+                          {p.active ? "✅ Aktif" : "⭕ Nonaktif"}
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
