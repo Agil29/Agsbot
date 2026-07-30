@@ -111,6 +111,23 @@ export async function checkKhfyOrderStatus(trxid: string): Promise<KhfyStatusRes
     const keterangan = String(item.keterangan ?? "");
     const sn = String(item.sn ?? "");
 
+
+// Cek keterangan dulu — KHFY kadang return status sukses tapi keterangan menunjukkan gagal
+const keteranganGagal =
+  keteranganLower.includes("stock") ||
+  keteranganLower.includes("stok") ||
+  keteranganLower.includes("habis") ||
+  keteranganLower.includes("kosong") ||
+  keteranganLower.includes("gagal") ||
+  keteranganLower.includes("failed") ||
+  keteranganLower.includes("invalid") ||
+  keteranganLower.includes("terdaftar");
+
+if (keteranganGagal) {
+  logger.warn({ trxid, keterangan, status2, statusText }, "KHFY: keterangan menunjukkan gagal");
+  return { status: "failed", error: keterangan };
+}
+
     // status2 = 1 → sukses
     if (status2 === 1 || statusText === "sukses" || statusText === "success" || statusText === "berhasil") {
       return { status: "success", sn };
