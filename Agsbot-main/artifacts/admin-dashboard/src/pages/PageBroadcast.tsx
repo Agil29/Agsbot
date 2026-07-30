@@ -26,7 +26,8 @@ export function PageBroadcast() {
     setConfirmed(false);
 
     try {
-      const data = await api.broadcast(message, "HTML");
+      const broadcastFn = api.broadcast as (message: string, parseMode?: string) => Promise<unknown>;
+      const data = await broadcastFn(message, "HTML");
       setResult(data);
     } catch (err: any) {
       setError(err?.message ?? "Gagal mengirim broadcast");
