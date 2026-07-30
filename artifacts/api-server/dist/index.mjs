@@ -100580,6 +100580,7 @@ async function checkKhfyOrderStatus(trxid) {
     const status2 = Number(item.status2 ?? -1);
     const statusText = String(item.status_text ?? "").toLowerCase();
     const keterangan = String(item.keterangan ?? "");
+    const keteranganLower = keterangan.toLowerCase();
     const sn = String(item.sn ?? "");
     const keteranganGagal = keteranganLower.includes("stock") || keteranganLower.includes("stok") || keteranganLower.includes("habis") || keteranganLower.includes("kosong") || keteranganLower.includes("gagal") || keteranganLower.includes("failed") || keteranganLower.includes("invalid") || keteranganLower.includes("terdaftar");
     if (keteranganGagal) {

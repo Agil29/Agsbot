@@ -109,6 +109,7 @@ export async function checkKhfyOrderStatus(trxid: string): Promise<KhfyStatusRes
     const status2 = Number(item.status2 ?? -1);
     const statusText = String(item.status_text ?? "").toLowerCase();
     const keterangan = String(item.keterangan ?? "");
+    const keteranganLower = keterangan.toLowerCase();
     const sn = String(item.sn ?? "");
 
 
