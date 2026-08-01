@@ -36,7 +36,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 function getProvider(category: string, packageId?: string): string {
   if (packageId?.startsWith("digiflaz_")) return "digiflaz";
-  if (category === "akrab2") return "khfy";
+  if (category === "akrab2" || category === "preorder") return "khfy";
   return "dopu";
 }
 
@@ -154,8 +154,9 @@ export function HistoryPenjualan() {
                 {filtered.map((o) => {
                   const st = ORDER_STATUS_LABELS[o.status] ?? { label: o.status, color: "bg-slate-100 text-slate-600" };
                   const provider = getProvider(o.category, o.packageId);
-                  const providerLabel = provider === "khfy" ? "KHFY" : provider === "digiflaz" ? "Digiflaz" : "DOPU";
-                  const providerColor = provider === "khfy" ? "bg-blue-50 text-blue-700" : provider === "digiflaz" ? "bg-green-100 text-green-700" : "bg-green-50 text-green-700";
+                  const isPreOrder = o.category === "preorder";
+                  const providerLabel = isPreOrder ? "PRE ORDER" : provider === "khfy" ? "KHFY" : provider === "digiflaz" ? "Digiflaz" : "DOPU";
+                  const providerColor = isPreOrder ? "bg-orange-50 text-orange-700" : provider === "khfy" ? "bg-blue-50 text-blue-700" : provider === "digiflaz" ? "bg-green-100 text-green-700" : "bg-green-50 text-green-700";
                   const profit = o.price - (o.baseprice ?? o.price);
                   return (
                     <tr key={o.id} className="hover:bg-slate-50">

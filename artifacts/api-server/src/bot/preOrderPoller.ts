@@ -2,7 +2,8 @@ import TelegramBot from "node-telegram-bot-api";
 import { logger } from "../lib/logger";
 import { getPendingPreOrders, updatePreOrderStatus } from "./preOrders";
 import { placeKhfyOrder, checkKhfyOrderStatus } from "./khfyApi";
-import { creditSaldoAtomic } from "./users";
+import { createOrder } from "./orders";
+import { getUser } from "./users";
 
 let pollerTimer: NodeJS.Timeout | null = null;
 const INTERVAL_MS = 3 * 60 * 1000; // 3 menit
@@ -29,12 +30,10 @@ export function startPreOrderPoller(bot: TelegramBot): void {
           continue;
         }
 
-        // KHFY return success — tapi perlu verifikasi via /history karena
-        // KHFY kadang return "pending/antri" meski stock 0
+        // KHFY return success — verifikasi via /history
         const trxid = (result as any).trxid ?? "";
 
         if (!trxid) {
-          // Tidak ada trxid = tidak bisa verifikasi, kembalikan ke pending
           logger.info({ id: po.id }, "Pre-order: tidak ada trxid, tetap pending");
           updatePreOrderStatus(po.id, "pending");
           continue;
@@ -45,10 +44,39 @@ export function startPreOrderPoller(bot: TelegramBot): void {
         const statusResult = await checkKhfyOrderStatus(trxid);
 
         if (statusResult.status === "success") {
-          // Benar-benar berhasil
+          // Benar-benar berhasil — update pre-order
           updatePreOrderStatus(po.id, "done", { reffId: result.reffId, sn: statusResult.sn });
           logger.info({ id: po.id, trxid, sn: statusResult.sn }, "Pre-order processed OK");
 
+          // ── Buat entry di tabel orders supaya muncul di History Penjualan ──
+          try {
+            const user = getUser(po.userId);
+            const orderEntry = createOrder({
+              userId: po.userId,
+              userName: po.userName,
+              userUsername: user?.username ?? undefined,
+              category: "preorder",
+              packageId: po.sku,
+              packageName: po.packageName,
+              price: po.price,
+              baseprice: po.price,
+              quota: "",
+              validity: "",
+              nomorTujuan: po.nomorTujuan,
+              sn: statusResult.sn || undefined,
+              reffId: result.reffId,
+              paymentMethod: po.paymentMethod as "saldo" | "qris",
+              provider: "khfy",
+            });
+            // Mark langsung sebagai done
+            const { updateOrderStatus } = await import("./orders");
+            updateOrderStatus(orderEntry.id, "done", statusResult.sn || undefined);
+            logger.info({ orderId: orderEntry.id, preOrderId: po.id }, "Pre-order entry added to orders");
+          } catch (err) {
+            logger.error({ err, preOrderId: po.id }, "Failed to create order entry for pre-order");
+          }
+
+          // Notif user
           await bot.sendMessage(
             po.userId,
             `✅ <b>PRE ORDER BERHASIL DIPROSES!</b>\n` +
@@ -64,12 +92,10 @@ export function startPreOrderPoller(bot: TelegramBot): void {
           ).catch(() => {});
 
         } else if (statusResult.status === "failed") {
-          // KHFY return gagal (stok kosong terdeteksi di history)
           logger.info({ id: po.id, trxid }, "Pre-order: KHFY gagal di history, tetap pending");
           updatePreOrderStatus(po.id, "pending");
 
         } else {
-          // pending/unknown — kembalikan ke pending, coba lagi nanti
           logger.info({ id: po.id, trxid, status: statusResult.status }, "Pre-order: status pending di history");
           updatePreOrderStatus(po.id, "pending");
         }
