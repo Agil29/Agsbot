@@ -40,6 +40,7 @@ const NAV: NavItem[] = [
     ],
   },
   { label: "Broadcast", icon: <Send size={18} />, href: "/broadcast" },
+  { label: "PRE ORDER ⏳", icon: <History size={18} />, href: "/pre-orders" },
   {
     label: "Bot Settings", icon: <Settings size={18} />,
     children: [
