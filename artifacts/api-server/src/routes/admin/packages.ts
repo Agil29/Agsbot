@@ -124,6 +124,25 @@ router.post("/refresh", requireAdmin, async (_req, res) => {
   res.json({ success: true, message: "Packages refreshed from APIs" });
 });
 
+// Aktifkan atau nonaktifkan SEMUA produk dalam satu kategori
+router.put("/packages/:category/toggle-all", requireAdmin, (req, res) => {
+  const { category } = req.params;
+  if (!validateCategory(category)) {
+    return res.status(400).json({ error: "Invalid category" });
+  }
+  const { active } = req.body;
+  if (typeof active !== "boolean") {
+    return res.status(400).json({ error: "active (boolean) wajib diisi" });
+  }
+  const packages = getAllPackagesAdmin(category);
+  let updated = 0;
+  for (const pkg of packages) {
+    const result = updateAnyPackage(category, pkg.id, { active });
+    if (result) updated++;
+  }
+  res.json({ success: true, updated, active });
+});
+
 router.get("/users", requireAdmin, (_req, res) => {
   const users = getAllUsers().map((u) => ({
     telegramId: u.telegramId,

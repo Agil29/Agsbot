@@ -61,6 +61,7 @@ export const api = {
     update: (cat: string, id: string, data: any) => request<any>("PUT", `/packages/${cat}/${id}`, data),
     delete: (cat: string, id: string) => request<any>("DELETE", `/packages/${cat}/${id}`),
     refresh: () => request<any>("POST", "/refresh"),
+    toggleAll: (cat: string, active: boolean) => request<any>("PUT", `/packages/${cat}/toggle-all`, { active }),
   },
   orders: {
     list: () => request<any>("GET", "/orders"),
