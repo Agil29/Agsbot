@@ -419,18 +419,15 @@ export function DaftarProduk({ category }: { category: string }) {
             <Zap size={14} /> {refreshing ? "Refreshing..." : "Refresh API"}
           </button>
           <button
-            onClick={() => handleToggleAll(true)}
+            onClick={() => handleToggleAll(products.some(p => !p.active))}
             disabled={togglingAll}
-            className="flex items-center gap-2 px-3 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm transition-colors disabled:opacity-50"
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-50 ${
+              products.some(p => !p.active)
+                ? "bg-green-100 hover:bg-green-200 text-green-700"
+                : "bg-red-100 hover:bg-red-200 text-red-700"
+            }`}
           >
-            ✅ Aktifkan Semua
-          </button>
-          <button
-            onClick={() => handleToggleAll(false)}
-            disabled={togglingAll}
-            className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm transition-colors disabled:opacity-50"
-          >
-            ❌ Nonaktifkan Semua
+            {products.some(p => !p.active) ? "✅ Aktifkan Semua" : "❌ Nonaktifkan Semua"}
           </button>
           <button
             onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ ...EMPTY_FORM }); }}
