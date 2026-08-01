@@ -29,6 +29,12 @@ function AppRoutes({ onLogout }: { onLogout: () => void }) {
         <Route path="/products/circle">
           {() => <DaftarProduk category="circle" />}
         </Route>
+        <Route path="/products/preorder">
+          {() => <DaftarProduk category="preorder" />}
+        </Route>
+        <Route path="/products/preorder">
+          {() => <DaftarProduk category="akrab2" categoryLabel="PRE ORDER" />}
+        </Route>
         <Route path="/orders" component={HistoryPenjualan} />
         <Route path="/topups" component={DepositMember} />
         <Route path="/settings" component={BotSettings} />

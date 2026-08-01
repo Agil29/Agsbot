@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
       { label: "Paket AKRAB 1", href: "/products/akrab1" },
       { label: "Paket AKRAB 2", href: "/products/akrab2" },
       { label: "Paket CIRCLE", href: "/products/circle" },
+      { label: "PRE ORDER ⏳", href: "/products/preorder" },
     ],
   },
   {

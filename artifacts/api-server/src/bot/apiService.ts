@@ -322,6 +322,8 @@ export async function refreshAllPackages() {
   setApiPackages("akrab1", akrab1);
   setApiPackages("circle", circle);
   setApiPackages("akrab2", akrab2);
+  // PRE ORDER menggunakan produk yang sama dengan AKRAB 2 (KHFY)
+  setApiPackages("preorder", akrab2);
   logger.info(
     { akrab1Count: akrab1.length, circleCount: circle.length, akrab2Count: akrab2.length },
     "Packages refreshed"

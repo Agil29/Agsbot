@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   akrab1: "AKRAB 1",
   akrab2: "AKRAB 2",
   circle: "CIRCLE",
+  preorder: "PRE ORDER ⏳",
 };
 
 const EMPTY_FORM = { name: "", description: "", price: "", active: true, source: "manual", sku: "", quota: "", validity: "" };
@@ -262,12 +263,14 @@ function ProductMarkupRow({
   );
 }
 
-export function DaftarProduk({ category }: { category: string }) {
+export function DaftarProduk({ category, categoryLabel }: { category: string; categoryLabel?: string }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
+
+  const displayLabel = categoryLabel ?? CATEGORY_LABELS[category] ?? category.toUpperCase();
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: "", type: "success" });
   const [refreshing, setRefreshing] = useState(false);
@@ -357,20 +360,6 @@ export function DaftarProduk({ category }: { category: string }) {
       .catch((e: any) => showMsg(e.message, "error"));
   }
 
-  const [togglingAll, setTogglingAll] = useState(false);
-  async function handleToggleAll(active: boolean) {
-    setTogglingAll(true);
-    try {
-      await api.packages.toggleAll(category, active);
-      showMsg(`Semua produk ${active ? "diaktifkan" : "dinonaktifkan"}`);
-      load();
-    } catch (e: any) {
-      showMsg(e.message, "error");
-    } finally {
-      setTogglingAll(false);
-    }
-  }
-
   function startEdit(p: Product) {
     setEditId(p.id);
     setForm({
@@ -417,17 +406,6 @@ export function DaftarProduk({ category }: { category: string }) {
             className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm transition-colors"
           >
             <Zap size={14} /> {refreshing ? "Refreshing..." : "Refresh API"}
-          </button>
-          <button
-            onClick={() => handleToggleAll(products.some(p => !p.active))}
-            disabled={togglingAll}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-50 ${
-              products.some(p => !p.active)
-                ? "bg-green-100 hover:bg-green-200 text-green-700"
-                : "bg-red-100 hover:bg-red-200 text-red-700"
-            }`}
-          >
-            {products.some(p => !p.active) ? "✅ Aktifkan Semua" : "❌ Nonaktifkan Semua"}
           </button>
           <button
             onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ ...EMPTY_FORM }); }}

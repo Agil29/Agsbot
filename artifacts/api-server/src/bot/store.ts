@@ -14,18 +14,20 @@ export type PackageItem = {
   stock?: number;
 };
 
-export type Category = "akrab1" | "akrab2" | "circle";
+export type Category = "akrab1" | "akrab2" | "circle" | "preorder";
 
 const manualPackages: Record<Category, PackageItem[]> = {
   akrab1: [],
   akrab2: [],
   circle: [],
+  preorder: [],
 };
 
 const apiPackages: Record<Category, PackageItem[]> = {
   akrab1: [],
   akrab2: [],
   circle: [],
+  preorder: [],
 };
 
 // Price/name overrides for API packages — survive refresh cycles
@@ -51,6 +53,7 @@ export async function loadStoreFromDb(): Promise<void> {
     manualPackages.akrab1 = [];
     manualPackages.akrab2 = [];
     manualPackages.circle = [];
+    manualPackages.preorder = [];
     for (const row of pkgRows) {
       const cat = row.category as Category;
       if (!manualPackages[cat]) continue;
@@ -68,7 +71,7 @@ export async function loadStoreFromDb(): Promise<void> {
       });
     }
     logger.info(
-      { akrab1: manualPackages.akrab1.length, akrab2: manualPackages.akrab2.length, circle: manualPackages.circle.length },
+      { akrab1: manualPackages.akrab1.length, akrab2: manualPackages.akrab2.length, circle: manualPackages.circle.length, preorder: manualPackages.preorder.length },
       "Loaded manual packages from DB"
     );
   } catch (err) {
@@ -184,7 +187,7 @@ export function deleteManualPackage(category: Category, id: string): boolean {
 }
 
 export function getManualPackageById(id: string): { category: Category; pkg: PackageItem } | null {
-  for (const cat of ["akrab1", "akrab2", "circle"] as Category[]) {
+  for (const cat of ["akrab1", "akrab2", "circle", "preorder"] as Category[]) {
     const pkg = manualPackages[cat].find((p) => p.id === id);
     if (pkg) return { category: cat, pkg };
   }

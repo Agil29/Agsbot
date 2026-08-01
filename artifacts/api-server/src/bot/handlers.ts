@@ -1219,7 +1219,7 @@ export function setupHandlers(bot: TelegramBot) {
     if (data === "refresh_stock") {
       const session = getSession(userId);
       const category = session.category as Category | undefined;
-      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE", preorder: "PRE ORDER" };
 
       await bot.answerCallbackQuery(query.id, { text: "🔄 Memperbarui stok..." });
 
@@ -1449,7 +1449,7 @@ export function setupHandlers(bot: TelegramBot) {
       const category = data.replace("cat_", "") as Category;
       const packages = getPackagesWithMarkup(category);
       setSession(userId, { step: "select_package", category });
-      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE", preorder: "PRE ORDER" };
 
       if (packages.length === 0) {
         await bot.editMessageText(
@@ -1540,7 +1540,7 @@ export function setupHandlers(bot: TelegramBot) {
       if (!category) return;
       const packages = getPackagesWithMarkup(category);
       const page = session.page ?? 0;
-      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      const categoryLabels: Record<Category, string> = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE", preorder: "PRE ORDER" };
       await bot.editMessageText(
         `📦 <b>PAKET ${categoryLabels[category]}</b>\n\nPilih paket yang Anda inginkan:`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: packageInlineKeyboard(packages, page, pkgKeyboardOpts(category, packages)) }
