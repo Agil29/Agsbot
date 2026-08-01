@@ -1333,7 +1333,7 @@ export function setupHandlers(bot: TelegramBot) {
 
     // ── PRE ORDER: pilih kategori ─────────────────────────────────────────
     if (data === "cat_preorder") {
-      const packages = getPackagesWithMarkup("akrab2");
+      const packages = getPackagesWithMarkup("preorder");
       setSession(userId, { step: "po_select_package" as any });
       if (packages.length === 0) {
         await bot.editMessageText(
@@ -1352,7 +1352,7 @@ export function setupHandlers(bot: TelegramBot) {
     // ── PRE ORDER: pilih paket ─────────────────────────────────────────────
     if (data.startsWith("po_pkg_")) {
       const pkgId = data.replace("po_pkg_", "");
-      const packages = getPackagesWithMarkup("akrab2");
+      const packages = getPackagesWithMarkup("preorder");
       const pkg = packages.find((p) => p.id === pkgId);
       if (!pkg) {
         await bot.editMessageText("❌ Paket tidak ditemukan.", { chat_id: chatId, message_id: messageId });
