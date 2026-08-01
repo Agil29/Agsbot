@@ -1343,7 +1343,7 @@ export function setupHandlers(bot: TelegramBot) {
         return;
       }
       await bot.editMessageText(
-        `⏳ <b>PRE ORDER — Pilih Paket</b>\n\nPaket akan diproses otomatis saat stok KHFY tersedia.\nDana akan ditahan hingga pesanan selesai.\n\nPilih paket:`,
+        `⏳ <b>PRE ORDER — Pilih Paket</b>\n\nPaket akan otomatis di proses jika stock tersedia.\n\nPilih paket:`,
         { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: preOrderPackageKeyboard(packages) }
       );
       return;
