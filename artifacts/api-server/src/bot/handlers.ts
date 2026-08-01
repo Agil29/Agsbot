@@ -881,7 +881,7 @@ export function setupHandlers(bot: TelegramBot) {
         `📦 Produk : <b>${packageName}</b>\n` +
         `📱 Nomor : <code>${nomor}</code>\n` +
         `💰 Harga : <b>Rp ${price.toLocaleString("id-ID")}</b>\n\n` +
-        `Dana akan <b>ditahan</b> hingga pesanan selesai diproses.\n` +
+        `Dana akan diproses saat pesanan selesai.\n` +
         `Stok akan dicek otomatis setiap 3 menit.`,
         {
           parse_mode: "HTML",
@@ -1435,8 +1435,8 @@ export function setupHandlers(bot: TelegramBot) {
         `🔖 ID : <code>${po.id}</code>\n` +
         `📦 Produk : <b>${packageName}</b>\n` +
         `📱 Nomor : <code>${nomor}</code>\n` +
-        `💰 Dana : <b>Rp ${price.toLocaleString("id-ID")}</b> (ditahan)\n` +
-        `📊 Status : <b>Menunggu stok KHFY</b>\n` +
+        `💰 Dana : <b>Rp ${price.toLocaleString("id-ID")}</b>\n` +
+        `📊 Status : <b>Menunggu stock</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         `⏳ Pesanan akan diproses otomatis saat stok tersedia.\n` +
         `Hubungi @${SUPPORT_USERNAME} untuk pembatalan.`,
