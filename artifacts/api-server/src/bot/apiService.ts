@@ -12,6 +12,7 @@ const AKRAB2_ALLOWED_SKUS = [
 const AKRAB1_SKUS = [
   "XDA13","XDA19","XDA25","XDA31","XDA34","XDA38",
   "XDA47","XDA55","XDA63","XDA64","XDA76","XDA88",
+  "AM47","AM55","AM63","AM76",
 ];
 const CIRCLE_SKUS = [
   "XCLP5","XCLP10","XCLP15","XCLP20","XCLP25","XCLP30",
@@ -34,6 +35,10 @@ const XDA_AREAS: Record<string, [number, number, number, number]> = {
   XDA64:  [65,  70,  83, 123],
   XDA76:  [76,  78,  83,  93],
   XDA88:  [88,  90,  95, 105],
+  AM47:   [47,  49,  54,  64],
+  AM55:   [55,  57,  61,  71],
+  AM63:   [63,  65,  70,  80],
+  AM76:   [76,  78,  83,  93],
 };
 
 const AKRAB1_NOTES =
