@@ -124,6 +124,25 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    await run(`
+      CREATE TABLE IF NOT EXISTS pre_orders (
+        id             TEXT PRIMARY KEY,
+        user_id        BIGINT NOT NULL,
+        user_name      TEXT NOT NULL,
+        sku            TEXT NOT NULL,
+        package_name   TEXT NOT NULL,
+        nomor_tujuan   TEXT NOT NULL,
+        price          BIGINT NOT NULL DEFAULT 0,
+        payment_method TEXT NOT NULL DEFAULT 'saldo',
+        status         TEXT NOT NULL DEFAULT 'pending',
+        reff_id        TEXT,
+        sn             TEXT,
+        note           TEXT,
+        created_at     TIMESTAMPTZ DEFAULT now(),
+        updated_at     TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
     // Safe column additions for any future migrations
     await run("ALTER TABLE users  ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(20)").catch(() => {});
     await run("ALTER TABLE orders ADD COLUMN IF NOT EXISTS baseprice NUMERIC DEFAULT 0").catch(() => {});

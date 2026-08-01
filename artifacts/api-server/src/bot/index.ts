@@ -12,6 +12,8 @@ import { loadMarkupFromDb } from "./markup";
 import { loadProductMarkupsFromDb } from "./productMarkup";
 import { loadBlacklistFromDb } from "./blacklist";
 import { resumeProcessingOrders } from "./orderPoller";
+import { loadPreOrdersFromDb } from "./preOrders";
+import { startPreOrderPoller } from "./preOrderPoller";
 
 let botInstance: TelegramBot | null = null;
 
@@ -47,6 +49,7 @@ export async function startBot() {
     loadMarkupFromDb(),
     loadProductMarkupsFromDb(),
     loadBlacklistFromDb(),
+    loadPreOrdersFromDb(),
   ]);
 
   const bot = new TelegramBot(token, { polling: false });
@@ -65,6 +68,7 @@ export async function startBot() {
   startPackageRefreshScheduler(5 * 60 * 1000);
   startTopupExpiryChecker(bot);
   resumeProcessingOrders(bot);
+  startPreOrderPoller(bot);
 
   // Register bot commands visible to all users
   const defaultCommands = [

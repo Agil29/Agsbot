@@ -33,7 +33,32 @@ export function categoryInlineKeyboard(): TelegramBot.InlineKeyboardMarkup {
         { text: "AKRAB V1", callback_data: "cat_akrab1" },
         { text: "AKRAB V2", callback_data: "cat_akrab2" },
       ],
+      [{ text: "PRE ORDER ⏳", callback_data: "cat_preorder" }],
       [{ text: "CIRCLE (XL ONLY)", callback_data: "cat_circle" }],
+    ],
+  };
+}
+
+export function preOrderPackageKeyboard(packages: PackageItem[]): TelegramBot.InlineKeyboardMarkup {
+  const rows: TelegramBot.InlineKeyboardButton[][] = [];
+  for (let i = 0; i < packages.length; i += 2) {
+    const row: TelegramBot.InlineKeyboardButton[] = [];
+    const p1 = packages[i];
+    const p2 = packages[i + 1];
+    const label = (p: PackageItem) => p.price > 0 ? `${p.name} — Rp ${p.price.toLocaleString("id-ID")}` : p.name;
+    row.push({ text: label(p1), callback_data: `po_pkg_${p1.id}` });
+    if (p2) row.push({ text: label(p2), callback_data: `po_pkg_${p2.id}` });
+    rows.push(row);
+  }
+  rows.push([{ text: "🔙 Kembali", callback_data: "back_category" }]);
+  return { inline_keyboard: rows };
+}
+
+export function preOrderPaymentKeyboard(): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: "💳 BAYAR PAKAI SALDO", callback_data: "po_paysaldo" }],
+      [{ text: "❌ Batal", callback_data: "cancel_order" }],
     ],
   };
 }

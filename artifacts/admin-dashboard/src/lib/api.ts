@@ -61,7 +61,6 @@ export const api = {
     update: (cat: string, id: string, data: any) => request<any>("PUT", `/packages/${cat}/${id}`, data),
     delete: (cat: string, id: string) => request<any>("DELETE", `/packages/${cat}/${id}`),
     refresh: () => request<any>("POST", "/refresh"),
-    toggleAll: (cat: string, active: boolean) => request<any>("PUT", `/packages/${cat}/toggle-all`, { active }),
   },
   orders: {
     list: () => request<any>("GET", "/orders"),
@@ -103,4 +102,6 @@ export const api = {
     remove: (sku: string) =>
       request<any>("DELETE", `/product-markup/${encodeURIComponent(sku)}`),
   },
+  request: <T = any>(method: string, path: string, body?: unknown) =>
+    request<T>(method as any, path, body),
 };
