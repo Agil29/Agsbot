@@ -2,6 +2,7 @@ import axios from "axios";
 import { logger } from "../lib/logger";
 import { type PackageItem, type Category, setApiPackages } from "./store";
 import { getDigiflazPrice } from "./digiflazApi";
+import { fetchXdaStock, type XdaStockMap } from "./akrabApi";
 
 // Diselaraskan dengan daftar produk KHFY: XLA51 dihapus (sudah tidak ada),
 // XLA48/XLA55/XLA77 ditambahkan. Urut berdasarkan angka SKU.
@@ -55,11 +56,11 @@ function xclpRange(sku: string): string {
 }
 
 export async function fetchAkrab1Packages(): Promise<PackageItem[]> {
-  // Gunakan KHFY cek_stock_akrab — sama seperti Akrab V2, sudah terbukti jalan
-  const stockMap = await fetchAkrabStock();
+  // Ambil stok dari juraganxl.my.id — pola sama seperti fetchAkrabStock() untuk akrab v2
+  const stockMap = await fetchXdaStock();
 
   if (stockMap === null) {
-    logger.warn("KHFY stock tidak tersedia — semua paket akrab1 ditandai stok 0 (fail-safe)");
+    logger.warn("XDA stock tidak tersedia — semua paket akrab1 ditandai stok 0 (fail-safe)");
   }
 
   return AKRAB1_SKUS.map((sku): PackageItem => {
@@ -71,7 +72,6 @@ export async function fetchAkrab1Packages(): Promise<PackageItem[]> {
       `Area 4 : ${areas[3]}GB`;
     const description = areaText + AKRAB1_NOTES;
 
-    // Stok dari KHFY — active selalu true agar tampil ❌ saat stok 0
     const stock = stockMap?.get(sku) ?? 0;
 
     return {
