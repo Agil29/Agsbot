@@ -117,7 +117,10 @@ export function packageInlineKeyboard(
       label = `${pkg.name} ${stockIcon}${stockQty}`;
       if (pkg.price > 0) label += ` — Rp ${pkg.price.toLocaleString("id-ID")}`;
     } else if (pkg.source === "dopu") {
-      label = pkg.name;
+      const hasStock = pkg.stock !== undefined && pkg.stock > 0;
+      const stockIcon = hasStock ? `✅` : "❌";
+      const stockQty = pkg.stock !== undefined ? ` (${pkg.stock})` : "";
+      label = `${pkg.name} ${stockIcon}${stockQty}`;
       if (pkg.price > 0) label += ` — Rp ${pkg.price.toLocaleString("id-ID")}`;
     } else {
       label = `${pkg.name} — Rp ${pkg.price.toLocaleString("id-ID")}`;

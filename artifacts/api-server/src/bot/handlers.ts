@@ -70,7 +70,7 @@ function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPack
   }
   if (category === "akrab1") {
     // 2 columns, all packages on one page, no pagination
-    return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
+    return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL, showRefreshStock: true };
   }
   if (category === "akrab2") {
     return { columns: 2, pageSize: packages.length || undefined, showRefreshStock: true };
