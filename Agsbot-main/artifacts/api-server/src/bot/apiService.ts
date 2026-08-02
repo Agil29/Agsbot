@@ -72,19 +72,15 @@ export async function fetchAkrab1Packages(): Promise<PackageItem[]> {
       `Area 4 : ${areas[3]}GB`;
     const description = areaText + AKRAB1_NOTES;
 
-    // Tentukan stok dan ketersediaan dari API Akrab
+    // Tentukan stok dari API Akrab — active selalu true agar paket tetap tampil
+    // dengan ikon ❌ saat stok habis, bukan disembunyikan
     let stock = 0;
-    let active = true;
     if (akrabStockMap !== null) {
       const item: AkrabStockItem | undefined = akrabStockMap.get(sku);
       if (item) {
         stock = item.open ? item.count : 0;
-        active = item.open;
-      } else {
-        // SKU tidak ada di respons API — anggap tidak tersedia
-        stock = 0;
-        active = false;
       }
+      // SKU tidak ada di respons = stok 0, tetap tampil dengan ❌
     }
 
     return {
@@ -94,7 +90,7 @@ export async function fetchAkrab1Packages(): Promise<PackageItem[]> {
       price: 0,
       quota: areaText,
       validity: "27 - 30 Hari",
-      active,
+      active: true,
       source: "dopu",
       sku,
       stock,

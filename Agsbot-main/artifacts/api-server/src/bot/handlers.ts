@@ -1310,18 +1310,27 @@ export function setupHandlers(bot: TelegramBot) {
         await refreshAllPackages();
         const packages = category ? getPackagesWithMarkup(category) : [];
         const label = category ? categoryLabels[category] : "Paket";
-        await bot.editMessageText(
-          `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
-          {
-            chat_id: chatId,
-            message_id: messageId,
-            parse_mode: "HTML",
-            reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category, packages) : {}),
+        try {
+          await bot.editMessageText(
+            `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: "HTML",
+              reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category, packages) : {}),
+            }
+          );
+        } catch (editErr: any) {
+          // Telegram 400 "message not modified" — stok tidak berubah, bukan error serius
+          if (editErr?.response?.statusCode === 400 || String(editErr?.message ?? "").includes("not modified")) {
+            await bot.answerCallbackQuery(query.id, { text: "✅ Stok sudah terkini" });
+          } else {
+            throw editErr;
           }
-        );
+        }
       } catch (err) {
         logger.error({ err }, "Failed to refresh stock");
-        await bot.answerCallbackQuery(query.id, { text: "❌ Gagal refresh. Coba lagi." });
+        await bot.answerCallbackQuery(query.id, { text: "❌ Gagal refresh. Coba lagi." }).catch(() => {});
       }
       return;
     }
