@@ -70,7 +70,7 @@ function pkgKeyboardOpts(category: Category, packages: ReturnType<typeof getPack
   }
   if (category === "akrab1") {
     // 2 columns, all packages on one page, no pagination
-    return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL, showRefreshStock: true };
+    return { columns: 2, pageSize: packages.length || undefined, cekStokUrl: DOPU_CEK_STOK_URL };
   }
   if (category === "akrab2") {
     return { columns: 2, pageSize: packages.length || undefined, showRefreshStock: true };
@@ -1227,27 +1227,18 @@ export function setupHandlers(bot: TelegramBot) {
         await refreshAllPackages();
         const packages = category ? getPackagesWithMarkup(category) : [];
         const label = category ? categoryLabels[category] : "Paket";
-        try {
-          await bot.editMessageText(
-            `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
-            {
-              chat_id: chatId,
-              message_id: messageId,
-              parse_mode: "HTML",
-              reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category, packages) : {}),
-            }
-          );
-        } catch (editErr: any) {
-          // Telegram 400 "message not modified" — stok tidak berubah, bukan error serius
-          if (editErr?.response?.statusCode === 400 || String(editErr?.message ?? "").includes("not modified")) {
-            await bot.answerCallbackQuery(query.id, { text: "✅ Stok sudah terkini" });
-          } else {
-            throw editErr;
+        await bot.editMessageText(
+          `📦 <b>PAKET ${label}</b>\n\nPilih paket yang Anda inginkan:`,
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: "HTML",
+            reply_markup: packageInlineKeyboard(packages, session.page ?? 0, category ? pkgKeyboardOpts(category, packages) : {}),
           }
-        }
+        );
       } catch (err) {
         logger.error({ err }, "Failed to refresh stock");
-        await bot.answerCallbackQuery(query.id, { text: "❌ Gagal refresh. Coba lagi." }).catch(() => {});
+        await bot.answerCallbackQuery(query.id, { text: "❌ Gagal refresh. Coba lagi." });
       }
       return;
     }
