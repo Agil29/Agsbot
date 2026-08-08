@@ -20854,27 +20854,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module2.exports = Router11;
+    module2.exports = Router12;
     module2.exports.Route = Route;
-    function Router11(options) {
-      if (!(this instanceof Router11)) {
-        return new Router11(options);
+    function Router12(options) {
+      if (!(this instanceof Router12)) {
+        return new Router12(options);
       }
       const opts = options || {};
-      function router11(req, res, next) {
-        router11.handle(req, res, next);
+      function router12(req, res, next) {
+        router12.handle(req, res, next);
       }
-      Object.setPrototypeOf(router11, this);
-      router11.caseSensitive = opts.caseSensitive;
-      router11.mergeParams = opts.mergeParams;
-      router11.params = {};
-      router11.strict = opts.strict;
-      router11.stack = [];
-      return router11;
+      Object.setPrototypeOf(router12, this);
+      router12.caseSensitive = opts.caseSensitive;
+      router12.mergeParams = opts.mergeParams;
+      router12.params = {};
+      router12.strict = opts.strict;
+      router12.stack = [];
+      return router12;
     }
-    Router11.prototype = function() {
+    Router12.prototype = function() {
     };
-    Router11.prototype.param = function param(name, fn) {
+    Router12.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20894,7 +20894,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router11.prototype.handle = function handle(req, res, callback) {
+    Router12.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -21021,7 +21021,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router11.prototype.use = function use(handler) {
+    Router12.prototype.use = function use(handler) {
       let offset = 0;
       let path = "/";
       if (typeof handler !== "function") {
@@ -21054,7 +21054,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router11.prototype.route = function route(path) {
+    Router12.prototype.route = function route(path) {
       const route2 = new Route(path);
       const layer = new Layer(path, {
         sensitive: this.caseSensitive,
@@ -21069,7 +21069,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router11.prototype[method] = function(path) {
+      Router12.prototype[method] = function(path) {
         const route = this.route(path);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -21252,13 +21252,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router11 = require_router();
+    var Router12 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports2 = module2.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router11 = null;
+      var router12 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -21267,13 +21267,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router11 === null) {
-            router11 = new Router11({
+          if (router12 === null) {
+            router12 = new Router12({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router11;
+          return router12;
         }
       });
     };
@@ -21344,15 +21344,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router11 = this.router;
+      var router12 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router11.use(path, fn2);
+          return router12.use(path, fn2);
         }
         debug(".use app under %s", path);
         fn2.mountpath = path;
         fn2.parent = this;
-        router11.use(path, function mounted_app(req, res, next) {
+        router12.use(path, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23879,7 +23879,7 @@ var require_express = __commonJS({
     var EventEmitter2 = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router11 = require_router();
+    var Router12 = require_router();
     var req = require_request();
     var res = require_response();
     exports2 = module2.exports = createApplication;
@@ -23901,8 +23901,8 @@ var require_express = __commonJS({
     exports2.application = proto;
     exports2.request = req;
     exports2.response = res;
-    exports2.Route = Router11.Route;
-    exports2.Router = Router11;
+    exports2.Route = Router12.Route;
+    exports2.Router = Router12;
     exports2.json = bodyParser.json;
     exports2.raw = bodyParser.raw;
     exports2.static = require_serve_static();
@@ -38742,6 +38742,30 @@ var require_follow_redirects = __commonJS({
   }
 });
 
+// src/lib/logger.ts
+var import_pino, isProduction, logger;
+var init_logger = __esm({
+  "src/lib/logger.ts"() {
+    "use strict";
+    import_pino = __toESM(require_pino(), 1);
+    isProduction = process.env.NODE_ENV === "production";
+    logger = (0, import_pino.default)({
+      level: process.env.LOG_LEVEL ?? "info",
+      redact: [
+        "req.headers.authorization",
+        "req.headers.cookie",
+        "res.headers['set-cookie']"
+      ],
+      ...isProduction ? {} : {
+        transport: {
+          target: "pino-pretty",
+          options: { colorize: true }
+        }
+      }
+    });
+  }
+});
+
 // ../../node_modules/.pnpm/postgres-array@2.0.0/node_modules/postgres-array/index.js
 var require_postgres_array = __commonJS({
   "../../node_modules/.pnpm/postgres-array@2.0.0/node_modules/postgres-array/index.js"(exports2) {
@@ -43843,6 +43867,204 @@ var require_lib5 = __commonJS({
         return native;
       }
     });
+  }
+});
+
+// ../../node_modules/.pnpm/pg@8.20.0/node_modules/pg/esm/index.mjs
+var import_lib, Client, Pool, Connection, types, Query, DatabaseError, escapeIdentifier, escapeLiteral, Result, TypeOverrides, defaults2;
+var init_esm = __esm({
+  "../../node_modules/.pnpm/pg@8.20.0/node_modules/pg/esm/index.mjs"() {
+    import_lib = __toESM(require_lib5(), 1);
+    Client = import_lib.default.Client;
+    Pool = import_lib.default.Pool;
+    Connection = import_lib.default.Connection;
+    types = import_lib.default.types;
+    Query = import_lib.default.Query;
+    DatabaseError = import_lib.default.DatabaseError;
+    escapeIdentifier = import_lib.default.escapeIdentifier;
+    escapeLiteral = import_lib.default.escapeLiteral;
+    Result = import_lib.default.Result;
+    TypeOverrides = import_lib.default.TypeOverrides;
+    defaults2 = import_lib.default.defaults;
+  }
+});
+
+// src/lib/db.ts
+async function query(sql, params) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(sql, params);
+    return res.rows;
+  } finally {
+    client.release();
+  }
+}
+async function run(sql, params) {
+  const client = await pool.connect();
+  try {
+    await client.query(sql, params);
+  } finally {
+    client.release();
+  }
+}
+var pool;
+var init_db = __esm({
+  "src/lib/db.ts"() {
+    "use strict";
+    init_esm();
+    init_logger();
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 10,
+      idleTimeoutMillis: 3e4,
+      connectionTimeoutMillis: 5e3
+    });
+    pool.on("error", (err) => {
+      logger.error({ err }, "Unexpected DB pool error");
+    });
+  }
+});
+
+// src/bot/orders.ts
+var orders_exports = {};
+__export(orders_exports, {
+  createOrder: () => createOrder,
+  formatOrderDate: () => formatOrderDate,
+  getAllOrders: () => getAllOrders,
+  getOrderByDopuTrxId: () => getOrderByDopuTrxId,
+  getOrderById: () => getOrderById,
+  getOrderByReffId: () => getOrderByReffId,
+  getOrdersByUser: () => getOrdersByUser,
+  loadOrdersFromDb: () => loadOrdersFromDb,
+  statusLabel: () => statusLabel,
+  updateOrderStatus: () => updateOrderStatus
+});
+function rowToOrder(row) {
+  return {
+    id: row.id,
+    userId: Number(row.user_id),
+    userName: row.user_name,
+    userUsername: row.user_username ?? void 0,
+    category: row.category,
+    packageId: row.package_id,
+    packageName: row.package_name,
+    price: Number(row.price),
+    baseprice: Number(row.baseprice ?? row.price),
+    quota: row.quota,
+    validity: row.validity,
+    nomorTujuan: row.nomor_tujuan ?? void 0,
+    sn: row.sn ?? void 0,
+    reffId: row.reff_id ?? void 0,
+    paymentMethod: row.payment_method ?? void 0,
+    provider: row.provider ?? void 0,
+    status: row.status,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at)
+  };
+}
+async function loadOrdersFromDb() {
+  try {
+    await run(
+      `ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider VARCHAR(20)`,
+      []
+    ).catch(() => {
+    });
+    const rows = await query("SELECT * FROM orders ORDER BY created_at DESC");
+    orders.length = 0;
+    for (const row of rows) orders.push(rowToOrder(row));
+    logger.info({ count: orders.length }, "Loaded orders from DB");
+  } catch (err) {
+    logger.error({ err }, "Failed to load orders from DB");
+  }
+}
+function createOrder(data) {
+  const order = {
+    ...data,
+    id: `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+    status: "pending",
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  orders.unshift(order);
+  run(
+    `INSERT INTO orders (id, user_id, user_name, user_username, category, package_id, package_name, price, baseprice, quota, validity,
+      nomor_tujuan, sn, reff_id, payment_method, provider, status, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+    [
+      order.id,
+      order.userId,
+      order.userName,
+      order.userUsername ?? null,
+      order.category,
+      order.packageId,
+      order.packageName,
+      order.price,
+      order.baseprice,
+      order.quota,
+      order.validity,
+      order.nomorTujuan ?? null,
+      order.sn ?? null,
+      order.reffId ?? null,
+      order.paymentMethod ?? null,
+      order.provider ?? null,
+      order.status,
+      order.createdAt,
+      order.updatedAt
+    ]
+  ).catch((err) => logger.error({ err }, "DB insert order failed"));
+  return order;
+}
+function getOrdersByUser(userId) {
+  return orders.filter((o) => o.userId === userId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+function getAllOrders() {
+  return [...orders].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+function getOrderByReffId(reffId2) {
+  return orders.find((o) => o.reffId === reffId2);
+}
+function getOrderByDopuTrxId(trxId) {
+  if (!trxId) return void 0;
+  return orders.find((o) => o.sn === trxId && (o.status === "processing" || o.status === "paid" || o.status === "pending"));
+}
+function updateOrderStatus(orderId, status, sn) {
+  const order = orders.find((o) => o.id === orderId);
+  if (!order) return null;
+  order.status = status;
+  order.updatedAt = /* @__PURE__ */ new Date();
+  if (sn !== void 0) order.sn = sn;
+  run(
+    "UPDATE orders SET status=$1, updated_at=$2, sn=COALESCE($3, sn) WHERE id=$4",
+    [status, order.updatedAt, sn ?? null, orderId]
+  ).catch((err) => logger.error({ err }, "DB update order status failed"));
+  return order;
+}
+function getOrderById(orderId) {
+  return orders.find((o) => o.id === orderId);
+}
+function formatOrderDate(date) {
+  return date.toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+var orders, statusLabel;
+var init_orders = __esm({
+  "src/bot/orders.ts"() {
+    "use strict";
+    init_db();
+    init_logger();
+    orders = [];
+    statusLabel = {
+      pending: "\u23F3 Menunggu Pembayaran",
+      paid: "\u2705 Pembayaran Diterima",
+      processing: "\u2699\uFE0F Sedang Diproses",
+      done: "\u{1F389} Selesai",
+      cancelled: "\u274C Dibatalkan"
+    };
   }
 });
 
@@ -91030,12 +91252,12 @@ var require_lib11 = __commonJS({
 })();
 
 // src/app.ts
-var import_express11 = __toESM(require_express2(), 1);
+var import_express12 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
 // src/routes/index.ts
-var import_express10 = __toESM(require_express2(), 1);
+var import_express11 = __toESM(require_express2(), 1);
 
 // ../../node_modules/.pnpm/axios@1.14.0/node_modules/axios/lib/helpers/bind.js
 function bind(fn, thisArg) {
@@ -94885,76 +95107,23 @@ var {
   mergeConfig: mergeConfig2
 } = axios_default;
 
-// src/lib/logger.ts
-var import_pino = __toESM(require_pino(), 1);
-var isProduction = process.env.NODE_ENV === "production";
-var logger = (0, import_pino.default)({
-  level: process.env.LOG_LEVEL ?? "info",
-  redact: [
-    "req.headers.authorization",
-    "req.headers.cookie",
-    "res.headers['set-cookie']"
-  ],
-  ...isProduction ? {} : {
-    transport: {
-      target: "pino-pretty",
-      options: { colorize: true }
-    }
-  }
-});
-
-// ../../node_modules/.pnpm/pg@8.20.0/node_modules/pg/esm/index.mjs
-var import_lib = __toESM(require_lib5(), 1);
-var Client = import_lib.default.Client;
-var Pool = import_lib.default.Pool;
-var Connection = import_lib.default.Connection;
-var types = import_lib.default.types;
-var Query = import_lib.default.Query;
-var DatabaseError = import_lib.default.DatabaseError;
-var escapeIdentifier = import_lib.default.escapeIdentifier;
-var escapeLiteral = import_lib.default.escapeLiteral;
-var Result = import_lib.default.Result;
-var TypeOverrides = import_lib.default.TypeOverrides;
-var defaults2 = import_lib.default.defaults;
-
-// src/lib/db.ts
-var pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 10,
-  idleTimeoutMillis: 3e4,
-  connectionTimeoutMillis: 5e3
-});
-pool.on("error", (err) => {
-  logger.error({ err }, "Unexpected DB pool error");
-});
-async function query(sql, params) {
-  const client = await pool.connect();
-  try {
-    const res = await client.query(sql, params);
-    return res.rows;
-  } finally {
-    client.release();
-  }
-}
-async function run(sql, params) {
-  const client = await pool.connect();
-  try {
-    await client.query(sql, params);
-  } finally {
-    client.release();
-  }
-}
+// src/bot/apiService.ts
+init_logger();
 
 // src/bot/store.ts
+init_db();
+init_logger();
 var manualPackages = {
   akrab1: [],
   akrab2: [],
-  circle: []
+  circle: [],
+  preorder: []
 };
 var apiPackages = {
   akrab1: [],
   akrab2: [],
-  circle: []
+  circle: [],
+  preorder: []
 };
 var apiPackageOverrides = {};
 async function loadStoreFromDb() {
@@ -94972,6 +95141,7 @@ async function loadStoreFromDb() {
     manualPackages.akrab1 = [];
     manualPackages.akrab2 = [];
     manualPackages.circle = [];
+    manualPackages.preorder = [];
     for (const row of pkgRows) {
       const cat = row.category;
       if (!manualPackages[cat]) continue;
@@ -94989,7 +95159,7 @@ async function loadStoreFromDb() {
       });
     }
     logger.info(
-      { akrab1: manualPackages.akrab1.length, akrab2: manualPackages.akrab2.length, circle: manualPackages.circle.length },
+      { akrab1: manualPackages.akrab1.length, akrab2: manualPackages.akrab2.length, circle: manualPackages.circle.length, preorder: manualPackages.preorder.length },
       "Loaded manual packages from DB"
     );
   } catch (err) {
@@ -95096,6 +95266,7 @@ function deleteManualPackage(category, id) {
 }
 
 // src/bot/digiflazApi.ts
+init_logger();
 import { createHash } from "crypto";
 import { randomUUID } from "crypto";
 var BASE_URL = "https://api.digiflazz.com/v1";
@@ -95263,7 +95434,11 @@ var AKRAB1_SKUS = [
   "XDA63",
   "XDA64",
   "XDA76",
-  "XDA88"
+  "XDA88",
+  "AM47",
+  "AM55",
+  "AM63",
+  "AM76"
 ];
 var CIRCLE_SKUS = [
   "XCLP5",
@@ -95303,7 +95478,11 @@ var XDA_AREAS = {
   XDA63: [63, 65, 70, 80],
   XDA64: [65, 70, 83, 123],
   XDA76: [76, 78, 83, 93],
-  XDA88: [88, 90, 95, 105]
+  XDA88: [88, 90, 95, 105],
+  AM47: [47, 49, 54, 64],
+  AM55: [55, 57, 61, 71],
+  AM63: [63, 65, 70, 80],
+  AM76: [76, 78, 83, 93]
 };
 var AKRAB1_NOTES = `
 
@@ -95521,6 +95700,7 @@ async function refreshAllPackages() {
   setApiPackages("akrab1", akrab1);
   setApiPackages("circle", circle);
   setApiPackages("akrab2", akrab2);
+  setApiPackages("preorder", akrab2);
   logger.info(
     { akrab1Count: akrab1.length, circleCount: circle.length, akrab2Count: akrab2.length },
     "Packages refreshed"
@@ -99425,6 +99605,7 @@ var health_default = router;
 
 // src/routes/auth.ts
 var import_express2 = __toESM(require_express2(), 1);
+init_logger();
 var router2 = (0, import_express2.Router)();
 router2.post("/auth/login", (req, res) => {
   const { username, password } = req.body;
@@ -99452,7 +99633,13 @@ var auth_default = router2;
 // src/routes/admin/packages.ts
 var import_express3 = __toESM(require_express2(), 1);
 
+// src/bot/users.ts
+init_db();
+init_logger();
+
 // src/bot/saldoLog.ts
+init_db();
+init_logger();
 async function logSaldo(params) {
   run(
     `INSERT INTO saldo_logs
@@ -99700,110 +99887,12 @@ async function deleteUser(telegramId) {
   return true;
 }
 
-// src/bot/orders.ts
-var orders = [];
-function rowToOrder(row) {
-  return {
-    id: row.id,
-    userId: Number(row.user_id),
-    userName: row.user_name,
-    userUsername: row.user_username ?? void 0,
-    category: row.category,
-    packageId: row.package_id,
-    packageName: row.package_name,
-    price: Number(row.price),
-    baseprice: Number(row.baseprice ?? row.price),
-    quota: row.quota,
-    validity: row.validity,
-    nomorTujuan: row.nomor_tujuan ?? void 0,
-    sn: row.sn ?? void 0,
-    reffId: row.reff_id ?? void 0,
-    paymentMethod: row.payment_method ?? void 0,
-    provider: row.provider ?? void 0,
-    status: row.status,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at)
-  };
-}
-async function loadOrdersFromDb() {
-  try {
-    await run(
-      `ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider VARCHAR(20)`,
-      []
-    ).catch(() => {
-    });
-    const rows = await query("SELECT * FROM orders ORDER BY created_at DESC");
-    orders.length = 0;
-    for (const row of rows) orders.push(rowToOrder(row));
-    logger.info({ count: orders.length }, "Loaded orders from DB");
-  } catch (err) {
-    logger.error({ err }, "Failed to load orders from DB");
-  }
-}
-function createOrder(data) {
-  const order = {
-    ...data,
-    id: `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-    status: "pending",
-    createdAt: /* @__PURE__ */ new Date(),
-    updatedAt: /* @__PURE__ */ new Date()
-  };
-  orders.unshift(order);
-  run(
-    `INSERT INTO orders (id, user_id, user_name, user_username, category, package_id, package_name, price, baseprice, quota, validity,
-      nomor_tujuan, sn, reff_id, payment_method, provider, status, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-    [
-      order.id,
-      order.userId,
-      order.userName,
-      order.userUsername ?? null,
-      order.category,
-      order.packageId,
-      order.packageName,
-      order.price,
-      order.baseprice,
-      order.quota,
-      order.validity,
-      order.nomorTujuan ?? null,
-      order.sn ?? null,
-      order.reffId ?? null,
-      order.paymentMethod ?? null,
-      order.provider ?? null,
-      order.status,
-      order.createdAt,
-      order.updatedAt
-    ]
-  ).catch((err) => logger.error({ err }, "DB insert order failed"));
-  return order;
-}
-function getOrdersByUser(userId) {
-  return orders.filter((o) => o.userId === userId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-}
-function getAllOrders() {
-  return [...orders].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-}
-function getOrderByReffId(reffId2) {
-  return orders.find((o) => o.reffId === reffId2);
-}
-function getOrderByDopuTrxId(trxId) {
-  if (!trxId) return void 0;
-  return orders.find((o) => o.sn === trxId && (o.status === "processing" || o.status === "paid" || o.status === "pending"));
-}
-function updateOrderStatus(orderId, status, sn) {
-  const order = orders.find((o) => o.id === orderId);
-  if (!order) return null;
-  order.status = status;
-  order.updatedAt = /* @__PURE__ */ new Date();
-  if (sn !== void 0) order.sn = sn;
-  run(
-    "UPDATE orders SET status=$1, updated_at=$2, sn=COALESCE($3, sn) WHERE id=$4",
-    [status, order.updatedAt, sn ?? null, orderId]
-  ).catch((err) => logger.error({ err }, "DB update order status failed"));
-  return order;
-}
+// src/routes/admin/packages.ts
+init_orders();
 
 // src/bot/topup.ts
+init_logger();
+init_db();
 var topups = /* @__PURE__ */ new Map();
 var PAKASIR_BASE = "https://app.pakasir.com/api";
 var EXPIRY_MINUTES = 5;
@@ -99986,8 +100075,11 @@ function getAllTopups() {
 
 // src/bot/index.ts
 var import_node_telegram_bot_api = __toESM(require_node_telegram_bot_api(), 1);
+init_logger();
 
 // src/lib/initDb.ts
+init_db();
+init_logger();
 async function initDb() {
   try {
     await run(`
@@ -100099,6 +100191,24 @@ async function initDb() {
         updated_at TIMESTAMPTZ DEFAULT now()
       )
     `);
+    await run(`
+      CREATE TABLE IF NOT EXISTS pre_orders (
+        id             TEXT PRIMARY KEY,
+        user_id        BIGINT NOT NULL,
+        user_name      TEXT NOT NULL,
+        sku            TEXT NOT NULL,
+        package_name   TEXT NOT NULL,
+        nomor_tujuan   TEXT NOT NULL,
+        price          BIGINT NOT NULL DEFAULT 0,
+        payment_method TEXT NOT NULL DEFAULT 'saldo',
+        status         TEXT NOT NULL DEFAULT 'pending',
+        reff_id        TEXT,
+        sn             TEXT,
+        note           TEXT,
+        created_at     TIMESTAMPTZ DEFAULT now(),
+        updated_at     TIMESTAMPTZ DEFAULT now()
+      )
+    `);
     await run("ALTER TABLE users  ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(20)").catch(() => {
     });
     await run("ALTER TABLE orders ADD COLUMN IF NOT EXISTS baseprice NUMERIC DEFAULT 0").catch(() => {
@@ -100114,6 +100224,7 @@ async function initDb() {
 
 // src/bot/handlers.ts
 var import_qrcode = __toESM(require_lib11(), 1);
+init_logger();
 import { randomUUID as randomUUID4 } from "crypto";
 
 // src/bot/sessions.ts
@@ -100133,6 +100244,8 @@ function clearSession(userId) {
 }
 
 // src/bot/markup.ts
+init_db();
+init_logger();
 var markupSettings = {};
 async function loadMarkupFromDb() {
   try {
@@ -100176,6 +100289,8 @@ function getAllMarkup() {
 }
 
 // src/bot/productMarkup.ts
+init_db();
+init_logger();
 var productMarkups = /* @__PURE__ */ new Map();
 async function loadProductMarkupsFromDb() {
   try {
@@ -100221,6 +100336,8 @@ async function deleteProductMarkup(sku) {
 }
 
 // src/bot/blacklist.ts
+init_db();
+init_logger();
 var blocked = /* @__PURE__ */ new Set();
 var entries = /* @__PURE__ */ new Map();
 async function loadBlacklistFromDb() {
@@ -100270,7 +100387,15 @@ async function removeFromBlacklist(telegramId) {
   return true;
 }
 
+// src/bot/handlers.ts
+init_orders();
+
+// src/bot/orderPoller.ts
+init_logger();
+init_orders();
+
 // src/bot/dopuApi.ts
+init_logger();
 import { randomUUID as randomUUID2, createHash as createHash2 } from "crypto";
 function sanitizeDopuError(raw) {
   if (/Saldo\s+[\d.,]+/.test(raw)) {
@@ -100502,6 +100627,7 @@ async function placeDopuOrder(params) {
 }
 
 // src/bot/khfyApi.ts
+init_logger();
 import { randomUUID as randomUUID3 } from "crypto";
 function parseBalanceFromData(data) {
   if (typeof data === "object" && data !== null) {
@@ -100971,6 +101097,28 @@ function categoryInlineKeyboard() {
     ]
   };
 }
+function preOrderPackageKeyboard(packages) {
+  const rows = [];
+  for (let i = 0; i < packages.length; i += 2) {
+    const row = [];
+    const p1 = packages[i];
+    const p2 = packages[i + 1];
+    const label = (p) => p.price > 0 ? `${p.name} \u2014 Rp ${p.price.toLocaleString("id-ID")}` : p.name;
+    row.push({ text: label(p1), callback_data: `po_pkg_${p1.id}` });
+    if (p2) row.push({ text: label(p2), callback_data: `po_pkg_${p2.id}` });
+    rows.push(row);
+  }
+  rows.push([{ text: "\u{1F519} Kembali", callback_data: "back_category" }]);
+  return { inline_keyboard: rows };
+}
+function preOrderPaymentKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "\u{1F4B3} BAYAR PAKAI SALDO", callback_data: "po_paysaldo" }],
+      [{ text: "\u274C Batal", callback_data: "cancel_order" }]
+    ]
+  };
+}
 function packageInlineKeyboard(packages, page = 0, opts = {}) {
   const digiflazPkgs = packages.filter((p) => p.source === "digiflaz");
   const gridPkgs = packages.filter((p) => p.source !== "digiflaz");
@@ -101057,6 +101205,98 @@ function backToCategoryKeyboard() {
       [{ text: "\u{1F519} Kembali ke Kategori", callback_data: "back_category" }]
     ]
   };
+}
+
+// src/bot/preOrders.ts
+init_db();
+init_logger();
+var preOrders = [];
+function rowToPreOrder(row) {
+  return {
+    id: row.id,
+    userId: Number(row.user_id),
+    userName: row.user_name,
+    sku: row.sku,
+    packageName: row.package_name,
+    nomorTujuan: row.nomor_tujuan,
+    price: Number(row.price),
+    paymentMethod: row.payment_method,
+    status: row.status,
+    reffId: row.reff_id ?? void 0,
+    sn: row.sn ?? void 0,
+    note: row.note ?? void 0,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at)
+  };
+}
+async function loadPreOrdersFromDb() {
+  try {
+    const rows = await query("SELECT * FROM pre_orders ORDER BY created_at DESC");
+    preOrders.length = 0;
+    for (const row of rows) preOrders.push(rowToPreOrder(row));
+    logger.info({ count: preOrders.length }, "Loaded pre_orders from DB");
+  } catch (err) {
+    logger.error({ err }, "Failed to load pre_orders from DB");
+  }
+}
+function createPreOrder(data) {
+  const po = {
+    ...data,
+    id: `PO-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+    status: "pending",
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  preOrders.unshift(po);
+  run(
+    `INSERT INTO pre_orders
+      (id, user_id, user_name, sku, package_name, nomor_tujuan, price, payment_method, status, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [
+      po.id,
+      po.userId,
+      po.userName,
+      po.sku,
+      po.packageName,
+      po.nomorTujuan,
+      po.price,
+      po.paymentMethod,
+      po.status,
+      po.createdAt,
+      po.updatedAt
+    ]
+  ).catch((e) => logger.error({ e }, "DB insert pre_order failed"));
+  return po;
+}
+function getPendingPreOrders() {
+  return preOrders.filter((p) => p.status === "pending");
+}
+function getAllPreOrders() {
+  return [...preOrders].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+function getPreOrderById(id) {
+  return preOrders.find((p) => p.id === id);
+}
+function hasActivePendingPreOrder(nomorTujuan, sku) {
+  return preOrders.some(
+    (p) => p.nomorTujuan === nomorTujuan && p.sku === sku && (p.status === "pending" || p.status === "processing")
+  );
+}
+function updatePreOrderStatus(id, status, extra) {
+  const po = preOrders.find((p) => p.id === id);
+  if (!po) return null;
+  po.status = status;
+  po.updatedAt = /* @__PURE__ */ new Date();
+  if (extra?.reffId) po.reffId = extra.reffId;
+  if (extra?.sn) po.sn = extra.sn;
+  if (extra?.note) po.note = extra.note;
+  run(
+    `UPDATE pre_orders SET status=$1, updated_at=$2,
+     reff_id=COALESCE($3, reff_id), sn=COALESCE($4, sn), note=COALESCE($5, note)
+     WHERE id=$6`,
+    [status, po.updatedAt, extra?.reffId ?? null, extra?.sn ?? null, extra?.note ?? null, id]
+  ).catch((e) => logger.error({ e }, "DB update pre_order failed"));
+  return po;
 }
 
 // src/bot/handlers.ts
@@ -101879,6 +102119,43 @@ Pilih Metode Pembayaran:`;
       setSession(from.id, { paymentMsgId: sent.message_id });
       return;
     }
+    if (session2.step === "po_waiting_nomor") {
+      const nomor2 = msg.text.trim().replace(/\s+/g, "");
+      if (!/^0\d{8,13}$/.test(nomor2)) {
+        await bot.sendMessage(
+          msg.chat.id,
+          `\u274C Nomor tidak valid.
+
+Masukkan nomor yang benar.
+Contoh: <code>081234567890</code>`,
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+      const price2 = session2.selectedPackagePrice ?? 0;
+      const packageName = session2.selectedPackageName ?? "";
+      const sku = session2.preorderPackageSku ?? "";
+      setSession(from.id, {
+        ...session2,
+        poNomor: nomor2
+      });
+      await bot.sendMessage(
+        msg.chat.id,
+        `\u23F3 <b>KONFIRMASI PRE ORDER</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F4E6} Produk : <b>${packageName}</b>
+\u{1F4F1} Nomor : <code>${nomor2}</code>
+\u{1F4B0} Harga : <b>Rp ${price2.toLocaleString("id-ID")}</b>
+
+Dana akan diproses saat pesanan selesai.
+Stok akan dicek otomatis setiap 3 menit.`,
+        {
+          parse_mode: "HTML",
+          reply_markup: preOrderPaymentKeyboard()
+        }
+      );
+      return;
+    }
     if (session2.step === "waiting_topup_amount") {
       const text = msg.text.trim().replace(/[.,]/g, "");
       const nominal = parseInt(text, 10);
@@ -102210,7 +102487,7 @@ Atau hubungi admin: @${SUPPORT_USERNAME}`,
     if (data === "refresh_stock") {
       const session2 = getSession(userId);
       const category = session2.category;
-      const categoryLabels = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      const categoryLabels = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE", preorder: "PRE ORDER" };
       await bot.answerCallbackQuery(query2.id, { text: "\u{1F504} Memperbarui stok..." });
       try {
         await refreshAllPackages();
@@ -102336,11 +102613,128 @@ Mengirim ke <b>${totalUsers} user</b>. Mohon tunggu.`,
       await bot.answerCallbackQuery(query2.id);
     } catch {
     }
+    if (data === "cat_preorder") {
+      const packages = getPackagesWithMarkup("preorder");
+      setSession(userId, { step: "po_select_package" });
+      if (packages.length === 0) {
+        await bot.editMessageText(
+          `\u23F3 <b>PRE ORDER</b>
+
+\u26A0\uFE0F Belum ada paket tersedia. Hubungi admin @${SUPPORT_USERNAME}`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: backToCategoryKeyboard() }
+        );
+        return;
+      }
+      await bot.editMessageText(
+        `\u23F3 <b>PRE ORDER \u2014 Pilih Paket</b>
+
+Paket akan otomatis di proses jika stock tersedia.
+
+Pilih paket:`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML", reply_markup: preOrderPackageKeyboard(packages) }
+      );
+      return;
+    }
+    if (data.startsWith("po_pkg_")) {
+      const pkgId = data.replace("po_pkg_", "");
+      const packages = getPackagesWithMarkup("preorder");
+      const pkg = packages.find((p) => p.id === pkgId);
+      if (!pkg) {
+        await bot.editMessageText("\u274C Paket tidak ditemukan.", { chat_id: chatId, message_id: messageId });
+        return;
+      }
+      setSession(userId, {
+        step: "po_waiting_nomor",
+        packageId: pkg.id,
+        selectedPackageName: pkg.name,
+        selectedPackagePrice: pkg.price,
+        preorderPackageSku: pkg.sku ?? pkg.id
+      });
+      await bot.editMessageText(
+        `\u23F3 <b>PRE ORDER</b>
+
+Paket : <b>${pkg.name}</b>
+Harga : <b>Rp ${pkg.price.toLocaleString("id-ID")}</b>
+
+Masukkan <b>nomor tujuan</b> (contoh: <code>081234567890</code>):`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+      );
+      return;
+    }
+    if (data === "po_paysaldo") {
+      const session2 = getSession(userId);
+      const nomor2 = session2.poNomor;
+      const sku = session2.preorderPackageSku;
+      const packageName = session2.selectedPackageName ?? "";
+      const price2 = session2.selectedPackagePrice ?? 0;
+      if (!nomor2 || !sku) {
+        await bot.answerCallbackQuery(query2.id, { text: "\u274C Sesi habis, mulai ulang.", show_alert: true }).catch(() => {
+        });
+        return;
+      }
+      const from = query2.from;
+      const user = getOrRegisterUser(from.id, from.first_name, from.last_name, from.username);
+      if (user.saldo < price2) {
+        await bot.editMessageText(
+          `\u274C <b>Saldo tidak cukup</b>
+
+Saldo Anda: <b>Rp ${user.saldo.toLocaleString("id-ID")}</b>
+Dibutuhkan: <b>Rp ${price2.toLocaleString("id-ID")}</b>
+
+Topup saldo terlebih dahulu.`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+        clearSession(userId);
+        return;
+      }
+      if (hasActivePendingPreOrder(nomor2, sku)) {
+        await bot.answerCallbackQuery(query2.id, { text: "\u26A0\uFE0F Nomor ini sudah punya pre-order aktif untuk paket yang sama.", show_alert: true }).catch(() => {
+        });
+        return;
+      }
+      const deduct = await withUserLock(
+        userId,
+        () => deductSaldoAtomic(userId, price2, { type: "pre_order", refId: nomor2, note: `Pre-order ${sku}` })
+      );
+      if (!deduct.success) {
+        await bot.editMessageText(
+          `\u274C Saldo tidak cukup.
+Saldo: <b>Rp ${(deduct.user?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
+          { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+        );
+        clearSession(userId);
+        return;
+      }
+      const po = createPreOrder({
+        userId,
+        userName: user.firstName + (user.lastName ? " " + user.lastName : ""),
+        sku,
+        packageName,
+        nomorTujuan: nomor2,
+        price: price2,
+        paymentMethod: "saldo"
+      });
+      clearSession(userId);
+      await bot.editMessageText(
+        `\u2705 <b>PRE ORDER BERHASIL DIBUAT!</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F516} ID : <code>${po.id}</code>
+\u{1F4E6} Produk : <b>${packageName}</b>
+\u{1F4F1} Nomor : <code>${nomor2}</code>
+\u{1F4B0} Dana : <b>Rp ${price2.toLocaleString("id-ID")}</b>
+\u{1F4CA} Status : <b>Menunggu stock</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u23F3 Pesanan akan diproses otomatis saat stok tersedia.
+Hubungi @${SUPPORT_USERNAME} untuk pembatalan.`,
+        { chat_id: chatId, message_id: messageId, parse_mode: "HTML" }
+      );
+      return;
+    }
     if (data.startsWith("cat_")) {
       const category = data.replace("cat_", "");
       const packages = getPackagesWithMarkup(category);
       setSession(userId, { step: "select_package", category });
-      const categoryLabels = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      const categoryLabels = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE", preorder: "PRE ORDER" };
       if (packages.length === 0) {
         await bot.editMessageText(
           `\u{1F4E6} <b>${categoryLabels[category]}</b>
@@ -102432,7 +102826,7 @@ Pilih paket yang Anda inginkan:`,
       if (!category) return;
       const packages = getPackagesWithMarkup(category);
       const page = session2.page ?? 0;
-      const categoryLabels = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE" };
+      const categoryLabels = { akrab1: "AKRAB 1", akrab2: "AKRAB 2", circle: "CIRCLE", preorder: "PRE ORDER" };
       await bot.editMessageText(
         `\u{1F4E6} <b>PAKET ${categoryLabels[category]}</b>
 
@@ -102794,6 +103188,7 @@ Contoh: <code>081234567890</code>`, { parse_mode: "HTML" });
 }
 
 // src/bot/topupExpiry.ts
+init_logger();
 var CHECK_INTERVAL_MS = 30 * 1e3;
 var expiryTimer = null;
 async function checkExpiredTopups(bot) {
@@ -102837,6 +103232,97 @@ function startTopupExpiryChecker(bot) {
 }
 
 // src/bot/index.ts
+init_orders();
+
+// src/bot/preOrderPoller.ts
+init_logger();
+init_orders();
+var pollerTimer = null;
+var INTERVAL_MS = 3 * 60 * 1e3;
+function startPreOrderPoller(bot) {
+  if (pollerTimer) return;
+  logger.info("Pre-order poller started (interval: 3m)");
+  const tick = async () => {
+    const pending = getPendingPreOrders();
+    if (pending.length === 0) return;
+    logger.info({ count: pending.length }, "Checking pending pre-orders");
+    for (const po of pending) {
+      try {
+        updatePreOrderStatus(po.id, "processing");
+        const result = await placeKhfyOrder({ sku: po.sku, tujuan: po.nomorTujuan, reffId: po.id });
+        if (!result.success) {
+          logger.info({ id: po.id, error: result.error }, "Pre-order: KHFY gagal, tetap pending");
+          updatePreOrderStatus(po.id, "pending");
+          continue;
+        }
+        const trxid = result.trxid ?? "";
+        if (!trxid) {
+          logger.info({ id: po.id }, "Pre-order: tidak ada trxid, tetap pending");
+          updatePreOrderStatus(po.id, "pending");
+          continue;
+        }
+        await new Promise((r) => setTimeout(r, 5e3));
+        const statusResult = await checkKhfyOrderStatus(trxid);
+        if (statusResult.status === "success") {
+          updatePreOrderStatus(po.id, "done", { reffId: result.reffId, sn: statusResult.sn });
+          logger.info({ id: po.id, trxid, sn: statusResult.sn }, "Pre-order processed OK");
+          try {
+            const user = getUser(po.userId);
+            const orderEntry = createOrder({
+              userId: po.userId,
+              userName: po.userName,
+              userUsername: user?.username ?? void 0,
+              category: "preorder",
+              packageId: po.sku,
+              packageName: po.packageName,
+              price: po.price,
+              baseprice: po.price,
+              quota: "",
+              validity: "",
+              nomorTujuan: po.nomorTujuan,
+              sn: statusResult.sn || void 0,
+              reffId: result.reffId,
+              paymentMethod: po.paymentMethod,
+              provider: "khfy"
+            });
+            const { updateOrderStatus: updateOrderStatus2 } = await Promise.resolve().then(() => (init_orders(), orders_exports));
+            updateOrderStatus2(orderEntry.id, "done", statusResult.sn || void 0);
+            logger.info({ orderId: orderEntry.id, preOrderId: po.id }, "Pre-order entry added to orders");
+          } catch (err) {
+            logger.error({ err, preOrderId: po.id }, "Failed to create order entry for pre-order");
+          }
+          await bot.sendMessage(
+            po.userId,
+            `\u2705 <b>PRE ORDER BERHASIL DIPROSES!</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F516} ID : <code>${po.id}</code>
+\u{1F4E6} Produk : <b>${po.packageName}</b>
+\u{1F4F1} Nomor : <code>${po.nomorTujuan}</code>
+\u{1F516} Ref ID : <code>${result.reffId}</code>
+${statusResult.sn ? `\u{1F511} SN : <code>${statusResult.sn}</code>
+` : ""}\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+Pesanan Anda telah diproses otomatis. Terima kasih!`,
+            { parse_mode: "HTML" }
+          ).catch(() => {
+          });
+        } else if (statusResult.status === "failed") {
+          logger.info({ id: po.id, trxid }, "Pre-order: KHFY gagal di history, tetap pending");
+          updatePreOrderStatus(po.id, "pending");
+        } else {
+          logger.info({ id: po.id, trxid, status: statusResult.status }, "Pre-order: status pending di history");
+          updatePreOrderStatus(po.id, "pending");
+        }
+      } catch (err) {
+        logger.error({ err, id: po.id }, "Pre-order poller error");
+        updatePreOrderStatus(po.id, "pending");
+      }
+    }
+  };
+  tick();
+  pollerTimer = setInterval(tick, INTERVAL_MS);
+}
+
+// src/bot/index.ts
 var botInstance = null;
 async function startBot() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -102860,7 +103346,8 @@ async function startBot() {
     loadStoreFromDb(),
     loadMarkupFromDb(),
     loadProductMarkupsFromDb(),
-    loadBlacklistFromDb()
+    loadBlacklistFromDb(),
+    loadPreOrdersFromDb()
   ]);
   const bot = new import_node_telegram_bot_api.default(token, { polling: false });
   botInstance = bot;
@@ -102873,6 +103360,7 @@ async function startBot() {
   startPackageRefreshScheduler(5 * 60 * 1e3);
   startTopupExpiryChecker(bot);
   resumeProcessingOrders(bot);
+  startPreOrderPoller(bot);
   const defaultCommands = [
     { command: "start", description: "Profil & Menu Utama" },
     { command: "order", description: "Order paket XL" },
@@ -102898,6 +103386,7 @@ function getBot() {
 }
 
 // src/lib/adminAuth.ts
+init_logger();
 var ADMIN_KEY = process.env.ADMIN_API_KEY;
 if (!ADMIN_KEY) {
   logger.warn("ADMIN_API_KEY environment variable is not set. Admin API will reject all requests.");
@@ -102913,7 +103402,7 @@ function requireAdmin(req, res, next) {
 
 // src/routes/admin/packages.ts
 var router3 = (0, import_express3.Router)();
-var VALID_CATEGORIES = ["akrab1", "akrab2", "circle"];
+var VALID_CATEGORIES = ["akrab1", "akrab2", "circle", "preorder"];
 function validateCategory(cat) {
   return VALID_CATEGORIES.includes(cat);
 }
@@ -103141,6 +103630,8 @@ var packages_default = router3;
 
 // src/routes/admin/settings.ts
 var import_express4 = __toESM(require_express2(), 1);
+init_logger();
+init_orders();
 var router4 = (0, import_express4.Router)();
 var runtimeConfig = {
   DOPU_BASE_URL: process.env.DOPU_BASE_URL ?? "",
@@ -103288,6 +103779,7 @@ var settings_default = router4;
 
 // src/routes/admin/broadcast.ts
 var import_express5 = __toESM(require_express2(), 1);
+init_logger();
 var router5 = (0, import_express5.Router)();
 router5.post("/broadcast", requireAdmin, async (req, res) => {
   const { message, parseMode } = req.body;
@@ -103321,10 +103813,104 @@ router5.post("/broadcast", requireAdmin, async (req, res) => {
 });
 var broadcast_default = router5;
 
-// src/routes/webhook.ts
+// src/routes/admin/preOrders.ts
 var import_express6 = __toESM(require_express2(), 1);
+init_logger();
 var router6 = (0, import_express6.Router)();
-router6.post("/pakasir", async (req, res) => {
+router6.get("/pre-orders", requireAdmin, (_req, res) => {
+  const orders2 = getAllPreOrders();
+  res.json({ data: orders2 });
+});
+router6.post("/pre-orders/:id/cancel", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { note } = req.body ?? {};
+  const po = getPreOrderById(id);
+  if (!po) {
+    res.status(404).json({ error: "Pre order tidak ditemukan" });
+    return;
+  }
+  if (po.status === "done" || po.status === "cancelled" || po.status === "refunded") {
+    res.status(400).json({ error: `Tidak bisa cancel, status saat ini: ${po.status}` });
+    return;
+  }
+  let refundedSaldo = 0;
+  if (po.paymentMethod === "saldo" && po.price > 0) {
+    try {
+      await creditSaldoAtomic(po.userId, po.price, {
+        type: "pre_order_refund",
+        refId: po.id,
+        note: `Refund pre-order dibatalkan admin: ${po.id}`
+      });
+      refundedSaldo = po.price;
+    } catch (err) {
+      logger.error({ err, id: po.id }, "Failed to refund pre-order saldo");
+    }
+  }
+  updatePreOrderStatus(id, "cancelled", { note: note ?? "Dibatalkan admin" });
+  const bot = getBot();
+  if (bot) {
+    const msg = `\u274C <b>PRE ORDER DIBATALKAN</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F516} ID : <code>${po.id}</code>
+\u{1F4E6} Produk : <b>${po.packageName}</b>
+\u{1F4F1} Nomor : <code>${po.nomorTujuan}</code>
+` + (refundedSaldo > 0 ? `\u{1F4B0} Saldo <b>Rp ${refundedSaldo.toLocaleString("id-ID")}</b> telah dikembalikan.
+` : "") + (note ? `\u{1F4DD} Alasan : ${note}
+` : "") + `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`;
+    bot.sendMessage(po.userId, msg, { parse_mode: "HTML" }).catch(() => {
+    });
+  }
+  res.json({ success: true, refundedSaldo });
+});
+router6.post("/pre-orders/:id/refund", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { note } = req.body ?? {};
+  const po = getPreOrderById(id);
+  if (!po) {
+    res.status(404).json({ error: "Pre order tidak ditemukan" });
+    return;
+  }
+  if (po.status !== "done") {
+    res.status(400).json({ error: "Refund hanya bisa dilakukan untuk pre-order yang sudah done" });
+    return;
+  }
+  let refundedSaldo = 0;
+  if (po.paymentMethod === "saldo" && po.price > 0) {
+    try {
+      await creditSaldoAtomic(po.userId, po.price, {
+        type: "pre_order_refund",
+        refId: po.id,
+        note: `Refund manual pre-order: ${po.id}`
+      });
+      refundedSaldo = po.price;
+    } catch (err) {
+      logger.error({ err, id: po.id }, "Failed to refund pre-order saldo");
+    }
+  }
+  updatePreOrderStatus(id, "refunded", { note: note ?? "Refund manual admin" });
+  const bot = getBot();
+  if (bot) {
+    const msg = `\u{1F4B0} <b>REFUND PRE ORDER</b>
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F516} ID : <code>${po.id}</code>
+\u{1F4E6} Produk : <b>${po.packageName}</b>
+\u{1F4F1} Nomor : <code>${po.nomorTujuan}</code>
+` + (refundedSaldo > 0 ? `\u{1F4B0} Saldo <b>Rp ${refundedSaldo.toLocaleString("id-ID")}</b> telah dikembalikan.
+` : "") + (note ? `\u{1F4DD} Alasan : ${note}
+` : "") + `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`;
+    bot.sendMessage(po.userId, msg, { parse_mode: "HTML" }).catch(() => {
+    });
+  }
+  res.json({ success: true, refundedSaldo });
+});
+var preOrders_default = router6;
+
+// src/routes/webhook.ts
+var import_express7 = __toESM(require_express2(), 1);
+init_logger();
+init_orders();
+var router7 = (0, import_express7.Router)();
+router7.post("/pakasir", async (req, res) => {
   const { order_id, amount, status, project } = req.body;
   logger.info({ order_id, amount, status, project, body: req.body }, "Pakasir webhook received");
   if (!order_id || !status) {
@@ -103551,11 +104137,13 @@ Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
   logger.info({ order_id, userId: topup.userId }, "Topup completed via webhook");
   return res.json({ ok: true, message: "Topup processed" });
 });
-var webhook_default = router6;
+var webhook_default = router7;
 
 // src/routes/dopuCallback.ts
-var import_express7 = __toESM(require_express2(), 1);
-var router7 = (0, import_express7.Router)();
+var import_express8 = __toESM(require_express2(), 1);
+init_logger();
+init_orders();
+var router8 = (0, import_express8.Router)();
 var recentDopuCallbacks = [];
 function storeDebugPayload(method, query2, body) {
   recentDopuCallbacks.unshift({
@@ -103676,26 +104264,28 @@ Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
   }
   logger.info({ reffId: reffId2, dopuTrxId, rawStatus, message }, "DOPU callback: status unclear \u2014 still pending");
 }
-router7.all("/dopu/callback", async (req, res) => {
+router8.all("/dopu/callback", async (req, res) => {
   storeDebugPayload(req.method, req.query, req.body);
   res.status(200).json({ status: "ok" });
   await handleDopuCallback({ ...req.query, ...req.body });
 });
-router7.post("/webhook/dopu", async (req, res) => {
+router8.post("/webhook/dopu", async (req, res) => {
   storeDebugPayload(req.method, req.query, req.body);
   res.status(200).json({ status: "ok" });
   await handleDopuCallback({ ...req.query, ...req.body });
 });
-router7.get("/webhook/dopu", async (req, res) => {
+router8.get("/webhook/dopu", async (req, res) => {
   storeDebugPayload(req.method, req.query, req.body);
   res.status(200).json({ status: "ok" });
   await handleDopuCallback(req.query);
 });
-var dopuCallback_default = router7;
+var dopuCallback_default = router8;
 
 // src/routes/digiflazCallback.ts
-var import_express8 = __toESM(require_express2(), 1);
-var router8 = (0, import_express8.Router)();
+var import_express9 = __toESM(require_express2(), 1);
+init_logger();
+init_orders();
+var router9 = (0, import_express9.Router)();
 var recentDigiflazCallbacks = [];
 function storeDebugPayload2(body) {
   recentDigiflazCallbacks.unshift({ ts: (/* @__PURE__ */ new Date()).toISOString(), body });
@@ -103799,20 +104389,20 @@ Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
   }
   logger.info({ refId, rawStatus, message }, "Digiflaz callback: status unclear \u2014 still pending");
 }
-router8.post("/webhook/digiflaz", async (req, res) => {
+router9.post("/webhook/digiflaz", async (req, res) => {
   storeDebugPayload2(req.body);
   res.status(200).json({ status: "ok" });
   await handleDigiflazCallback(req.body ?? {});
 });
-router8.get("/webhook/digiflaz", async (req, res) => {
+router9.get("/webhook/digiflaz", async (req, res) => {
   storeDebugPayload2(req.query);
   res.status(200).json({ status: "ok" });
   await handleDigiflazCallback(req.query);
 });
-router8.get("/digiflaz-debug", (_req, res) => {
+router9.get("/digiflaz-debug", (_req, res) => {
   res.json({ count: recentDigiflazCallbacks.length, callbacks: recentDigiflazCallbacks });
 });
-router8.get("/orders-debug", (_req, res) => {
+router9.get("/orders-debug", (_req, res) => {
   const all3 = getAllOrders();
   const processing = all3.filter((o) => o.status === "processing" || o.status === "pending");
   const recent = all3.slice(0, 20);
@@ -103837,11 +104427,13 @@ router8.get("/orders-debug", (_req, res) => {
     }))
   });
 });
-var digiflazCallback_default = router8;
+var digiflazCallback_default = router9;
 
 // src/routes/khfyCallback.ts
-var import_express9 = __toESM(require_express2(), 1);
-var router9 = (0, import_express9.Router)();
+var import_express10 = __toESM(require_express2(), 1);
+init_logger();
+init_orders();
+var router10 = (0, import_express10.Router)();
 var recentKhfyCallbacks = [];
 async function handleKhfyCallback(body) {
   logger.info({ body }, "KHFY callback received \u2014 raw payload");
@@ -103933,30 +104525,32 @@ Saldo sekarang: <b>Rp ${(refunded?.saldo ?? 0).toLocaleString("id-ID")}</b>`,
   }
   logger.info({ refId, rawStatus, message }, "KHFY callback: status unclear \u2014 still pending");
 }
-router9.post("/webhook/khfy", async (req, res) => {
+router10.post("/webhook/khfy", async (req, res) => {
   res.status(200).json({ status: "ok" });
   await handleKhfyCallback(req.body ?? {});
 });
-router9.get("/webhook/khfy", async (_req, res) => {
+router10.get("/webhook/khfy", async (_req, res) => {
   res.status(200).json({ status: "ok", message: "KHFY webhook endpoint active" });
 });
-var khfyCallback_default = router9;
+var khfyCallback_default = router10;
 
 // src/routes/index.ts
-var router10 = (0, import_express10.Router)();
-router10.use(health_default);
-router10.use(auth_default);
-router10.use("/admin", packages_default);
-router10.use("/admin", settings_default);
-router10.use("/admin", broadcast_default);
-router10.use("/webhook", webhook_default);
-router10.use(dopuCallback_default);
-router10.use(digiflazCallback_default);
-router10.use(khfyCallback_default);
-router10.get("/dopu-debug", (_req, res) => {
+var router11 = (0, import_express11.Router)();
+router11.use(health_default);
+router11.use(auth_default);
+router11.use("/admin", packages_default);
+router11.use("/admin", settings_default);
+router11.use("/admin", broadcast_default);
+router11.use("/admin", preOrders_default);
+router11.use("/admin", preOrders_default);
+router11.use("/webhook", webhook_default);
+router11.use(dopuCallback_default);
+router11.use(digiflazCallback_default);
+router11.use(khfyCallback_default);
+router11.get("/dopu-debug", (_req, res) => {
   res.json({ count: recentDopuCallbacks.length, callbacks: recentDopuCallbacks });
 });
-router10.get("/khfy-debug", async (_req, res) => {
+router11.get("/khfy-debug", async (_req, res) => {
   const baseUrl = process.env.API2_BASE_URL ?? "";
   const apiKey = process.env.API2_KEY ?? "";
   if (!baseUrl || !apiKey) {
@@ -103996,10 +104590,11 @@ router10.get("/khfy-debug", async (_req, res) => {
     res.json({ error: err?.message ?? "Unknown error", response: err?.response?.data });
   }
 });
-var routes_default = router10;
+var routes_default = router11;
 
 // src/app.ts
-var app = (0, import_express11.default)();
+init_logger();
+var app = (0, import_express12.default)();
 var ALLOWED_ORIGIN = process.env.CORS_ORIGIN ?? "";
 app.use(
   (0, import_cors.default)({
@@ -104031,8 +104626,8 @@ app.use(
     }
   })
 );
-app.use(import_express11.default.json());
-app.use(import_express11.default.urlencoded({ extended: true }));
+app.use(import_express12.default.json());
+app.use(import_express12.default.urlencoded({ extended: true }));
 app.use(dopuCallback_default);
 app.use("/api", dopuCallback_default);
 app.use(digiflazCallback_default);
@@ -104047,6 +104642,7 @@ app.get(["/admin", "/admin/", "/admin/*splat"], (_req, res) => {
 var app_default = app;
 
 // src/index.ts
+init_logger();
 var rawPort = process.env["PORT"] ?? "3000";
 var port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
